@@ -76,7 +76,7 @@ export default function Clientes() {
       const workbook = XLSX.read(data, { cellDates: false });
       const abas = ["ELITE", "WAREZ", "CENTRAL"];
       let total = 0;
-      let ignorados = 0;
+      const ignorados: string[] = [];
       for (const aba of abas) {
         const sheet = workbook.Sheets[aba];
         if (!sheet) continue;
@@ -96,8 +96,12 @@ export default function Clientes() {
           const row = rows[i];
           const nome = row[nomeIdx]?.toString().trim();
           if (!nome) continue;
-          const telefone = row[telefoneIdx]?.toString().replace(/\D/g, "");
-          if (!telefone || telefone.length < 8) { ignorados++; continue; }
+          const telefoneRaw = row[telefoneIdx]?.toString() || "";
+          const telefone = telefoneRaw.replace(/\D/g, "");
+          if (!telefone || telefone.length < 6) {
+            ignorados.push(`${nome} (${aba}) - tel: "${telefoneRaw}"`);
+            continue;
+          }
           const servidorVal = row[servidorIdx]?.toString().trim() || "";
           const tipo = servidorVal.toUpperCase().includes("IPTV") ? "IPTV" : "P2P";
           const vencimento = parseExcelDate(row[validadeIdx]);
@@ -115,13 +119,16 @@ export default function Clientes() {
           total++;
         }
       }
-      setImportResult({ tipo: "ok", msg: `${total} clientes importados!${ignorados > 0 ? ` (${ignorados} ignorados)` : ""}` });
-    } catch {
+      const msgIgnorados = ignorados.length > 0
+        ? ` | Ignorados (${ignorados.length}): ${ignorados.join(" / ")}`
+        : "";
+      setImportResult({ tipo: "ok", msg: `${total} clientes importados!${msgIgnorados}` });
+    } catch (err) {
       setImportResult({ tipo: "erro", msg: "Erro ao ler o arquivo Excel." });
     } finally {
       setImportando(false);
       e.target.value = "";
-      setTimeout(() => setImportResult(null), 6000);
+      setTimeout(() => setImportResult(null), 15000);
     }
   };
 
@@ -219,7 +226,7 @@ export default function Clientes() {
           background: importResult.tipo === "ok" ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)",
           border: importResult.tipo === "ok" ? "1px solid rgba(34,197,94,0.3)" : "1px solid rgba(239,68,68,0.3)",
           color: importResult.tipo === "ok" ? "#4ade80" : "#f87171",
-          fontWeight: "600", fontSize: "14px"
+          fontWeight: "600", fontSize: "13px", wordBreak: "break-word"
         }}>
           {importResult.msg}
         </div>
@@ -236,7 +243,7 @@ export default function Clientes() {
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
-              {["Nome", "Telefone", "Tipo", "Servidor", "Usuário", "Vencimento", "Valor", "Status", "Ações"].map((h) => (
+              {["Nome", "Telefone", "Tipo", "Servidor", "Usuario", "Vencimento", "Valor", "Status", "Acoes"].map((h) => (
                 <th key={h} style={{ padding: "14px 16px", textAlign: "left", color: "rgba(255,255,255,0.4)", fontSize: "12px", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.05em" }}>{h}</th>
               ))}
             </tr>
@@ -260,7 +267,7 @@ export default function Clientes() {
                   <td style={{ padding: "14px 16px", color: "rgba(255,255,255,0.6)", fontSize: "14px" }}>{cliente.usuario}</td>
                   <td style={{ padding: "14px 16px", color: "rgba(255,255,255,0.6)", fontSize: "14px" }}>{cliente.vencimento}</td>
                   <td style={{ padding: "14px 16px", color: "#4ade80", fontWeight: "600", fontSize: "14px" }}>
-                    {cliente.valor ? `R$ ${parseFloat(cliente.valor).toFixed(2).replace(".", ",")}` : "—"}
+                    {cliente.valor ? `R$ ${parseFloat(cliente.valor).toFixed(2).replace(".", ",")}` : "-"}
                   </td>
                   <td style={{ padding: "14px 16px" }}>
                     <span style={{ background: sc.bg, border: sc.border, color: sc.text, padding: "4px 10px", borderRadius: "20px", fontSize: "12px", fontWeight: "600" }}>
@@ -291,7 +298,7 @@ export default function Clientes() {
               {[
                 { label: "Nome *",     key: "nome",       placeholder: "Nome completo" },
                 { label: "Telefone",   key: "telefone",   placeholder: "Ex: 13999999999" },
-                { label: "Usuário",    key: "usuario",    placeholder: "Usuário IPTV" },
+                { label: "Usuario",    key: "usuario",    placeholder: "Usuario IPTV" },
                 { label: "Senha",      key: "senha",      placeholder: "Senha IPTV" },
                 { label: "Vencimento", key: "vencimento", placeholder: "DD/MM/AAAA" },
                 { label: "Valor (R$)", key: "valor",      placeholder: "Ex: 35.00" },
@@ -325,7 +332,7 @@ export default function Clientes() {
               <div>
                 <label style={{ color: "rgba(255,255,255,0.7)", fontSize: "13px", display: "block", marginBottom: "6px" }}>Servidor</label>
                 <select value={form.servidor} onChange={(e) => setForm({ ...form, servidor: e.target.value })}
-                  style={{ inputStyle, cursor: "pointer" } as any}>
+                  style={{ ...inputStyle, cursor: "pointer" }}>
                   <option value="" style={{ background: "#1e1e2e" }}>Selecione um servidor</option>
                   {servidores.map((s) => (
                     <option key={s.id} value={s.nome} style={{ background: "#1e1e2e" }}>{s.nome}</option>
