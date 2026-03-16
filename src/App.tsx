@@ -6,6 +6,7 @@ import Dashboard from "./pages/Dashboard";
 import Clientes from "./pages/Clientes";
 import Servidores from "./pages/Servidores";
 import Notificacoes from "./pages/Notificacoes";
+import DashboardFinanceiro from "./pages/DashboardFinanceiro";
 
 function RotasProtegidas({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
@@ -28,6 +29,7 @@ function App() {
             <Route path="clientes" element={<Clientes />} />
             <Route path="servidores" element={<Servidores />} />
             <Route path="notificacoes" element={<Notificacoes />} />
+            <Route path="financeiro" element={<DashboardFinanceiro />} />
           </Route>
           <Route path="*" element={<Navigate to="/login" />} />
         </Routes>

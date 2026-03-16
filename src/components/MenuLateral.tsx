@@ -1,11 +1,12 @@
 ﻿import { NavLink, useNavigate } from "react-router-dom";
-import { LayoutDashboard, Users, MessageSquare, LogOut, Tv, Server } from "lucide-react";
+import { LayoutDashboard, Users, MessageSquare, LogOut, Tv, Server, TrendingUp } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 
 const menus = [
-  { path: "/dashboard", icon: <LayoutDashboard size={20} />, label: "Dashboard" },
-  { path: "/clientes", icon: <Users size={20} />, label: "Clientes" },
-  { path: "/servidores", icon: <Server size={20} />, label: "Servidores" },
+  { path: "/dashboard",  icon: <LayoutDashboard size={20} />, label: "Dashboard" },
+  { path: "/clientes",   icon: <Users size={20} />,           label: "Clientes" },
+  { path: "/servidores", icon: <Server size={20} />,          label: "Servidores" },
+  { path: "/financeiro", icon: <TrendingUp size={20} />,      label: "Financeiro" },
   { path: "/notificacoes", icon: <MessageSquare size={20} />, label: "WhatsApp" },
 ];
 
