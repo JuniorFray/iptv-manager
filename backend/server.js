@@ -201,4 +201,16 @@ app.get("/logs", async (req, res) => {
   res.json(logs);
 });
 
+app.post("/logout", async (req, res) => {
+  try {
+    await client.logout();
+    clientReady = false;
+    qrCodeBase64 = null;
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.listen(3001, () => console.log("Servidor rodando na porta 3001"));
+

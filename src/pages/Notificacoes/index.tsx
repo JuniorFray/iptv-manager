@@ -81,6 +81,7 @@ export default function Notificacoes() {
   const [salvando, setSalvando]       = useState(false);
   const [saved, setSaved]             = useState(false);
   const [disparando, setDisparando]   = useState(false);
+  const [desconectando, setDesconectando] = useState(false);
   const intervalRef                   = useRef<any>(null);
   const prevReady                     = useRef(false);
   const prevQr                        = useRef("");
@@ -514,6 +515,8 @@ export default function Notificacoes() {
     </div>
   );
 }
+
+
 
 
 
