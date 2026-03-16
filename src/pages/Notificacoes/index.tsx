@@ -4,7 +4,7 @@ import { db } from "../../firebase";
 import { Send, Users, CheckCircle, Plus, Trash2, X, BookOpen, Wifi, WifiOff, QrCode, Settings, Clock, CheckCircle2, XCircle, Play, Save } from "lucide-react";
 import axios from "axios";
 
-const API = "http://localhost:3001";
+const API = "https://iptv-manager-production.up.railway.app";
 
 interface Cliente { id: string; nome: string; telefone: string; servidor: string; tipo: string; status: string; vencimento: string; }
 interface ModeloMensagem { id: string; titulo: string; texto: string; }
@@ -514,5 +514,6 @@ export default function Notificacoes() {
     </div>
   );
 }
+
 
 
