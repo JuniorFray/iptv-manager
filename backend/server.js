@@ -160,8 +160,8 @@ iniciarCron();
 
 // ---- Rotas ----
 
-app.get("/qrcode", (req, res) => {
-  res.json({ qr: qrCodeBase64, conectado: clientReady });
+app.get("/status", (req, res) => {
+  res.json({ qr: qrCodeBase64, ready: clientReady });
 });
 
 app.post("/send", async (req, res) => {
@@ -207,10 +207,14 @@ app.post("/logout", async (req, res) => {
     clientReady = false;
     qrCodeBase64 = null;
     res.json({ success: true });
+    setTimeout(() => { client.initialize(); }, 3000);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
 app.listen(3001, () => console.log("Servidor rodando na porta 3001"));
+
+
+
 
