@@ -54,6 +54,7 @@ export default function Notificacoes() {
   const [filtro, setFiltro]           = useState("todos");
   const [clienteSel, setClienteSel]   = useState<Cliente | null>(null);
   const [mensagem, setMensagem]       = useState("");
+  const [template, setTemplate]       = useState(""); // ✅ guarda o texto original com placeholders
   const [busca, setBusca]             = useState("");
   const [intervalo, setIntervalo]     = useState(2000);
   const [modalModelo, setModalModelo] = useState(false);
@@ -132,18 +133,19 @@ export default function Notificacoes() {
     return lista;
   })();
 
+  // ✅ Substitui sempre a partir do texto bruto com placeholders
   const substituir = (texto: string, c: Cliente) =>
-  texto
-    .replace(/\[NOME\]/g, c.nome || "")
-    .replace(/\[VENCIMENTO\]/g, c.vencimento || "")
-    .replace(/\[SERVIDOR\]/g, c.servidor || "")
-    .replace(/\[VALOR\]/g, c.valor ? `R$ ${parseFloat(c.valor).toFixed(2).replace(".", ",")}` : "");
+    texto
+      .replace(/\[NOME\]/g, c.nome || "")
+      .replace(/\[VENCIMENTO\]/g, c.vencimento || "")
+      .replace(/\[SERVIDOR\]/g, c.servidor || "")
+      .replace(/\[VALOR\]/g, c.valor ? `R$ ${parseFloat(c.valor).toFixed(2).replace(".", ",")}` : "");
 
   // ✅ Garante que o telefone tenha exatamente um prefixo 55
   const formatarTelefone = (tel: string) => {
-    let num = tel.replace(/\D/g, ""); // remove tudo que não é número
-    if (num.startsWith("5555")) num = num.substring(2); // remove 55 duplicado
-    else if (!num.startsWith("55")) num = "55" + num;  // adiciona se não tiver
+    let num = tel.replace(/\D/g, "");
+    if (num.startsWith("5555")) num = num.substring(2);
+    else if (!num.startsWith("55")) num = "55" + num;
     return num;
   };
 
@@ -157,7 +159,9 @@ export default function Notificacoes() {
     if (confirm("Excluir este modelo?")) await deleteDoc(doc(db, "modelosMensagens", id));
   };
 
+  // ✅ Salva o template bruto e já renderiza para o cliente selecionado (se houver)
   const aplicarModelo = (m: ModeloMensagem) => {
+    setTemplate(m.texto);
     setMensagem(clienteSel ? substituir(m.texto, clienteSel) : m.texto);
   };
 
@@ -175,15 +179,17 @@ export default function Notificacoes() {
     setTimeout(() => setResultado(null), 4000);
   };
 
+  // ✅ Usa sempre o template original para substituir por cada cliente
   const enviarTodos = async () => {
     if (enviando || clientesFiltrados.length === 0 || !mensagem.trim()) return;
     setEnviando(true); setProgresso(0);
+    const base = template || mensagem;
     for (let i = 0; i < clientesFiltrados.length; i++) {
       const c = clientesFiltrados[i];
       try {
         await fetch(API + "/send", {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ phone: formatarTelefone(c.telefone), message: substituir(mensagem, c) })
+          body: JSON.stringify({ phone: formatarTelefone(c.telefone), message: substituir(base, c) })
         });
       } catch {}
       setProgresso(i + 1);
@@ -299,7 +305,11 @@ export default function Notificacoes() {
                 {clientesFiltrados.length === 0 ? (
                   <p style={{ color: "rgba(255,255,255,0.3)", fontSize: "13px", textAlign: "center", padding: "16px 0", margin: 0 }}>Nenhum cliente</p>
                 ) : clientesFiltrados.map((c) => (
-                  <button key={c.id} onClick={() => { setClienteSel(c); if (mensagem) setMensagem(substituir(mensagem, c)); }} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", borderRadius: "8px", cursor: "pointer", background: clienteSel?.id === c.id ? filtroAtual.bg : "rgba(255,255,255,0.03)", border: clienteSel?.id === c.id ? "1px solid " + filtroAtual.border : "1px solid rgba(255,255,255,0.06)", color: "white", textAlign: "left" }}>
+                  // ✅ Ao trocar de cliente, substitui sempre a partir do template original
+                  <button key={c.id} onClick={() => {
+                    setClienteSel(c);
+                    if (template) setMensagem(substituir(template, c));
+                  }} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", borderRadius: "8px", cursor: "pointer", background: clienteSel?.id === c.id ? filtroAtual.bg : "rgba(255,255,255,0.03)", border: clienteSel?.id === c.id ? "1px solid " + filtroAtual.border : "1px solid rgba(255,255,255,0.06)", color: "white", textAlign: "left" }}>
                     <div>
                       <span style={{ fontSize: "14px", fontWeight: "500" }}>{c.nome}</span>
                       <span style={{ display: "block", fontSize: "11px", color: "rgba(255,255,255,0.4)" }}>{c.telefone}</span>
@@ -332,7 +342,8 @@ export default function Notificacoes() {
             </div>
             <div className="glass-card" style={{ padding: "20px" }}>
               <h3 style={{ color: "white", margin: "0 0 14px", fontSize: "15px" }}>Editar Mensagem</h3>
-              <textarea value={mensagem} onChange={(e) => setMensagem(e.target.value)} placeholder="Selecione um modelo ou escreva sua mensagem..." rows={5} style={{ ...inputStyle, resize: "vertical", fontFamily: "inherit", lineHeight: "1.6" }} />
+              {/* ✅ Edição manual também atualiza o template */}
+              <textarea value={mensagem} onChange={(e) => { setMensagem(e.target.value); setTemplate(e.target.value); }} placeholder="Selecione um modelo ou escreva sua mensagem..." rows={5} style={{ ...inputStyle, resize: "vertical", fontFamily: "inherit", lineHeight: "1.6" }} />
               <button onClick={enviarUm} disabled={!clienteSel || !mensagem.trim() || !whatsReady} style={{ width: "100%", marginTop: "12px", padding: "13px", borderRadius: "12px", border: "none", cursor: "pointer", background: !clienteSel || !mensagem.trim() || !whatsReady ? "rgba(255,255,255,0.08)" : "linear-gradient(135deg,#25d366,#128c7e)", color: !clienteSel || !mensagem.trim() || !whatsReady ? "rgba(255,255,255,0.3)" : "white", fontWeight: "bold", fontSize: "15px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
                 <Send size={18} /> {!whatsReady ? "WhatsApp desconectado" : "Enviar para " + (clienteSel ? clienteSel.nome : "...")}
               </button>
@@ -524,7 +535,7 @@ export default function Notificacoes() {
               </div>
               <div>
                 <label style={{ color: "rgba(255,255,255,0.7)", fontSize: "13px", display: "block", marginBottom: "6px" }}>Texto *</label>
-                <textarea value={novoTexto} onChange={(e) => setNovoTexto(e.target.value)} placeholder="Ola {nome}! Seu plano {tipo} vence em {vencimento}." rows={5} style={{ ...inputStyle, resize: "vertical", fontFamily: "inherit", lineHeight: "1.6" }} />
+                <textarea value={novoTexto} onChange={(e) => setNovoTexto(e.target.value)} placeholder="Ola [NOME]! Seu plano vence em [VENCIMENTO]." rows={5} style={{ ...inputStyle, resize: "vertical", fontFamily: "inherit", lineHeight: "1.6" }} />
               </div>
               <div style={{ display: "flex", gap: "12px" }}>
                 <button onClick={() => setModalModelo(false)} style={{ flex: 1, padding: "12px", borderRadius: "12px", border: "1px solid rgba(255,255,255,0.15)", background: "transparent", color: "rgba(255,255,255,0.6)", cursor: "pointer" }}>Cancelar</button>
