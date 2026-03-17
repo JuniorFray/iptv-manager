@@ -1,15 +1,13 @@
-﻿const express = require("express");
-const cors = require("cors");
-const makeWASocket = require("@whiskeysockets/baileys").default;
-const {
-  useMultiFileAuthState,
-  DisconnectReason,
-  fetchLatestBaileysVersion,
-} = require("@whiskeysockets/baileys");
-const { Boom } = require("@hapi/boom");
-const qrcode = require("qrcode");
-const cron = require("node-cron");
-const admin = require("firebase-admin");
+﻿import express from "express";
+import cors from "cors";
+import makeWASocket, { useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } from "@whiskeysockets/baileys";
+import { Boom } from "@hapi/boom";
+import qrcode from "qrcode";
+import cron from "node-cron";
+import admin from "firebase-admin";
+import { createRequire } from "module";
+
+const require = createRequire(import.meta.url);
 const serviceAccount = require("./serviceAccountKey.json");
 
 admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
@@ -55,12 +53,9 @@ const conectar = async () => {
       clientReady = false;
       const motivo = new Boom(lastDisconnect?.error)?.output?.statusCode;
       console.log("Desconectado. Motivo:", motivo);
-
       if (motivo === DisconnectReason.loggedOut) {
-        console.log("Sessão encerrada. Aguardando novo QR.");
         await conectar();
       } else {
-        console.log("Reconectando em 5s...");
         setTimeout(conectar, 5000);
       }
     }
