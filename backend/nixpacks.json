@@ -1,1 +1,6 @@
-{"phases":{"install":{"cmds":["npm install --legacy-peer-deps"]}}}
+{
+  "providers": ["node"],
+  "nodejs": {
+    "version": "20"
+  }
+}
