@@ -6,7 +6,7 @@ import axios from "axios";
 
 const API = "https://iptv-manager-production.up.railway.app";
 
-interface Cliente { id: string; nome: string; telefone: string; servidor: string; tipo: string; status: string; vencimento: string; }
+interface Cliente { id: string; nome: string; telefone: string; servidor: string; tipo: string; status: string; vencimento: string; valor: string; }
 interface ModeloMensagem { id: string; titulo: string; texto: string; }
 interface LogEntry { id: string; clienteNome: string; telefone: string; gatilho: string; mensagem: string; status: string; data: string; hora: string; }
 interface Regra { ativo: boolean; mensagem: string; }
@@ -133,8 +133,19 @@ export default function Notificacoes() {
   })();
 
   const substituir = (texto: string, c: Cliente) =>
-    texto.replace(/\[NOME\]/g, c.nome).replace(/\[VENCIMENTO\]/g, c.vencimento)
-         .replace(/\[SERVIDOR\]/g, c.servidor || "").replace(/\[VALOR\]/g, "");
+    texto
+      .replace(/\[NOME\]/g, c.nome || "")
+      .replace(/\[VENCIMENTO\]/g, c.vencimento || "")
+      .replace(/\[SERVIDOR\]/g, c.servidor || "")
+      .replace(/\[VALOR\]/g, "");
+
+  // ✅ Garante que o telefone tenha exatamente um prefixo 55
+  const formatarTelefone = (tel: string) => {
+    let num = tel.replace(/\D/g, ""); // remove tudo que não é número
+    if (num.startsWith("5555")) num = num.substring(2); // remove 55 duplicado
+    else if (!num.startsWith("55")) num = "55" + num;  // adiciona se não tiver
+    return num;
+  };
 
   const salvarModelo = async () => {
     if (!novoTitulo.trim() || !novoTexto.trim()) return;
@@ -150,13 +161,12 @@ export default function Notificacoes() {
     setMensagem(clienteSel ? substituir(m.texto, clienteSel) : m.texto);
   };
 
-  // ✅ CORRIGIDO: campos phone/message + verifica data.success
   const enviarUm = async () => {
     if (!clienteSel || !mensagem.trim()) return;
     try {
       const res = await fetch(API + "/send", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: clienteSel.telefone, message: mensagem })
+        body: JSON.stringify({ phone: formatarTelefone(clienteSel.telefone), message: mensagem })
       });
       const data = await res.json();
       if (data.success) setResultado({ tipo: "ok", msg: "Mensagem enviada para " + clienteSel.nome + "!" });
@@ -165,7 +175,6 @@ export default function Notificacoes() {
     setTimeout(() => setResultado(null), 4000);
   };
 
-  // ✅ CORRIGIDO: campos phone/message
   const enviarTodos = async () => {
     if (enviando || clientesFiltrados.length === 0 || !mensagem.trim()) return;
     setEnviando(true); setProgresso(0);
@@ -174,7 +183,7 @@ export default function Notificacoes() {
       try {
         await fetch(API + "/send", {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ phone: c.telefone, message: substituir(mensagem, c) })
+          body: JSON.stringify({ phone: formatarTelefone(c.telefone), message: substituir(mensagem, c) })
         });
       } catch {}
       setProgresso(i + 1);
