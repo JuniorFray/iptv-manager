@@ -153,7 +153,7 @@ export default function Notificacoes() {
   const enviarUm = async () => {
     if (!clienteSel || !mensagem.trim()) return;
     try {
-      const res = await fetch(API + "/enviar", {
+      const res = await fetch(API + "/send", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ telefone: clienteSel.telefone, mensagem })
       });
@@ -170,7 +170,7 @@ export default function Notificacoes() {
     for (let i = 0; i < clientesFiltrados.length; i++) {
       const c = clientesFiltrados[i];
       try {
-        await fetch(API + "/enviar", {
+        await fetch(API + "/send", {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ telefone: c.telefone, mensagem: substituir(mensagem, c) })
         });
