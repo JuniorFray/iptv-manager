@@ -215,6 +215,9 @@ const executarEnvioAutomatico = async () => {
       const numero = normalizarTelefone(cliente.telefone);
 
       try {
+        console.log("Cliente:", JSON.stringify(cliente));
+console.log("Mensagem antes:", regra.mensagem);
+console.log("Mensagem depois:", mensagem);
         await sock.sendMessage(numero, { text: mensagem });
         await salvarLog(cliente.nome, cliente.telefone, key, mensagem, "enviado");
         console.log(`Enviado para ${cliente.nome} (${key})`);
@@ -257,12 +260,15 @@ app.post("/send", async (req, res) => {
     return res.status(503).json({ error: "WhatsApp não conectado" });
 
   try {
-    const numero = normalizarTelefone(phone);
-    await sock.sendMessage(numero, { text: message });
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  const numero = normalizarTelefone(phone);
+  console.log("Phone recebido:", phone);
+  console.log("Phone normalizado:", numero);
+  console.log("Message recebida:", message);
+  await sock.sendMessage(numero, { text: message });
+  res.json({ success: true });
+} catch (err) {
+  res.status(500).json({ error: err.message });
+}
 });
 
 app.post("/send-automatico", async (req, res) => {
