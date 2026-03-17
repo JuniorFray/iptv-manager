@@ -176,7 +176,7 @@ export default function Notificacoes() {
     try {
       const res = await fetch(API + "/send", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: formatarTelefone(clienteSel.telefone), message: mensagem })
+        body: JSON.stringify({ phone: formatarTelefone(clienteSel.telefone), message: substituir(mensagem, clienteSel) })
       });
       const data = await res.json();
       if (data.success) setResultado({ tipo: "ok", msg: "Mensagem enviada para " + clienteSel.nome + "!" });
