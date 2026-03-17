@@ -2,5 +2,10 @@
   "providers": ["node"],
   "nodejs": {
     "version": "20"
+  },
+  "phases": {
+    "install": {
+      "cmds": ["npm install --legacy-peer-deps"]
+    }
   }
 }
