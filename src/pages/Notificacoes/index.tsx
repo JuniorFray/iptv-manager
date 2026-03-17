@@ -133,11 +133,11 @@ export default function Notificacoes() {
   })();
 
   const substituir = (texto: string, c: Cliente) =>
-    texto
-      .replace(/\[NOME\]/g, c.nome || "")
-      .replace(/\[VENCIMENTO\]/g, c.vencimento || "")
-      .replace(/\[SERVIDOR\]/g, c.servidor || "")
-      .replace(/\[VALOR\]/g, "");
+  texto
+    .replace(/\[NOME\]/g, c.nome || "")
+    .replace(/\[VENCIMENTO\]/g, c.vencimento || "")
+    .replace(/\[SERVIDOR\]/g, c.servidor || "")
+    .replace(/\[VALOR\]/g, c.valor ? `R$ ${parseFloat(c.valor).toFixed(2).replace(".", ",")}` : "");
 
   // ✅ Garante que o telefone tenha exatamente um prefixo 55
   const formatarTelefone = (tel: string) => {
