@@ -208,6 +208,13 @@ export default function Notificacoes() {
     setConfig({ ...config, regras: { ...config.regras, [key]: { ...config.regras[key as keyof typeof config.regras], [field]: value } } });
   };
 
+  const desconectarWhatsApp = async () => {
+    setDesconectando(true);
+    try { await axios.post(`${API}/logout`); } catch {}
+    setDesconectando(false);
+    setMostrarQR(false);
+  };
+
   const gatilhoLabel = (key: string) => REGRAS_INFO.find(r => r.key === key)?.label || key;
   const gatilhoCor   = (key: string) => REGRAS_INFO.find(r => r.key === key)?.cor || "255,255,255";
 
@@ -470,8 +477,14 @@ export default function Notificacoes() {
             </div>
             {whatsReady ? (
               <div style={{ padding: "24px" }}>
-                <p style={{ color: "#4ade80", fontWeight: "bold", fontSize: "16px" }}>WhatsApp Conectado!</p>
-                <button onClick={() => setMostrarQR(false)} style={{ marginTop: "16px", padding: "10px 24px", borderRadius: "10px", border: "none", background: "linear-gradient(135deg,#25d366,#128c7e)", color: "white", cursor: "pointer", fontWeight: "bold" }}>Fechar</button>
+                <CheckCircle2 size={48} color="#4ade80" style={{ marginBottom: "12px" }} />
+                <p style={{ color: "#4ade80", fontWeight: "bold", fontSize: "16px", marginBottom: "20px" }}>WhatsApp Conectado!</p>
+                <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
+                  <button onClick={() => setMostrarQR(false)} style={{ padding: "10px 24px", borderRadius: "10px", border: "none", background: "linear-gradient(135deg,#25d366,#128c7e)", color: "white", cursor: "pointer", fontWeight: "bold" }}>Fechar</button>
+                  <button onClick={desconectarWhatsApp} disabled={desconectando} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "10px 24px", borderRadius: "10px", border: "1px solid rgba(239,68,68,0.4)", background: "rgba(239,68,68,0.15)", color: "#f87171", cursor: desconectando ? "not-allowed" : "pointer", fontWeight: "bold", opacity: desconectando ? 0.6 : 1 }}>
+                    <WifiOff size={14} /> {desconectando ? "Desconectando..." : "Desconectar"}
+                  </button>
+                </div>
               </div>
             ) : qrCode ? (
               <div>
@@ -515,8 +528,3 @@ export default function Notificacoes() {
     </div>
   );
 }
-
-
-
-
-
