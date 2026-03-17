@@ -54,7 +54,7 @@ export default function Notificacoes() {
   const [filtro, setFiltro]           = useState("todos");
   const [clienteSel, setClienteSel]   = useState<Cliente | null>(null);
   const [mensagem, setMensagem]       = useState("");
-  const [template, setTemplate]       = useState(""); // ✅ guarda o texto original com placeholders
+  const [template, setTemplate]       = useState("");
   const [busca, setBusca]             = useState("");
   const [intervalo, setIntervalo]     = useState(2000);
   const [modalModelo, setModalModelo] = useState(false);
@@ -133,15 +133,21 @@ export default function Notificacoes() {
     return lista;
   })();
 
-  // ✅ Substitui sempre a partir do texto bruto com placeholders
-  const substituir = (texto: string, c: Cliente) =>
-    texto
-      .replace(/\[NOME\]/g, c.nome || "")
-      .replace(/\[VENCIMENTO\]/g, c.vencimento || "")
-      .replace(/\[SERVIDOR\]/g, c.servidor || "")
-      .replace(/\[VALOR\]/g, c.valor ? `R$ ${parseFloat(c.valor).toFixed(2).replace(".", ",")}` : "");
+  // ✅ Aceita AMBOS os formatos: [NOME] e {nome} — cobre modelos antigos salvos com chaves
+  const substituir = (texto: string, c: Cliente) => {
+    const valor = c.valor ? `R$ ${parseFloat(c.valor).toFixed(2).replace(".", ",")}` : "";
+    return texto
+      .replace(/\[NOME\]/gi,        c.nome       || "")
+      .replace(/\{nome\}/gi,        c.nome       || "")
+      .replace(/\[VENCIMENTO\]/gi,  c.vencimento || "")
+      .replace(/\{vencimento\}/gi,  c.vencimento || "")
+      .replace(/\[SERVIDOR\]/gi,    c.servidor   || "")
+      .replace(/\{servidor\}/gi,    c.servidor   || "")
+      .replace(/\[VALOR\]/gi,       valor)
+      .replace(/\{valor\}/gi,       valor);
+  };
 
-  // ✅ Garante que o telefone tenha exatamente um prefixo 55
+  // ✅ Garante exatamente um prefixo 55
   const formatarTelefone = (tel: string) => {
     let num = tel.replace(/\D/g, "");
     if (num.startsWith("5555")) num = num.substring(2);
@@ -342,8 +348,8 @@ export default function Notificacoes() {
             </div>
             <div className="glass-card" style={{ padding: "20px" }}>
               <h3 style={{ color: "white", margin: "0 0 14px", fontSize: "15px" }}>Editar Mensagem</h3>
-              {/* ✅ Edição manual também atualiza o template */}
-              <textarea value={mensagem} onChange={(e) => { setMensagem(e.target.value); setTemplate(e.target.value); }} placeholder="Selecione um modelo ou escreva sua mensagem..." rows={5} style={{ ...inputStyle, resize: "vertical", fontFamily: "inherit", lineHeight: "1.6" }} />
+              {/* ✅ onChange atualiza template junto para digitação manual funcionar */}
+              <textarea value={mensagem} onChange={(e) => { setMensagem(e.target.value); setTemplate(e.target.value); }} placeholder="Selecione um modelo ou escreva sua mensagem. Use [NOME], [VENCIMENTO], [SERVIDOR], [VALOR]." rows={5} style={{ ...inputStyle, resize: "vertical", fontFamily: "inherit", lineHeight: "1.6" }} />
               <button onClick={enviarUm} disabled={!clienteSel || !mensagem.trim() || !whatsReady} style={{ width: "100%", marginTop: "12px", padding: "13px", borderRadius: "12px", border: "none", cursor: "pointer", background: !clienteSel || !mensagem.trim() || !whatsReady ? "rgba(255,255,255,0.08)" : "linear-gradient(135deg,#25d366,#128c7e)", color: !clienteSel || !mensagem.trim() || !whatsReady ? "rgba(255,255,255,0.3)" : "white", fontWeight: "bold", fontSize: "15px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
                 <Send size={18} /> {!whatsReady ? "WhatsApp desconectado" : "Enviar para " + (clienteSel ? clienteSel.nome : "...")}
               </button>
@@ -534,8 +540,22 @@ export default function Notificacoes() {
                 <input value={novoTitulo} onChange={(e) => setNovoTitulo(e.target.value)} className="input-glass" placeholder="Ex: Aviso de Vencimento" />
               </div>
               <div>
-                <label style={{ color: "rgba(255,255,255,0.7)", fontSize: "13px", display: "block", marginBottom: "6px" }}>Texto *</label>
-                <textarea value={novoTexto} onChange={(e) => setNovoTexto(e.target.value)} placeholder="Ola [NOME]! Seu plano vence em [VENCIMENTO]." rows={5} style={{ ...inputStyle, resize: "vertical", fontFamily: "inherit", lineHeight: "1.6" }} />
+                {/* ✅ Variaveis disponiveis mostradas acima do textarea para o usuario saber o formato certo */}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
+                  <label style={{ color: "rgba(255,255,255,0.7)", fontSize: "13px" }}>Texto *</label>
+                  <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+                    {VARIAVEIS.map(v => (
+                      <span
+                        key={v}
+                        onClick={() => setNovoTexto(t => t + v)}
+                        style={{ background: "rgba(99,102,241,0.2)", border: "1px solid rgba(99,102,241,0.3)", color: "#a5b4fc", padding: "2px 7px", borderRadius: "5px", fontSize: "11px", fontFamily: "monospace", cursor: "pointer" }}
+                        title="Clique para inserir"
+                      >{v}</span>
+                    ))}
+                  </div>
+                </div>
+                {/* ✅ Placeholder mostra o formato correto [NOME] */}
+                <textarea value={novoTexto} onChange={(e) => setNovoTexto(e.target.value)} placeholder="Ex: Ola [NOME]! Seu plano vence em [VENCIMENTO]." rows={5} style={{ ...inputStyle, resize: "vertical", fontFamily: "inherit", lineHeight: "1.6" }} />
               </div>
               <div style={{ display: "flex", gap: "12px" }}>
                 <button onClick={() => setModalModelo(false)} style={{ flex: 1, padding: "12px", borderRadius: "12px", border: "1px solid rgba(255,255,255,0.15)", background: "transparent", color: "rgba(255,255,255,0.6)", cursor: "pointer" }}>Cancelar</button>
