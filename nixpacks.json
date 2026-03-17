@@ -1,0 +1,11 @@
+﻿{
+  "providers": ["node"],
+  "phases": {
+    "build": {
+      "cmds": ["npm install", "npm run build"]
+    },
+    "start": {
+      "cmd": "npx serve dist -l 3000"
+    }
+  }
+}
