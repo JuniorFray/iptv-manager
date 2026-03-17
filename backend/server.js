@@ -1,6 +1,10 @@
 ﻿import express from "express";
 import cors from "cors";
-import makeWASocket, { useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } from "@whiskeysockets/baileys";
+import makeWASocket, {
+  useMultiFileAuthState,
+  DisconnectReason,
+  fetchLatestBaileysVersion
+} from "@whiskeysockets/baileys";
 import { Boom } from "@hapi/boom";
 import qrcode from "qrcode";
 import cron from "node-cron";
@@ -86,14 +90,29 @@ const formatarMensagem = (template, cliente) => {
     .replace(/\[NOME\]/g, cliente.nome || "")
     .replace(/\[VENCIMENTO\]/g, cliente.vencimento || "")
     .replace(/\[SERVIDOR\]/g, cliente.servidor || "")
-    .replace(/\[VALOR\]/g, cliente.valor
-      ? `R$ ${parseFloat(cliente.valor).toFixed(2).replace(".", ",")}`
-      : "");
+    .replace(
+      /\[VALOR\]/g,
+      cliente.valor
+        ? `R$ ${parseFloat(cliente.valor).toFixed(2).replace(".", ",")}`
+        : ""
+    );
+};
+
+// normaliza telefone para ter exatamente um 55 e o sufixo @s.whatsapp.net
+const normalizarTelefone = (tel) => {
+  let num = String(tel).replace(/\D/g, "");
+  if (num.startsWith("5555")) num = num.substring(2);
+  else if (!num.startsWith("55")) num = "55" + num;
+  return `${num}@s.whatsapp.net`;
 };
 
 const salvarLog = async (clienteNome, telefone, gatilho, mensagem, status) => {
   await db.collection("logs_whatsapp").add({
-    clienteNome, telefone, gatilho, mensagem, status,
+    clienteNome,
+    telefone,
+    gatilho,
+    mensagem,
+    status,
     enviadoEm: admin.firestore.FieldValue.serverTimestamp(),
     data: new Date().toLocaleDateString("pt-BR"),
     hora: new Date().toLocaleTimeString("pt-BR"),
@@ -106,11 +125,31 @@ const configPadrao = {
   horario: "09:00",
   ativo: true,
   regras: {
-    dias7: { ativo: true, mensagem: "Olá [NOME]! 👋 Sua assinatura do servidor [SERVIDOR] vence em 7 dias, no dia *[VENCIMENTO]*.\n\nRenove com antecedência para não perder o acesso! 😊" },
-    dias4: { ativo: true, mensagem: "Olá [NOME]! ⚠️ Sua assinatura do servidor [SERVIDOR] vence em 4 dias, no dia *[VENCIMENTO]*.\n\nNão deixe para a última hora, entre em contato para renovar!" },
-    dia0:  { ativo: true, mensagem: "Olá [NOME]! 🚨 Sua assinatura do servidor [SERVIDOR] vence *HOJE*!\n\nRenove agora para não perder o acesso. Valor: *[VALOR]*" },
-    pos1:  { ativo: true, mensagem: "Olá [NOME]! ❌ Sua assinatura do servidor [SERVIDOR] venceu ontem (*[VENCIMENTO]*).\n\nEntre em contato para regularizar e reativar seu acesso!" },
-    pos3:  { ativo: true, mensagem: "Olá [NOME]! 🔴 Sua assinatura do servidor [SERVIDOR] está vencida há 3 dias (*[VENCIMENTO]*).\n\nRegularize seu acesso o quanto antes!" },
+    dias7: {
+      ativo: true,
+      mensagem:
+        "Olá [NOME]! 👋 Sua assinatura do servidor [SERVIDOR] vence em 7 dias, no dia *[VENCIMENTO]*.\n\nRenove com antecedência para não perder o acesso! 😊",
+    },
+    dias4: {
+      ativo: true,
+      mensagem:
+        "Olá [NOME]! ⚠️ Sua assinatura do servidor [SERVIDOR] vence em 4 dias, no dia *[VENCIMENTO]*.\n\nNão deixe para a última hora, entre em contato para renovar!",
+    },
+    dia0: {
+      ativo: true,
+      mensagem:
+        "Olá [NOME]! 🚨 Sua assinatura do servidor [SERVIDOR] vence *HOJE*!\n\nRenove agora para não perder o acesso. Valor: *[VALOR]*",
+    },
+    pos1: {
+      ativo: true,
+      mensagem:
+        "Olá [NOME]! ❌ Sua assinatura do servidor [SERVIDOR] venceu ontem (*[VENCIMENTO]*).\n\nEntre em contato para regularizar e reativar seu acesso!",
+    },
+    pos3: {
+      ativo: true,
+      mensagem:
+        "Olá [NOME]! 🔴 Sua assinatura do servidor [SERVIDOR] está vencida há 3 dias (*[VENCIMENTO]*).\n\nRegularize seu acesso o quanto antes!",
+    },
   },
 };
 
@@ -127,20 +166,26 @@ const getConfig = async () => {
 
 const executarEnvioAutomatico = async () => {
   console.log("Iniciando envio automático...");
-  if (!clientReady) { console.log("WhatsApp não conectado, pulando."); return; }
+  if (!clientReady) {
+    console.log("WhatsApp não conectado, pulando.");
+    return;
+  }
 
   const config = await getConfig();
-  if (!config.ativo) { console.log("Envio automático desativado."); return; }
+  if (!config.ativo) {
+    console.log("Envio automático desativado.");
+    return;
+  }
 
   const snapshot = await db.collection("clientes").get();
   const clientes = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
 
   const regrasMap = [
-    { key: "dias7", diff: 7  },
-    { key: "dias4", diff: 4  },
-    { key: "dia0",  diff: 0  },
-    { key: "pos1",  diff: -1 },
-    { key: "pos3",  diff: -3 },
+    { key: "dias7", diff: 7 },
+    { key: "dias4", diff: 4 },
+    { key: "dia0", diff: 0 },
+    { key: "pos1", diff: -1 },
+    { key: "pos3", diff: -3 },
   ];
 
   for (const cliente of clientes) {
@@ -154,7 +199,7 @@ const executarEnvioAutomatico = async () => {
       if (!regra?.ativo) continue;
 
       const mensagem = formatarMensagem(regra.mensagem, cliente);
-      const numero = `55${cliente.telefone.replace(/\D/g, "")}@s.whatsapp.net`;
+      const numero = normalizarTelefone(cliente.telefone);
 
       try {
         await sock.sendMessage(numero, { text: mensagem });
@@ -177,9 +222,11 @@ const iniciarCron = async () => {
   const config = await getConfig();
   const [hora, minuto] = (config.horario || "09:00").split(":").map(Number);
   if (cronJob) cronJob.stop();
-  cronJob = cron.schedule(`${minuto} ${hora} * * *`, executarEnvioAutomatico, {
-    timezone: "America/Sao_Paulo",
-  });
+  cronJob = cron.schedule(
+    `${minuto} ${hora} * * *`,
+    executarEnvioAutomatico,
+    { timezone: "America/Sao_Paulo" }
+  );
   console.log(`Cron agendado para ${config.horario}`);
 };
 
@@ -193,9 +240,11 @@ app.get("/status", (req, res) => {
 
 app.post("/send", async (req, res) => {
   const { phone, message } = req.body;
-  if (!clientReady) return res.status(503).json({ error: "WhatsApp não conectado" });
+  if (!clientReady)
+    return res.status(503).json({ error: "WhatsApp não conectado" });
+
   try {
-    const numero = `55${phone.replace(/\D/g, "")}@s.whatsapp.net`;
+    const numero = normalizarTelefone(phone);
     await sock.sendMessage(numero, { text: message });
     res.json({ success: true });
   } catch (err) {
@@ -214,13 +263,17 @@ app.get("/config", async (req, res) => {
 });
 
 app.post("/config", async (req, res) => {
-  await db.collection("config_whatsapp").doc("principal").set(req.body, { merge: true });
+  await db
+    .collection("config_whatsapp")
+    .doc("principal")
+    .set(req.body, { merge: true });
   await iniciarCron();
   res.json({ success: true });
 });
 
 app.get("/logs", async (req, res) => {
-  const snap = await db.collection("logs_whatsapp")
+  const snap = await db
+    .collection("logs_whatsapp")
     .orderBy("enviadoEm", "desc")
     .limit(100)
     .get();
