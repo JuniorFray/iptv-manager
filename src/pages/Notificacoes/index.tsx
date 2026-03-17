@@ -133,8 +133,8 @@ export default function Notificacoes() {
   })();
 
   const substituir = (texto: string, c: Cliente) =>
-    texto.replace("{nome}", c.nome).replace("{vencimento}", c.vencimento)
-         .replace("{tipo}", c.tipo || "IPTV").replace("{servidor}", c.servidor || "");
+    texto.replace(/\[NOME\]/g, c.nome).replace(/\[VENCIMENTO\]/g, c.vencimento)
+         .replace(/\[SERVIDOR\]/g, c.servidor || "").replace(/\[VALOR\]/g, "");
 
   const salvarModelo = async () => {
     if (!novoTitulo.trim() || !novoTexto.trim()) return;
@@ -150,20 +150,22 @@ export default function Notificacoes() {
     setMensagem(clienteSel ? substituir(m.texto, clienteSel) : m.texto);
   };
 
+  // ✅ CORRIGIDO: campos phone/message + verifica data.success
   const enviarUm = async () => {
     if (!clienteSel || !mensagem.trim()) return;
     try {
       const res = await fetch(API + "/send", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ telefone: clienteSel.telefone, mensagem })
+        body: JSON.stringify({ phone: clienteSel.telefone, message: mensagem })
       });
       const data = await res.json();
-      if (data.sucesso) setResultado({ tipo: "ok", msg: "Mensagem enviada para " + clienteSel.nome + "!" });
-      else setResultado({ tipo: "erro", msg: data.erro || "Erro ao enviar." });
+      if (data.success) setResultado({ tipo: "ok", msg: "Mensagem enviada para " + clienteSel.nome + "!" });
+      else setResultado({ tipo: "erro", msg: data.error || "Erro ao enviar." });
     } catch { setResultado({ tipo: "erro", msg: "Backend offline." }); }
     setTimeout(() => setResultado(null), 4000);
   };
 
+  // ✅ CORRIGIDO: campos phone/message
   const enviarTodos = async () => {
     if (enviando || clientesFiltrados.length === 0 || !mensagem.trim()) return;
     setEnviando(true); setProgresso(0);
@@ -172,7 +174,7 @@ export default function Notificacoes() {
       try {
         await fetch(API + "/send", {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ telefone: c.telefone, mensagem: substituir(mensagem, c) })
+          body: JSON.stringify({ phone: c.telefone, message: substituir(mensagem, c) })
         });
       } catch {}
       setProgresso(i + 1);
