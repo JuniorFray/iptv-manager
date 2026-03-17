@@ -1,5 +1,6 @@
 ﻿import express from "express";
 import cors from "cors";
+import fs from "fs";
 import makeWASocket, {
   useMultiFileAuthState,
   DisconnectReason,
@@ -24,6 +25,15 @@ app.use(express.json());
 let qrCodeBase64 = null;
 let clientReady = false;
 let sock = null;
+
+// ✅ Limpa a pasta de autenticação para forçar novo QR Code
+const limparAuth = () => {
+  const pasta = "auth_baileys";
+  if (fs.existsSync(pasta)) {
+    fs.rmSync(pasta, { recursive: true, force: true });
+    console.log("Auth limpa, novo QR será gerado.");
+  }
+};
 
 const conectar = async () => {
   const { state, saveCreds } = await useMultiFileAuthState("auth_baileys");
@@ -57,8 +67,11 @@ const conectar = async () => {
       clientReady = false;
       const motivo = new Boom(lastDisconnect?.error)?.output?.statusCode;
       console.log("Desconectado. Motivo:", motivo);
+
       if (motivo === DisconnectReason.loggedOut) {
-        await conectar();
+        // ✅ Limpa auth antes de reconectar para gerar novo QR
+        limparAuth();
+        setTimeout(conectar, 1000);
       } else {
         setTimeout(conectar, 5000);
       }
@@ -98,7 +111,7 @@ const formatarMensagem = (template, cliente) => {
     );
 };
 
-// normaliza telefone para ter exatamente um 55 e o sufixo @s.whatsapp.net
+// Normaliza telefone para ter exatamente um 55 e o sufixo @s.whatsapp.net
 const normalizarTelefone = (tel) => {
   let num = String(tel).replace(/\D/g, "");
   if (num.startsWith("5555")) num = num.substring(2);
@@ -183,9 +196,9 @@ const executarEnvioAutomatico = async () => {
   const regrasMap = [
     { key: "dias7", diff: 7 },
     { key: "dias4", diff: 4 },
-    { key: "dia0", diff: 0 },
-    { key: "pos1", diff: -1 },
-    { key: "pos3", diff: -3 },
+    { key: "dia0",  diff: 0 },
+    { key: "pos1",  diff: -1 },
+    { key: "pos3",  diff: -3 },
   ];
 
   for (const cliente of clientes) {
@@ -286,7 +299,8 @@ app.post("/logout", async (req, res) => {
     clientReady = false;
     qrCodeBase64 = null;
     res.json({ success: true });
-    setTimeout(conectar, 3000);
+    // ✅ Removido o setTimeout(conectar) daqui — o evento connection.update
+    // com DisconnectReason.loggedOut já cuida de limpar auth e reconectar
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
