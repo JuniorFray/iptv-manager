@@ -1,14 +1,18 @@
 ﻿const express = require("express");
 const cors = require("cors");
-const { Client, LocalAuth } = require("whatsapp-web.js");
+const makeWASocket = require("@whiskeysockets/baileys").default;
+const {
+  useMultiFileAuthState,
+  DisconnectReason,
+  fetchLatestBaileysVersion,
+} = require("@whiskeysockets/baileys");
+const { Boom } = require("@hapi/boom");
 const qrcode = require("qrcode");
 const cron = require("node-cron");
 const admin = require("firebase-admin");
 const serviceAccount = require("./serviceAccountKey.json");
 
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
-});
+admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
 const db = admin.firestore();
 
 const app = express();
@@ -17,42 +21,53 @@ app.use(express.json());
 
 let qrCodeBase64 = null;
 let clientReady = false;
+let sock = null;
 
-const client = new Client({
-  authStrategy: new LocalAuth(),
-  puppeteer: { 
-    headless: true,
-    args: [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-dev-shm-usage",
-      "--disable-accelerated-2d-canvas",
-      "--no-first-run",
-      "--no-zygote",
-      "--single-process",
-      "--disable-gpu"
-    ]
-  },
-});
+const conectar = async () => {
+  const { state, saveCreds } = await useMultiFileAuthState("auth_baileys");
+  const { version } = await fetchLatestBaileysVersion();
 
-client.on("qr", async (qr) => {
-  qrCodeBase64 = await qrcode.toDataURL(qr);
-  clientReady = false;
-  console.log("QR Code gerado");
-});
+  sock = makeWASocket({
+    version,
+    auth: state,
+    printQRInTerminal: false,
+    browser: ["Sistema TV", "Chrome", "1.0"],
+  });
 
-client.on("ready", () => {
-  clientReady = true;
-  qrCodeBase64 = null;
-  console.log("WhatsApp conectado!");
-});
+  sock.ev.on("creds.update", saveCreds);
 
-client.on("disconnected", () => {
-  clientReady = false;
-  console.log("WhatsApp desconectado");
-});
+  sock.ev.on("connection.update", async (update) => {
+    const { connection, lastDisconnect, qr } = update;
 
-client.initialize();
+    if (qr) {
+      qrCodeBase64 = await qrcode.toDataURL(qr);
+      clientReady = false;
+      console.log("QR Code gerado");
+    }
+
+    if (connection === "open") {
+      clientReady = true;
+      qrCodeBase64 = null;
+      console.log("WhatsApp conectado!");
+    }
+
+    if (connection === "close") {
+      clientReady = false;
+      const motivo = new Boom(lastDisconnect?.error)?.output?.statusCode;
+      console.log("Desconectado. Motivo:", motivo);
+
+      if (motivo === DisconnectReason.loggedOut) {
+        console.log("Sessão encerrada. Aguardando novo QR.");
+        await conectar();
+      } else {
+        console.log("Reconectando em 5s...");
+        setTimeout(conectar, 5000);
+      }
+    }
+  });
+};
+
+conectar();
 
 // ---- Helpers ----
 
@@ -64,7 +79,8 @@ const parseDate = (str) => {
 };
 
 const diffDias = (dataStr) => {
-  const hoje = new Date(); hoje.setHours(0,0,0,0);
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
   const data = parseDate(dataStr);
   if (!data) return null;
   return Math.round((data.getTime() - hoje.getTime()) / 86400000);
@@ -75,7 +91,9 @@ const formatarMensagem = (template, cliente) => {
     .replace(/\[NOME\]/g, cliente.nome || "")
     .replace(/\[VENCIMENTO\]/g, cliente.vencimento || "")
     .replace(/\[SERVIDOR\]/g, cliente.servidor || "")
-    .replace(/\[VALOR\]/g, cliente.valor ? `R$ ${parseFloat(cliente.valor).toFixed(2).replace(".", ",")}` : "");
+    .replace(/\[VALOR\]/g, cliente.valor
+      ? `R$ ${parseFloat(cliente.valor).toFixed(2).replace(".", ",")}`
+      : "");
 };
 
 const salvarLog = async (clienteNome, telefone, gatilho, mensagem, status) => {
@@ -93,12 +111,12 @@ const configPadrao = {
   horario: "09:00",
   ativo: true,
   regras: {
-    dias7:   { ativo: true, mensagem: "Olá [NOME]! 👋 Sua assinatura do servidor [SERVIDOR] vence em 7 dias, no dia *[VENCIMENTO]*.\n\nRenove com antecedência para não perder o acesso! 😊" },
-    dias4:   { ativo: true, mensagem: "Olá [NOME]! ⚠️ Sua assinatura do servidor [SERVIDOR] vence em 4 dias, no dia *[VENCIMENTO]*.\n\nNão deixe para a última hora, entre em contato para renovar!" },
-    dia0:    { ativo: true, mensagem: "Olá [NOME]! 🚨 Sua assinatura do servidor [SERVIDOR] vence *HOJE*!\n\nRenove agora para não perder o acesso. Valor: *[VALOR]*" },
-    pos1:    { ativo: true, mensagem: "Olá [NOME]! ❌ Sua assinatura do servidor [SERVIDOR] venceu ontem (*[VENCIMENTO]*).\n\nEntre em contato para regularizar e reativar seu acesso!" },
-    pos3:    { ativo: true, mensagem: "Olá [NOME]! 🔴 Sua assinatura do servidor [SERVIDOR] está vencida há 3 dias (*[VENCIMENTO]*).\n\nRegularize seu acesso o quanto antes!" },
-  }
+    dias7: { ativo: true, mensagem: "Olá [NOME]! 👋 Sua assinatura do servidor [SERVIDOR] vence em 7 dias, no dia *[VENCIMENTO]*.\n\nRenove com antecedência para não perder o acesso! 😊" },
+    dias4: { ativo: true, mensagem: "Olá [NOME]! ⚠️ Sua assinatura do servidor [SERVIDOR] vence em 4 dias, no dia *[VENCIMENTO]*.\n\nNão deixe para a última hora, entre em contato para renovar!" },
+    dia0:  { ativo: true, mensagem: "Olá [NOME]! 🚨 Sua assinatura do servidor [SERVIDOR] vence *HOJE*!\n\nRenove agora para não perder o acesso. Valor: *[VALOR]*" },
+    pos1:  { ativo: true, mensagem: "Olá [NOME]! ❌ Sua assinatura do servidor [SERVIDOR] venceu ontem (*[VENCIMENTO]*).\n\nEntre em contato para regularizar e reativar seu acesso!" },
+    pos3:  { ativo: true, mensagem: "Olá [NOME]! 🔴 Sua assinatura do servidor [SERVIDOR] está vencida há 3 dias (*[VENCIMENTO]*).\n\nRegularize seu acesso o quanto antes!" },
+  },
 };
 
 const getConfig = async () => {
@@ -114,26 +132,26 @@ const getConfig = async () => {
 
 const executarEnvioAutomatico = async () => {
   console.log("Iniciando envio automático...");
-  if (!clientReady) { console.log("WhatsApp não conectado, pulando envio."); return; }
+  if (!clientReady) { console.log("WhatsApp não conectado, pulando."); return; }
 
   const config = await getConfig();
   if (!config.ativo) { console.log("Envio automático desativado."); return; }
 
   const snapshot = await db.collection("clientes").get();
-  const clientes = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+  const clientes = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+  const regrasMap = [
+    { key: "dias7", diff: 7  },
+    { key: "dias4", diff: 4  },
+    { key: "dia0",  diff: 0  },
+    { key: "pos1",  diff: -1 },
+    { key: "pos3",  diff: -3 },
+  ];
 
   for (const cliente of clientes) {
     if (!cliente.telefone) continue;
     const diff = diffDias(cliente.vencimento);
     if (diff === null) continue;
-
-    const regrasMap = [
-      { key: "dias7", diff: 7  },
-      { key: "dias4", diff: 4  },
-      { key: "dia0",  diff: 0  },
-      { key: "pos1",  diff: -1 },
-      { key: "pos3",  diff: -3 },
-    ];
 
     for (const { key, diff: diffAlvo } of regrasMap) {
       if (diff !== diffAlvo) continue;
@@ -141,10 +159,10 @@ const executarEnvioAutomatico = async () => {
       if (!regra?.ativo) continue;
 
       const mensagem = formatarMensagem(regra.mensagem, cliente);
-      const numero = `55${cliente.telefone.replace(/\D/g, "")}@c.us`;
+      const numero = `55${cliente.telefone.replace(/\D/g, "")}@s.whatsapp.net`;
 
       try {
-        await client.sendMessage(numero, mensagem);
+        await sock.sendMessage(numero, { text: mensagem });
         await salvarLog(cliente.nome, cliente.telefone, key, mensagem, "enviado");
         console.log(`Enviado para ${cliente.nome} (${key})`);
       } catch (err) {
@@ -164,7 +182,9 @@ const iniciarCron = async () => {
   const config = await getConfig();
   const [hora, minuto] = (config.horario || "09:00").split(":").map(Number);
   if (cronJob) cronJob.stop();
-  cronJob = cron.schedule(`${minuto} ${hora} * * *`, executarEnvioAutomatico, { timezone: "America/Sao_Paulo" });
+  cronJob = cron.schedule(`${minuto} ${hora} * * *`, executarEnvioAutomatico, {
+    timezone: "America/Sao_Paulo",
+  });
   console.log(`Cron agendado para ${config.horario}`);
 };
 
@@ -180,8 +200,8 @@ app.post("/send", async (req, res) => {
   const { phone, message } = req.body;
   if (!clientReady) return res.status(503).json({ error: "WhatsApp não conectado" });
   try {
-    const numero = `55${phone.replace(/\D/g, "")}@c.us`;
-    await client.sendMessage(numero, message);
+    const numero = `55${phone.replace(/\D/g, "")}@s.whatsapp.net`;
+    await sock.sendMessage(numero, { text: message });
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -209,25 +229,19 @@ app.get("/logs", async (req, res) => {
     .orderBy("enviadoEm", "desc")
     .limit(100)
     .get();
-  const logs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-  res.json(logs);
+  res.json(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
 });
 
 app.post("/logout", async (req, res) => {
   try {
-    await client.logout();
+    await sock.logout();
     clientReady = false;
     qrCodeBase64 = null;
     res.json({ success: true });
-    setTimeout(() => { client.initialize(); }, 3000);
+    setTimeout(conectar, 3000);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
 app.listen(3001, () => console.log("Servidor rodando na porta 3001"));
-
-
-
-
-
