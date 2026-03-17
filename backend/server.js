@@ -20,7 +20,19 @@ let clientReady = false;
 
 const client = new Client({
   authStrategy: new LocalAuth(),
-  puppeteer: { args: ["--no-sandbox", "--disable-setuid-sandbox"] },
+  puppeteer: { 
+    headless: true,
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+      "--disable-accelerated-2d-canvas",
+      "--no-first-run",
+      "--no-zygote",
+      "--single-process",
+      "--disable-gpu"
+    ]
+  },
 });
 
 client.on("qr", async (qr) => {
@@ -214,6 +226,7 @@ app.post("/logout", async (req, res) => {
 });
 
 app.listen(3001, () => console.log("Servidor rodando na porta 3001"));
+
 
 
 
