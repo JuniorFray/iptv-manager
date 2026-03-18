@@ -1,7 +1,7 @@
 ﻿import { useEffect, useState, useRef } from 'react'
 import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot } from 'firebase/firestore'
 import { db } from '../../firebase'
-import { Plus, Pencil, Trash2, X, Check, Search, Upload } from 'lucide-react'
+import { Plus, Pencil, Trash2, X, Check, Search, Upload, Download } from 'lucide-react'
 import * as XLSX from 'xlsx'
 
 interface Cliente {
@@ -15,11 +15,35 @@ interface Cliente {
   vencimento: string
   status: string
   valor: string
+  observacao: string
 }
 
 interface Servidor {
   id: string
   nome: string
+}
+
+// Converte YYYY-MM-DD (input date) → DD/MM/AAAA (storage)
+const inputParaData = (val: string) => {
+  if (!val) return ''
+  const [y, m, d] = val.split('-')
+  return `${d}/${m}/${y}`
+}
+
+// Converte DD/MM/AAAA (storage) → YYYY-MM-DD (input date)
+const dataParaInput = (val: string) => {
+  if (!val) return ''
+  const parts = val.split('/')
+  if (parts.length !== 3) return ''
+  return `${parts[2]}-${parts[1]}-${parts[0]}`
+}
+
+// Formata valor enquanto digita → "35" → "R$ 35,00"
+const formatarValorDisplay = (val: string) => {
+  if (!val) return ''
+  const num = parseFloat(val)
+  if (isNaN(num)) return ''
+  return `R$ ${num.toFixed(2).replace('.', ',')}`
 }
 
 export default function Clientes() {
@@ -32,9 +56,11 @@ export default function Clientes() {
   const [importando, setImportando] = useState(false)
   const [importResult, setImportResult] = useState<{ tipo: 'ok' | 'erro'; msg: string } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
   const [form, setForm] = useState({
     nome: '', telefone: '', tipo: 'IPTV', servidor: '',
-    usuario: '', senha: '', vencimento: '', status: 'ativo', valor: ''
+    usuario: '', senha: '', vencimento: '', status: 'ativo',
+    valor: '', observacao: ''
   })
 
   useEffect(() => {
@@ -47,6 +73,28 @@ export default function Clientes() {
     return () => { unsubClientes(); unsubServidores() }
   }, [])
 
+  // ── EXPORTAR EXCEL (backup) ──
+  const exportarExcel = () => {
+    const dados = clientes.map(c => ({
+      'Nome': c.nome || '',
+      'Telefone': c.telefone || '',
+      'Tipo': c.tipo || '',
+      'Servidor': c.servidor || '',
+      'Usuário': c.usuario || '',
+      'Senha': c.senha || '',
+      'Vencimento': c.vencimento || '',
+      'Valor': c.valor ? `R$ ${parseFloat(c.valor).toFixed(2).replace('.', ',')}` : '',
+      'Status': c.status || '',
+      'Observação': c.observacao || '',
+    }))
+    const ws = XLSX.utils.json_to_sheet(dados)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Clientes')
+    const data = new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')
+    XLSX.writeFile(wb, `clientes_backup_${data}.xlsx`)
+  }
+
+  // ── IMPORTAR EXCEL ──
   const parseExcelDate = (val: any): string => {
     if (!val) return ''
     if (typeof val === 'number') {
@@ -109,7 +157,8 @@ export default function Clientes() {
             : ''
           await addDoc(collection(db, 'clientes'), {
             nome, telefone, tipo, servidor: aba,
-            usuario: '', senha: '', vencimento, valor, status: 'ativo',
+            usuario: '', senha: '', vencimento, valor,
+            status: 'ativo', observacao: '',
           })
           total++
         }
@@ -135,13 +184,20 @@ export default function Clientes() {
     if (cliente) {
       setEditando(cliente)
       setForm({
-        nome: cliente.nome, telefone: cliente.telefone, tipo: cliente.tipo || 'IPTV',
-        servidor: cliente.servidor, usuario: cliente.usuario, senha: cliente.senha,
-        vencimento: cliente.vencimento, status: cliente.status, valor: cliente.valor || ''
+        nome: cliente.nome || '',
+        telefone: cliente.telefone || '',
+        tipo: cliente.tipo || 'IPTV',
+        servidor: cliente.servidor || '',
+        usuario: cliente.usuario || '',
+        senha: cliente.senha || '',
+        vencimento: dataParaInput(cliente.vencimento || ''),
+        status: cliente.status || 'ativo',
+        valor: cliente.valor || '',
+        observacao: cliente.observacao || '',
       })
     } else {
       setEditando(null)
-      setForm({ nome: '', telefone: '', tipo: 'IPTV', servidor: '', usuario: '', senha: '', vencimento: '', status: 'ativo', valor: '' })
+      setForm({ nome: '', telefone: '', tipo: 'IPTV', servidor: '', usuario: '', senha: '', vencimento: '', status: 'ativo', valor: '', observacao: '' })
     }
     setModalAberto(true)
   }
@@ -152,10 +208,14 @@ export default function Clientes() {
     if (!form.nome.trim()) return
     setCarregando(true)
     try {
+      const dados = {
+        ...form,
+        vencimento: inputParaData(form.vencimento), // salva DD/MM/AAAA
+      }
       if (editando) {
-        await updateDoc(doc(db, 'clientes', editando.id), form)
+        await updateDoc(doc(db, 'clientes', editando.id), dados)
       } else {
-        await addDoc(collection(db, 'clientes'), form)
+        await addDoc(collection(db, 'clientes'), dados)
       }
       fecharModal()
     } finally {
@@ -167,41 +227,59 @@ export default function Clientes() {
     if (confirm('Deseja excluir este cliente?')) await deleteDoc(doc(db, 'clientes', id))
   }
 
-  const statusColor = (status: string) => {
-    if (status === 'ativo') return { bg: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.3)', text: '#4ade80' }
-    return { bg: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', text: '#f87171' }
-  }
+  const statusColor = (status: string) => status === 'ativo'
+    ? { bg: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.3)', text: '#4ade80' }
+    : { bg: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', text: '#f87171' }
 
-  const tipoColor = (tipo: string) => {
-    if (tipo === 'IPTV') return { bg: 'rgba(59,130,246,0.15)', border: '1px solid rgba(59,130,246,0.3)', text: '#60a5fa' }
-    return { bg: 'rgba(168,85,247,0.15)', border: '1px solid rgba(168,85,247,0.3)', text: '#c084fc' }
-  }
+  const tipoColor = (tipo: string) => tipo === 'IPTV'
+    ? { bg: 'rgba(59,130,246,0.15)', border: '1px solid rgba(59,130,246,0.3)', text: '#60a5fa' }
+    : { bg: 'rgba(168,85,247,0.15)', border: '1px solid rgba(168,85,247,0.3)', text: '#c084fc' }
 
   const inputStyle = {
     width: '100%', padding: '10px 14px', borderRadius: '10px',
     border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.05)',
-    color: 'white', fontSize: '14px', outline: 'none', boxSizing: 'border-box' as const
+    color: 'white', fontSize: '14px', outline: 'none', boxSizing: 'border-box' as const,
+  }
+
+  const labelStyle = {
+    color: 'rgba(255,255,255,0.7)', fontSize: '13px',
+    display: 'block', marginBottom: '6px'
   }
 
   return (
     <div>
-      {/* Header da página */}
-      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+      {/* Header */}
+      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', gap: '12px' }}>
         <div>
           <h1 className="page-title" style={{ color: 'white', fontSize: '28px', fontWeight: 'bold', margin: 0 }}>Clientes</h1>
           <p style={{ color: 'rgba(255,255,255,0.5)', marginTop: '4px', fontSize: '14px' }}>{clientes.length} clientes cadastrados</p>
         </div>
-        <div className="page-header-actions" style={{ display: 'flex', gap: '10px' }}>
+        <div className="page-header-actions" style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
           <input ref={fileInputRef} type="file" accept=".xlsx,.xls" onChange={importarExcel} style={{ display: 'none' }} />
+
+          {/* Exportar */}
+          <button onClick={exportarExcel} style={{
+            display: 'flex', alignItems: 'center', gap: '8px',
+            background: 'rgba(251,191,36,0.15)', color: '#fbbf24',
+            border: '1px solid rgba(251,191,36,0.3)', borderRadius: '12px',
+            padding: '12px 20px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px'
+          }}>
+            <Download size={18} /> Exportar
+          </button>
+
+          {/* Importar */}
           <button onClick={() => fileInputRef.current?.click()} disabled={importando} style={{
             display: 'flex', alignItems: 'center', gap: '8px',
             background: importando ? 'rgba(255,255,255,0.08)' : 'rgba(34,197,94,0.15)',
             color: importando ? 'rgba(255,255,255,0.3)' : '#4ade80',
-            border: '1px solid rgba(34,197,94,0.3)', borderRadius: '12px', padding: '12px 20px',
-            cursor: importando ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '14px'
+            border: '1px solid rgba(34,197,94,0.3)', borderRadius: '12px',
+            padding: '12px 20px', cursor: importando ? 'not-allowed' : 'pointer',
+            fontWeight: 'bold', fontSize: '14px'
           }}>
-            <Upload size={18} /> {importando ? 'Importando...' : 'Importar Excel'}
+            <Upload size={18} /> {importando ? 'Importando...' : 'Importar'}
           </button>
+
+          {/* Novo */}
           <button onClick={() => abrirModal()} style={{
             display: 'flex', alignItems: 'center', gap: '8px',
             background: 'linear-gradient(135deg,#3b82f6,#6366f1)', color: 'white',
@@ -214,21 +292,21 @@ export default function Clientes() {
         </div>
       </div>
 
+      {/* Resultado importação */}
       {importResult && (
         <div style={{
           marginBottom: '16px', padding: '14px 18px', borderRadius: '12px',
           background: importResult.tipo === 'ok' ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
           border: importResult.tipo === 'ok' ? '1px solid rgba(34,197,94,0.3)' : '1px solid rgba(239,68,68,0.3)',
           color: importResult.tipo === 'ok' ? '#4ade80' : '#f87171',
-          fontWeight: '600', fontSize: '13px', wordBreak: 'break-word',
-          whiteSpace: 'pre-wrap'
+          fontWeight: '600', fontSize: '13px', whiteSpace: 'pre-wrap', wordBreak: 'break-word'
         }}>
           {importResult.msg}
         </div>
       )}
 
       {/* Busca */}
-      <div className="glass-card" style={{ padding: '16px', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+      <div className="glass-card" style={{ padding: '14px 18px', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '12px' }}>
         <Search size={18} color="rgba(255,255,255,0.4)" />
         <input
           value={busca}
@@ -238,13 +316,13 @@ export default function Clientes() {
         />
       </div>
 
-      {/* Tabela responsiva */}
+      {/* Tabela */}
       <div className="glass-card" style={{ overflow: 'hidden' }}>
         <div className="table-responsive">
-          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '700px' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '780px' }}>
             <thead>
               <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                {['Nome', 'Telefone', 'Tipo', 'Servidor', 'Usuário', 'Vencimento', 'Valor', 'Status', 'Ações'].map(h => (
+                {['Nome', 'Telefone', 'Tipo', 'Servidor', 'Vencimento', 'Valor', 'Status', 'Obs.', 'Ações'].map(h => (
                   <th key={h} style={{ padding: '14px 16px', textAlign: 'left', color: 'rgba(255,255,255,0.4)', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</th>
                 ))}
               </tr>
@@ -265,14 +343,18 @@ export default function Clientes() {
                       </span>
                     </td>
                     <td style={{ padding: '14px 16px', color: 'rgba(255,255,255,0.6)', fontSize: '14px' }}>{cliente.servidor}</td>
-                    <td style={{ padding: '14px 16px', color: 'rgba(255,255,255,0.6)', fontSize: '14px' }}>{cliente.usuario}</td>
-                    <td style={{ padding: '14px 16px', color: 'rgba(255,255,255,0.6)', fontSize: '14px' }}>{cliente.vencimento}</td>
+                    <td style={{ padding: '14px 16px', color: '#fbbf24', fontSize: '14px', fontWeight: '500' }}>{cliente.vencimento}</td>
                     <td style={{ padding: '14px 16px', color: '#4ade80', fontWeight: '600', fontSize: '14px' }}>
                       {cliente.valor ? `R$ ${parseFloat(cliente.valor).toFixed(2).replace('.', ',')}` : '-'}
                     </td>
                     <td style={{ padding: '14px 16px' }}>
                       <span style={{ background: sc.bg, border: sc.border, color: sc.text, padding: '4px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: '600' }}>
                         {cliente.status === 'ativo' ? 'Ativo' : 'Inativo'}
+                      </span>
+                    </td>
+                    <td style={{ padding: '14px 16px', color: 'rgba(255,255,255,0.45)', fontSize: '13px', maxWidth: '160px' }}>
+                      <span title={cliente.observacao || ''} style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '140px' }}>
+                        {cliente.observacao || '—'}
                       </span>
                     </td>
                     <td style={{ padding: '14px 16px' }}>
@@ -291,66 +373,132 @@ export default function Clientes() {
 
       {/* Modal */}
       {modalAberto && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: '16px' }}>
-          <div className="glass-card" style={{ padding: '32px', width: '100%', maxWidth: '480px', maxHeight: '90vh', overflowY: 'auto' }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: '16px' }}>
+          <div className="glass-card" style={{ padding: '32px', width: '100%', maxWidth: '500px', maxHeight: '92vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
               <h2 style={{ color: 'white', margin: 0, fontSize: '20px' }}>{editando ? 'Editar Cliente' : 'Novo Cliente'}</h2>
               <button onClick={fecharModal} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.5)' }}><X size={20} /></button>
             </div>
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              {[
-                { label: 'Nome *', key: 'nome', placeholder: 'Nome completo' },
-                { label: 'Telefone', key: 'telefone', placeholder: 'Ex: 13999999999' },
-                { label: 'Usuário', key: 'usuario', placeholder: 'Usuário IPTV' },
-                { label: 'Senha', key: 'senha', placeholder: 'Senha IPTV' },
-                { label: 'Vencimento', key: 'vencimento', placeholder: 'DD/MM/AAAA' },
-                { label: 'Valor R$', key: 'valor', placeholder: 'Ex: 35.00' },
-              ].map(({ label, key, placeholder }) => (
-                <div key={key}>
-                  <label style={{ color: 'rgba(255,255,255,0.7)', fontSize: '13px', display: 'block', marginBottom: '6px' }}>{label}</label>
+
+              {/* Nome */}
+              <div>
+                <label style={labelStyle}>Nome *</label>
+                <input value={form.nome} onChange={e => setForm({ ...form, nome: e.target.value })} className="input-glass" placeholder="Nome completo" />
+              </div>
+
+              {/* Telefone */}
+              <div>
+                <label style={labelStyle}>Telefone</label>
+                <input value={form.telefone} onChange={e => setForm({ ...form, telefone: e.target.value.replace(/\D/g, '') })} className="input-glass" placeholder="Ex: 13999999999" maxLength={15} />
+              </div>
+
+              {/* Usuário + Senha em linha */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={labelStyle}>Usuário</label>
+                  <input value={form.usuario} onChange={e => setForm({ ...form, usuario: e.target.value })} className="input-glass" placeholder="Usuário IPTV" />
+                </div>
+                <div>
+                  <label style={labelStyle}>Senha</label>
+                  <input value={form.senha} onChange={e => setForm({ ...form, senha: e.target.value })} className="input-glass" placeholder="Senha IPTV" />
+                </div>
+              </div>
+
+              {/* Vencimento — campo nativo de data */}
+              <div>
+                <label style={labelStyle}>Vencimento</label>
+                <input
+                  type="date"
+                  value={form.vencimento}
+                  onChange={e => setForm({ ...form, vencimento: e.target.value })}
+                  style={{
+                    ...inputStyle,
+                    colorScheme: 'dark',
+                  }}
+                />
+              </div>
+
+              {/* Valor R$ */}
+              <div>
+                <label style={labelStyle}>Valor R$</label>
+                <div style={{ position: 'relative' }}>
+                  <span style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,0.4)', fontSize: '14px', pointerEvents: 'none' }}>R$</span>
                   <input
-                    value={form[key as keyof typeof form]}
-                    onChange={e => setForm({ ...form, [key]: e.target.value })}
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.valor}
+                    onChange={e => setForm({ ...form, valor: e.target.value })}
                     className="input-glass"
-                    placeholder={placeholder}
-                    type={key === 'valor' ? 'number' : 'text'}
-                    step={key === 'valor' ? '0.01' : undefined}
+                    placeholder="0,00"
+                    style={{ ...inputStyle, paddingLeft: '38px' }}
                   />
                 </div>
-              ))}
-
-              <div>
-                <label style={{ color: 'rgba(255,255,255,0.7)', fontSize: '13px', display: 'block', marginBottom: '6px' }}>Tipo</label>
-                <select value={form.tipo} onChange={e => setForm({ ...form, tipo: e.target.value }) } style={{ ...inputStyle, cursor: 'pointer' }}>
-                  <option value="IPTV" style={{ background: '#1e1e2e' }}>IPTV</option>
-                  <option value="P2P" style={{ background: '#1e1e2e' }}>P2P</option>
-                </select>
+                {form.valor && <p style={{ color: '#4ade80', fontSize: '12px', margin: '4px 0 0 4px' }}>= {formatarValorDisplay(form.valor)}</p>}
               </div>
 
+              {/* Tipo + Servidor em linha */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={labelStyle}>Tipo</label>
+                  <select value={form.tipo} onChange={e => setForm({ ...form, tipo: e.target.value })} style={{ ...inputStyle, cursor: 'pointer' }}>
+                    <option value="IPTV" style={{ background: '#1e1e2e' }}>IPTV</option>
+                    <option value="P2P" style={{ background: '#1e1e2e' }}>P2P</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={labelStyle}>Servidor</label>
+                  <select value={form.servidor} onChange={e => setForm({ ...form, servidor: e.target.value })} style={{ ...inputStyle, cursor: 'pointer' }}>
+                    <option value="" style={{ background: '#1e1e2e' }}>Selecione</option>
+                    {servidores.map(s => (
+                      <option key={s.id} value={s.nome} style={{ background: '#1e1e2e' }}>{s.nome}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Status */}
               <div>
-                <label style={{ color: 'rgba(255,255,255,0.7)', fontSize: '13px', display: 'block', marginBottom: '6px' }}>Servidor</label>
-                <select value={form.servidor} onChange={e => setForm({ ...form, servidor: e.target.value })} style={{ ...inputStyle, cursor: 'pointer' }}>
-                  <option value="" style={{ background: '#1e1e2e' }}>Selecione um servidor</option>
-                  {servidores.map(s => (
-                    <option key={s.id} value={s.nome} style={{ background: '#1e1e2e' }}>{s.nome}</option>
+                <label style={labelStyle}>Status</label>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  {[{ val: 'ativo', label: 'Ativo', cor: '34,197,94' }, { val: 'inativo', label: 'Inativo', cor: '239,68,68' }].map(s => (
+                    <button key={s.val} onClick={() => setForm({ ...form, status: s.val })} style={{
+                      flex: 1, padding: '10px', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px',
+                      background: form.status === s.val ? `rgba(${s.cor},0.25)` : 'rgba(255,255,255,0.05)',
+                      border: form.status === s.val ? `1px solid rgba(${s.cor},0.5)` : '1px solid rgba(255,255,255,0.1)',
+                      color: form.status === s.val ? `rgb(${s.cor})` : 'rgba(255,255,255,0.4)',
+                    }}>
+                      {s.label}
+                    </button>
                   ))}
-                </select>
+                </div>
               </div>
 
+              {/* Observação */}
               <div>
-                <label style={{ color: 'rgba(255,255,255,0.7)', fontSize: '13px', display: 'block', marginBottom: '6px' }}>Status</label>
-                <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })} style={{ ...inputStyle, cursor: 'pointer' }}>
-                  <option value="ativo" style={{ background: '#1e1e2e' }}>Ativo</option>
-                  <option value="inativo" style={{ background: '#1e1e2e' }}>Inativo</option>
-                </select>
+                <label style={labelStyle}>Observação</label>
+                <textarea
+                  value={form.observacao}
+                  onChange={e => setForm({ ...form, observacao: e.target.value })}
+                  className="input-glass"
+                  placeholder="Anotações sobre o cliente..."
+                  rows={3}
+                  style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit', lineHeight: '1.5' }}
+                />
               </div>
 
+              {/* Botões */}
               <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
-                <button onClick={fecharModal} style={{ flex: 1, padding: '12px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.15)', background: 'transparent', color: 'rgba(255,255,255,0.6)', cursor: 'pointer' }}>Cancelar</button>
+                <button onClick={fecharModal} style={{ flex: 1, padding: '12px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.15)', background: 'transparent', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', fontSize: '14px' }}>
+                  Cancelar
+                </button>
                 <button onClick={salvar} disabled={carregando || !form.nome.trim()} style={{
                   flex: 1, padding: '12px', borderRadius: '12px', border: 'none',
                   background: 'linear-gradient(135deg,#3b82f6,#6366f1)', color: 'white',
-                  cursor: carregando || !form.nome.trim() ? 'not-allowed' : 'pointer', fontWeight: 'bold',
+                  cursor: carregando || !form.nome.trim() ? 'not-allowed' : 'pointer',
+                  fontWeight: 'bold', fontSize: '14px',
                   opacity: carregando || !form.nome.trim() ? 0.6 : 1,
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
                 }}>
