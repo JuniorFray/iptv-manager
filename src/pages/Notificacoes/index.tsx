@@ -42,10 +42,11 @@ function diferencaDias(d: Date): number {
 }
 
 const filtros = [
-  { id: 'todos',    label: 'Todos os Clientes',  cor: '34d399', bg: 'rgba(52,211,153,0.15)',  border: 'rgba(52,211,153,0.3)'  },
-  { id: 'venchoje', label: 'Vencendo Hoje',       cor: 'f87171', bg: 'rgba(239,68,68,0.15)',   border: 'rgba(239,68,68,0.3)'   },
-  { id: 'venc4',    label: 'Vencendo em 4 dias',  cor: 'fbbf24', bg: 'rgba(245,158,11,0.15)',  border: 'rgba(245,158,11,0.3)'  },
-  { id: 'venc7',    label: 'Vencendo em 7 dias',  cor: '818cf8', bg: 'rgba(99,102,241,0.15)',  border: 'rgba(99,102,241,0.3)'  },
+  { id: 'todos',    label: 'Todos os Clientes',    cor: '34d399', bg: 'rgba(52,211,153,0.15)',  border: 'rgba(52,211,153,0.3)'  },
+  { id: 'venchoje', label: 'Vencendo Hoje',        cor: 'f87171', bg: 'rgba(239,68,68,0.15)',   border: 'rgba(239,68,68,0.3)'   },
+  { id: 'venc4',    label: 'Vencendo em 4 dias',   cor: 'fbbf24', bg: 'rgba(245,158,11,0.15)',  border: 'rgba(245,158,11,0.3)'  },
+  { id: 'venc7',    label: 'Vencendo em 7 dias',   cor: '818cf8', bg: 'rgba(99,102,241,0.15)',  border: 'rgba(99,102,241,0.3)'  },
+  { id: 'vencidos', label: 'Vencidos',             cor: 'ef4444', bg: 'rgba(239,68,68,0.15)',   border: 'rgba(239,68,68,0.3)'   },
   { id: 'manual',   label: 'Mensagem Manual',      cor: '60a5fa', bg: 'rgba(59,130,246,0.15)',  border: 'rgba(59,130,246,0.3)'  },
 ]
 
@@ -174,10 +175,37 @@ export default function Notificacoes() {
 
   const clientesFiltrados = (() => {
     let lista = clientes.filter(c => c.telefone)
-    if (filtro === 'venchoje') lista = lista.filter(c => { const d = parseData(c.vencimento); return d ? diferencaDias(d) === 0 : false })
-    else if (filtro === 'venc4') lista = lista.filter(c => { const d = parseData(c.vencimento); return d ? diferencaDias(d) === 4 : false })
-    else if (filtro === 'venc7') lista = lista.filter(c => { const d = parseData(c.vencimento); return d ? diferencaDias(d) === 7 : false })
-    if (busca) lista = lista.filter(c => c.nome?.toLowerCase().includes(busca.toLowerCase()) || c.telefone?.includes(busca))
+
+    if (filtro === 'venchoje') {
+      lista = lista.filter(c => {
+        const d = parseData(c.vencimento)
+        return d ? diferencaDias(d) === 0 : false
+      })
+    } else if (filtro === 'venc4') {
+      lista = lista.filter(c => {
+        const d = parseData(c.vencimento)
+        return d ? diferencaDias(d) === 4 : false
+      })
+    } else if (filtro === 'venc7') {
+      lista = lista.filter(c => {
+        const d = parseData(c.vencimento)
+        return d ? diferencaDias(d) === 7 : false
+      })
+    } else if (filtro === 'vencidos') {
+      lista = lista.filter(c => {
+        const d = parseData(c.vencimento)
+        return d ? diferencaDias(d) < 0 : false
+      })
+    }
+
+    if (busca) {
+      lista = lista.filter(
+        c =>
+          c.nome?.toLowerCase().includes(busca.toLowerCase()) ||
+          c.telefone?.includes(busca),
+      )
+    }
+
     return lista
   })()
 
@@ -327,9 +355,14 @@ export default function Notificacoes() {
                   <button key={f.id} onClick={() => { setFiltro(f.id); setClienteSel(null); setBusca('') }} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', borderRadius: '10px', cursor: 'pointer', textAlign: 'left', background: filtro === f.id ? f.bg : 'rgba(255,255,255,0.03)', border: filtro === f.id ? `1px solid ${f.border}` : '1px solid rgba(255,255,255,0.06)', color: filtro === f.id ? `#${f.cor}` : 'rgba(255,255,255,0.5)', fontWeight: filtro === f.id ? '600' : '400', fontSize: '14px' }}>
                     {f.label}
                     <span style={{ marginLeft: 'auto', color: filtro === f.id ? `#${f.cor}` : 'rgba(255,255,255,0.3)', fontSize: '12px', fontWeight: '700' }}>
-                      {f.id === 'venchoje' ? clientes.filter(c => { const d = parseData(c.vencimento); return d ? diferencaDias(d) === 0 : false }).length
-                        : f.id === 'venc4' ? clientes.filter(c => { const d = parseData(c.vencimento); return d ? diferencaDias(d) === 4 : false }).length
-                        : f.id === 'venc7' ? clientes.filter(c => { const d = parseData(c.vencimento); return d ? diferencaDias(d) === 7 : false }).length
+                      {f.id === 'venchoje'
+                        ? clientes.filter(c => { const d = parseData(c.vencimento); return d ? diferencaDias(d) === 0 : false }).length
+                        : f.id === 'venc4'
+                        ? clientes.filter(c => { const d = parseData(c.vencimento); return d ? diferencaDias(d) === 4 : false }).length
+                        : f.id === 'venc7'
+                        ? clientes.filter(c => { const d = parseData(c.vencimento); return d ? diferencaDias(d) === 7 : false }).length
+                        : f.id === 'vencidos'
+                        ? clientes.filter(c => { const d = parseData(c.vencimento); return d ? diferencaDias(d) < 0 : false }).length
                         : clientes.filter(c => c.telefone).length}
                     </span>
                   </button>
