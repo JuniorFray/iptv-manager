@@ -24,7 +24,6 @@ app.use(express.json())
 
 let qrCodeBase64 = null
 let clientReady = false
-let sock = null
 
 // ---- WhatsApp ----
 
@@ -33,24 +32,37 @@ const limparAuth = () => {
   if (fs.existsSync(pasta)) fs.rmSync(pasta, { recursive: true, force: true })
 }
 
-const conectar = async () => {
-  const { state, saveCreds } = await useMultiFileAuthState('auth_baileys')
-  const { version } = await fetchLatestBaileysVersion()
-  sock = makeWASocket({ version, auth: state, printQRInTerminal: false, browser: ['Sistema TV', 'Chrome', '1.0'] })
-  sock.ev.on('creds.update', saveCreds)
-  sock.ev.on('connection.update', async (update) => {
-    const { connection, lastDisconnect, qr } = update
-    if (qr) { qrCodeBase64 = await qrcode.toDataURL(qr); clientReady = false }
-    if (connection === 'open') { clientReady = true; qrCodeBase64 = null; console.log('WhatsApp conectado!') }
-    if (connection === 'close') {
-      clientReady = false
-      const motivo = lastDisconnect?.error?.output?.statusCode ?? lastDisconnect?.error?.code ?? 'DESCONHECIDO'
-      if (motivo === DisconnectReason.loggedOut) { limparAuth(); setTimeout(conectar, 1000) }
-      else setTimeout(conectar, 5000)
+const { state, saveCreds } = await useMultiFileAuthState('auth_info')
+const { version } = await fetchLatestBaileysVersion()
+
+const sock = makeWASocket({
+  version,
+  auth: state,
+  printQRInTerminal: false,
+  generateHighQualityLinkPreview: true,
+  browser: ['Sistema TV', 'Chrome', '1.0']
+})
+
+sock.ev.on('creds.update', saveCreds)
+
+sock.ev.on('connection.update', async (update) => {
+  const { connection, lastDisconnect, qr } = update
+
+  if (qr) { qrCodeBase64 = await qrcode.toDataURL(qr); clientReady = false }
+
+  if (connection === 'close') {
+    clientReady = false
+    const motivo = lastDisconnect?.error?.output?.statusCode ?? 'DESCONHECIDO'
+    console.log('❌ Desconectado:', motivo)
+    if (motivo !== 401) {
+      setTimeout(() => sock.connect(), 10000)
     }
-  })
-}
-conectar()
+  } else if (connection === 'open') {
+    clientReady = true
+    qrCodeBase64 = null
+    console.log('✅ WhatsApp conectado!')
+  }
+})
 
 // ---- Helpers ----
 
@@ -286,11 +298,11 @@ iniciarCron()
 
 app.get('/status', (req, res) => {
   try {
-    const numero = client.info?.wid?._serialized || sock.user?.id || 'Não detectado'
-    res.json({ 
-      qr: qrCodeBase64, 
+    const numero = sock.user?.id || 'Não detectado'
+    res.json({
+      qr: qrCodeBase64,
       ready: clientReady,
-      numero: numero  // 👈 NOVO!
+      numero: numero
     })
   } catch {
     res.json({ qr: null, ready: false, numero: 'Erro' })
