@@ -6,7 +6,6 @@ import makeWASocket, {
   DisconnectReason,
   fetchLatestBaileysVersion
 } from '@whiskeysockets/baileys'
-import Boom from '@hapi/boom'
 import qrcode from 'qrcode'
 import cron from 'node-cron'
 import admin from 'firebase-admin'
@@ -22,47 +21,61 @@ const app = express()
 app.use(cors())
 app.use(express.json())
 
-let qrCodeBase64 = null
-let clientReady = false
+
 
 // ---- WhatsApp ----
 
-const limparAuth = () => {
-  const pasta = 'auth_baileys'
-  if (fs.existsSync(pasta)) fs.rmSync(pasta, { recursive: true, force: true })
+let sock = null
+let qrCodeBase64 = null
+let clientReady = false
+
+const conectarWhatsApp = async () => {
+  const { state, saveCreds } = await useMultiFileAuthState('auth_info')
+  const { version } = await fetchLatestBaileysVersion()
+
+  sock = makeWASocket({
+    version,
+    auth: state,
+    printQRInTerminal: false,
+    generateHighQualityLinkPreview: true,
+    browser: ['Sistema TV', 'Chrome', '1.0'],
+    keepAliveIntervalMs: 30000,       // 👈 mantém conexão ativa
+    connectTimeoutMs: 60000,          // 👈 timeout maior
+    retryRequestDelayMs: 2000,
+  })
+
+  sock.ev.on('creds.update', saveCreds)
+
+  sock.ev.on('connection.update', async (update) => {
+    const { connection, lastDisconnect, qr } = update
+
+    if (qr) {
+      qrCodeBase64 = await qrcode.toDataURL(qr)
+      clientReady = false
+    }
+
+    if (connection === 'close') {
+      clientReady = false
+      const statusCode = lastDisconnect?.error?.output?.statusCode
+      console.log('❌ Desconectado:', statusCode)
+
+      // 401 = logout manual, não reconecta
+      if (statusCode !== 401) {
+        const delay = statusCode === 408 ? 5000 : 10000
+        console.log(`🔄 Reconectando em ${delay / 1000}s...`)
+        setTimeout(conectarWhatsApp, delay) // 👈 recria o socket
+      }
+    } else if (connection === 'open') {
+      clientReady = true
+      qrCodeBase64 = null
+      console.log('✅ WhatsApp conectado!')
+    }
+  })
 }
 
-const { state, saveCreds } = await useMultiFileAuthState('auth_info')
-const { version } = await fetchLatestBaileysVersion()
+// Inicia conexão
+conectarWhatsApp()
 
-const sock = makeWASocket({
-  version,
-  auth: state,
-  printQRInTerminal: false,
-  generateHighQualityLinkPreview: true,
-  browser: ['Sistema TV', 'Chrome', '1.0']
-})
-
-sock.ev.on('creds.update', saveCreds)
-
-sock.ev.on('connection.update', async (update) => {
-  const { connection, lastDisconnect, qr } = update
-
-  if (qr) { qrCodeBase64 = await qrcode.toDataURL(qr); clientReady = false }
-
-  if (connection === 'close') {
-    clientReady = false
-    const motivo = lastDisconnect?.error?.output?.statusCode ?? 'DESCONHECIDO'
-    console.log('❌ Desconectado:', motivo)
-    if (motivo !== 401) {
-      setTimeout(() => sock.connect(), 10000)
-    }
-  } else if (connection === 'open') {
-    clientReady = true
-    qrCodeBase64 = null
-    console.log('✅ WhatsApp conectado!')
-  }
-})
 
 // ---- Helpers ----
 
