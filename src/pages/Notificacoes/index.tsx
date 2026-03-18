@@ -1,7 +1,7 @@
 ﻿import { useEffect, useState, useRef } from 'react'
 import { collection, onSnapshot, addDoc, deleteDoc, doc } from 'firebase/firestore'
 import { db } from '../../firebase'
-import { Send, Users, CheckCircle, Plus, Trash2, X, BookOpen, Wifi, WifiOff, QrCode, Settings, Clock, CheckCircle2, XCircle, Play, Save } from 'lucide-react'
+import { Send, Users, CheckCircle, Plus, Trash2, X, BookOpen, Wifi, WifiOff, QrCode, Settings, Clock, CheckCircle2, XCircle, Play, Save, RefreshCw } from 'lucide-react'
 import axios from 'axios'
 
 const API = 'https://iptv-manager-production.up.railway.app'
@@ -13,8 +13,19 @@ interface Regra { ativo: boolean; mensagem: string }
 interface Config {
   horario: string
   ativo: boolean
-  intervaloMs: number   // ✅ CORRIGIDO
+  intervaloMs: number
   regras: { dias7: Regra; dias4: Regra; dia0: Regra; pos1: Regra; pos3: Regra }
+}
+interface FilaItem {
+  id: string
+  clienteNome: string
+  telefone: string
+  gatilho: string
+  mensagem: string
+  status: 'pendente' | 'enviando' | 'enviado' | 'erro' | 'cancelado'
+  tentativas: number
+  maxTentativas: number
+  erro: string | null
 }
 
 function parseData(v: string): Date | null {
@@ -31,11 +42,11 @@ function diferencaDias(d: Date): number {
 }
 
 const filtros = [
-  { id: 'todos',    label: 'Todos os Clientes',   cor: '34d399', bg: 'rgba(52,211,153,0.15)',  border: 'rgba(52,211,153,0.3)'  },
-  { id: 'venchoje', label: 'Vencendo Hoje',        cor: 'f87171', bg: 'rgba(239,68,68,0.15)',   border: 'rgba(239,68,68,0.3)'   },
-  { id: 'venc4',    label: 'Vencendo em 4 dias',   cor: 'fbbf24', bg: 'rgba(245,158,11,0.15)',  border: 'rgba(245,158,11,0.3)'  },
-  { id: 'venc7',    label: 'Vencendo em 7 dias',   cor: '818cf8', bg: 'rgba(99,102,241,0.15)',  border: 'rgba(99,102,241,0.3)'  },
-  { id: 'manual',   label: 'Mensagem Manual',       cor: '60a5fa', bg: 'rgba(59,130,246,0.15)',  border: 'rgba(59,130,246,0.3)'  },
+  { id: 'todos',    label: 'Todos os Clientes',  cor: '34d399', bg: 'rgba(52,211,153,0.15)',  border: 'rgba(52,211,153,0.3)'  },
+  { id: 'venchoje', label: 'Vencendo Hoje',       cor: 'f87171', bg: 'rgba(239,68,68,0.15)',   border: 'rgba(239,68,68,0.3)'   },
+  { id: 'venc4',    label: 'Vencendo em 4 dias',  cor: 'fbbf24', bg: 'rgba(245,158,11,0.15)',  border: 'rgba(245,158,11,0.3)'  },
+  { id: 'venc7',    label: 'Vencendo em 7 dias',  cor: '818cf8', bg: 'rgba(99,102,241,0.15)',  border: 'rgba(99,102,241,0.3)'  },
+  { id: 'manual',   label: 'Mensagem Manual',      cor: '60a5fa', bg: 'rgba(59,130,246,0.15)',  border: 'rgba(59,130,246,0.3)'  },
 ]
 
 const intervalos = [
@@ -48,41 +59,42 @@ const intervalos = [
 ]
 
 const REGRAS_INFO = [
-  { key: 'dias7', label: '7 dias antes',          cor: '59,130,246'  },
-  { key: 'dias4', label: '4 dias antes',          cor: '251,191,36'  },
-  { key: 'dia0',  label: 'No dia do vencimento',  cor: '239,68,68'   },
-  { key: 'pos1',  label: '1 dia após vencer',     cor: '168,85,247'  },
-  { key: 'pos3',  label: '3 dias após vencer',    cor: '239,68,68'   },
+  { key: 'dias7', label: '7 dias antes',         cor: '59,130,246' },
+  { key: 'dias4', label: '4 dias antes',         cor: '251,191,36' },
+  { key: 'dia0',  label: 'No dia do vencimento', cor: '239,68,68'  },
+  { key: 'pos1',  label: '1 dia após vencer',    cor: '168,85,247' },
+  { key: 'pos3',  label: '3 dias após vencer',   cor: '239,68,68'  },
 ]
 
 const VARIAVEIS = ['NOME', 'VENCIMENTO', 'SERVIDOR', 'VALOR']
 
 export default function Notificacoes() {
-  const [clientes, setClientes]         = useState<Cliente[]>([])
-  const [modelos, setModelos]           = useState<ModeloMensagem[]>([])
-  const [filtro, setFiltro]             = useState('todos')
-  const [clienteSel, setClienteSel]     = useState<Cliente | null>(null)
-  const [mensagem, setMensagem]         = useState('')
-  const [template, setTemplate]         = useState('')
-  const [busca, setBusca]               = useState('')
-  const [intervalo, setIntervalo]       = useState(2000)
-  const [modalModelo, setModalModelo]   = useState(false)
-  const [novoTitulo, setNovoTitulo]     = useState('')
-  const [novoTexto, setNovoTexto]       = useState('')
-  const [enviando, setEnviando]         = useState(false)
-  const [progresso, setProgresso]       = useState(0)
-  const [whatsReady, setWhatsReady]     = useState(false)
-  const [qrCode, setQrCode]             = useState<string | null>(null)
-  const [mostrarQR, setMostrarQR]       = useState(false)
-  const [resultado, setResultado]       = useState<{ tipo: 'ok' | 'erro'; msg: string } | null>(null)
-  const [aba, setAba]                   = useState<'manual' | 'auto' | 'log'>('manual')
-  const [logs, setLogs]                 = useState<LogEntry[]>([])
-  const [salvando, setSalvando]         = useState(false)
-  const [saved, setSaved]               = useState(false)
-  const [disparando, setDisparando]     = useState(false)
+  const [clientes, setClientes]           = useState<Cliente[]>([])
+  const [modelos, setModelos]             = useState<ModeloMensagem[]>([])
+  const [filtro, setFiltro]               = useState('todos')
+  const [clienteSel, setClienteSel]       = useState<Cliente | null>(null)
+  const [mensagem, setMensagem]           = useState('')
+  const [template, setTemplate]           = useState('')
+  const [busca, setBusca]                 = useState('')
+  const [intervalo, setIntervalo]         = useState(2000)
+  const [modalModelo, setModalModelo]     = useState(false)
+  const [novoTitulo, setNovoTitulo]       = useState('')
+  const [novoTexto, setNovoTexto]         = useState('')
+  const [enviando, setEnviando]           = useState(false)
+  const [progresso, setProgresso]         = useState(0)
+  const [whatsReady, setWhatsReady]       = useState(false)
+  const [qrCode, setQrCode]               = useState<string | null>(null)
+  const [mostrarQR, setMostrarQR]         = useState(false)
+  const [resultado, setResultado]         = useState<{ tipo: 'ok' | 'erro'; msg: string } | null>(null)
+  const [aba, setAba]                     = useState<'manual' | 'auto' | 'fila' | 'log'>('manual')
+  const [logs, setLogs]                   = useState<LogEntry[]>([])
+  const [salvando, setSalvando]           = useState(false)
+  const [saved, setSaved]                 = useState(false)
+  const [disparando, setDisparando]       = useState(false)
   const [desconectando, setDesconectando] = useState(false)
+  const [fila, setFila]                   = useState<FilaItem[]>([])
+  const [carregandoFila, setCarregandoFila] = useState(false)
 
-  // ✅ CORRIGIDO: intervaloMs na interface e no estado inicial
   const [config, setConfig] = useState<Config>({
     horario: '09:00',
     ativo: true,
@@ -135,6 +147,27 @@ export default function Notificacoes() {
 
   const carregarLogs = async () => {
     try { const res = await axios.get(`${API}/logs`); setLogs(res.data) } catch {}
+  }
+
+  const carregarFila = async () => {
+    setCarregandoFila(true)
+    try { const res = await axios.get(`${API}/fila`); setFila(res.data) }
+    finally { setCarregandoFila(false) }
+  }
+
+  const retryItem = async (id: string) => {
+    await axios.post(`${API}/fila/${id}/retry`)
+    carregarFila()
+  }
+
+  const cancelarItem = async (id: string) => {
+    await axios.post(`${API}/fila/${id}/cancelar`)
+    carregarFila()
+  }
+
+  const limparFila = async () => {
+    await axios.post(`${API}/fila/limpar`)
+    carregarFila()
   }
 
   const filtroAtual = filtros.find(f => f.id === filtro)!
@@ -212,8 +245,12 @@ export default function Notificacoes() {
 
   const dispararAgora = async () => {
     setDisparando(true)
-    try { await axios.post(`${API}/send-automatico`); await carregarLogs(); setResultado({ tipo: 'ok', msg: 'Disparo automático executado com sucesso!' }); setTimeout(() => setResultado(null), 4000) }
-    finally { setDisparando(false) }
+    try {
+      await axios.post(`${API}/send-automatico`)
+      await carregarLogs()
+      setResultado({ tipo: 'ok', msg: 'Disparo automático executado! Mensagens adicionadas na fila.' })
+      setTimeout(() => setResultado(null), 4000)
+    } finally { setDisparando(false) }
   }
 
   const updateRegra = (key: string, field: string, value: any) => {
@@ -229,6 +266,14 @@ export default function Notificacoes() {
 
   const gatilhoLabel = (key: string) => REGRAS_INFO.find(r => r.key === key)?.label || key
   const gatilhoCor   = (key: string) => REGRAS_INFO.find(r => r.key === key)?.cor || '255,255,255'
+
+  const statusFilaConfig: Record<string, { cor: string; label: string }> = {
+    pendente:  { cor: '251,191,36',  label: '⏳ Pendente'   },
+    enviando:  { cor: '59,130,246',  label: '📤 Enviando'   },
+    enviado:   { cor: '34,197,94',   label: '✅ Enviado'    },
+    erro:      { cor: '239,68,68',   label: '❌ Erro'       },
+    cancelado: { cor: '156,163,175', label: '🚫 Cancelado'  },
+  }
 
   return (
     <div>
@@ -258,9 +303,14 @@ export default function Notificacoes() {
       )}
 
       {/* Abas */}
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>
-        {[{ key: 'manual', label: 'Envio Manual', icon: <Send size={15} /> }, { key: 'auto', label: 'Envio Automático', icon: <Settings size={15} /> }, { key: 'log', label: 'Histórico', icon: <Clock size={15} /> }].map(a => (
-          <button key={a.key} onClick={() => { setAba(a.key as any); if (a.key === 'log') carregarLogs() }} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px', background: aba === a.key ? 'rgba(99,102,241,0.3)' : 'rgba(255,255,255,0.05)', border: aba === a.key ? '1px solid rgba(99,102,241,0.5)' : '1px solid rgba(255,255,255,0.1)', color: aba === a.key ? 'white' : 'rgba(255,255,255,0.5)' }}>
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap' }}>
+        {[
+          { key: 'manual', label: 'Envio Manual',     icon: <Send size={15} />     },
+          { key: 'auto',   label: 'Envio Automático', icon: <Settings size={15} /> },
+          { key: 'fila',   label: 'Fila',             icon: <RefreshCw size={15} /> },
+          { key: 'log',    label: 'Histórico',        icon: <Clock size={15} />    },
+        ].map(a => (
+          <button key={a.key} onClick={() => { setAba(a.key as any); if (a.key === 'log') carregarLogs(); if (a.key === 'fila') carregarFila() }} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px', background: aba === a.key ? 'rgba(99,102,241,0.3)' : 'rgba(255,255,255,0.05)', border: aba === a.key ? '1px solid rgba(99,102,241,0.5)' : '1px solid rgba(255,255,255,0.1)', color: aba === a.key ? 'white' : 'rgba(255,255,255,0.5)' }}>
             {a.icon}{a.label}
           </button>
         ))}
@@ -374,14 +424,10 @@ export default function Notificacoes() {
           <div className="glass-card" style={{ padding: '24px' }}>
             <h3 style={{ color: 'white', margin: '0 0 20px', fontSize: '16px', fontWeight: '600' }}>Configurações Gerais</h3>
             <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
-
-              {/* Horário */}
               <div>
                 <label style={{ color: 'rgba(255,255,255,0.7)', fontSize: '13px', display: 'block', marginBottom: '6px' }}>Horário de envio diário</label>
                 <input type="time" value={config.horario} onChange={e => setConfig({ ...config, horario: e.target.value })} style={{ ...inputStyle, width: '140px' }} />
               </div>
-
-              {/* ✅ Intervalo entre mensagens */}
               <div>
                 <label style={{ color: 'rgba(255,255,255,0.7)', fontSize: '13px', display: 'block', marginBottom: '6px' }}>⏱️ Intervalo entre mensagens</label>
                 <select value={config.intervaloMs ?? 5000} onChange={e => setConfig({ ...config, intervaloMs: Number(e.target.value) })} style={{ ...inputStyle, width: '200px', cursor: 'pointer' }}>
@@ -394,8 +440,6 @@ export default function Notificacoes() {
                 </select>
                 <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: '11px', margin: '4px 0 0 2px' }}>Evita bloqueio por spam no WhatsApp</p>
               </div>
-
-              {/* Ativo/Inativo */}
               <div>
                 <label style={{ color: 'rgba(255,255,255,0.7)', fontSize: '13px', display: 'block', marginBottom: '6px' }}>Envio automático</label>
                 <div style={{ display: 'flex', gap: '8px' }}>
@@ -404,16 +448,12 @@ export default function Notificacoes() {
                   ))}
                 </div>
               </div>
-
-              {/* Disparar agora */}
               <div>
                 <label style={{ color: 'rgba(255,255,255,0.7)', fontSize: '13px', display: 'block', marginBottom: '6px' }}>Disparar agora</label>
                 <button onClick={dispararAgora} disabled={disparando || !whatsReady} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', borderRadius: '10px', cursor: disparando || !whatsReady ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '13px', background: disparando || !whatsReady ? 'rgba(255,255,255,0.05)' : 'rgba(99,102,241,0.3)', border: '1px solid rgba(99,102,241,0.4)', color: disparando || !whatsReady ? 'rgba(255,255,255,0.3)' : '#a5b4fc' }}>
                   <Play size={14} /> {disparando ? 'Disparando...' : 'Executar agora'}
                 </button>
               </div>
-
-              {/* Variáveis */}
               <div style={{ marginLeft: 'auto' }}>
                 <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '12px', marginBottom: '4px' }}>Variáveis disponíveis:</p>
                 <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
@@ -422,11 +462,9 @@ export default function Notificacoes() {
                   ))}
                 </div>
               </div>
-
             </div>
           </div>
 
-          {/* Regras */}
           {REGRAS_INFO.map(({ key, label, cor }) => {
             const regra = config.regras[key as keyof typeof config.regras]
             return (
@@ -449,6 +487,105 @@ export default function Notificacoes() {
             <button onClick={salvarConfig} disabled={salvando} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: saved ? 'rgba(34,197,94,0.3)' : 'linear-gradient(135deg,#3b82f6,#6366f1)', border: saved ? '1px solid rgba(34,197,94,0.5)' : 'none', color: 'white', borderRadius: '12px', padding: '12px 28px', cursor: salvando ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '14px', opacity: salvando ? 0.6 : 1 }}>
               <Save size={16} /> {saved ? 'Salvo!' : salvando ? 'Salvando...' : 'Salvar Configurações'}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── ABA FILA ── */}
+      {aba === 'fila' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+
+          {/* Cards resumo */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
+            {[
+              { label: 'Pendente', status: 'pendente', cor: '251,191,36', emoji: '⏳' },
+              { label: 'Enviando', status: 'enviando', cor: '59,130,246', emoji: '📤' },
+              { label: 'Enviado',  status: 'enviado',  cor: '34,197,94',  emoji: '✅' },
+              { label: 'Erro',     status: 'erro',     cor: '239,68,68',  emoji: '❌' },
+            ].map(({ label, status, cor, emoji }) => (
+              <div key={status} className="glass-card" style={{ padding: '20px', textAlign: 'center' }}>
+                <div style={{ fontSize: '28px', marginBottom: '6px' }}>{emoji}</div>
+                <div style={{ color: `rgb(${cor})`, fontWeight: 'bold', fontSize: '28px' }}>
+                  {fila.filter(f => f.status === status).length}
+                </div>
+                <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '13px', marginTop: '2px' }}>{label}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Tabela da fila */}
+          <div className="glass-card" style={{ overflow: 'hidden' }}>
+            <div style={{ padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ color: 'white', margin: 0, fontSize: '16px', fontWeight: '600' }}>
+                Fila de Envios <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '14px', fontWeight: '400' }}>({fila.length})</span>
+              </h3>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button onClick={carregarFila} disabled={carregandoFila} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.6)', borderRadius: '8px', padding: '6px 14px', cursor: 'pointer', fontSize: '13px' }}>
+                  <RefreshCw size={13} /> {carregandoFila ? 'Carregando...' : 'Atualizar'}
+                </button>
+                <button onClick={limparFila} style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171', borderRadius: '8px', padding: '6px 14px', cursor: 'pointer', fontSize: '13px' }}>
+                  Limpar concluídos
+                </button>
+              </div>
+            </div>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '700px' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                    {['Cliente', 'Gatilho', 'Tentativas', 'Status', 'Erro', 'Ações'].map(h => (
+                      <th key={h} style={{ padding: '10px 16px', textAlign: 'left', color: 'rgba(255,255,255,0.4)', fontSize: '11px', fontWeight: '600', textTransform: 'uppercase' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {fila.length === 0
+                    ? <tr><td colSpan={6} style={{ padding: '40px', textAlign: 'center', color: 'rgba(255,255,255,0.3)' }}>Fila vazia. Dispare o envio automático para popular.</td></tr>
+                    : fila.map(item => {
+                      const sc = statusFilaConfig[item.status] ?? statusFilaConfig.pendente
+                      return (
+                        <tr key={item.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                          <td style={{ padding: '12px 16px', color: 'white', fontWeight: '500' }}>
+                            {item.clienteNome}
+                            <span style={{ display: 'block', fontSize: '11px', color: 'rgba(255,255,255,0.4)' }}>{item.telefone}</span>
+                          </td>
+                          <td style={{ padding: '12px 16px' }}>
+                            <span style={{ background: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.3)', color: '#a5b4fc', padding: '3px 8px', borderRadius: '6px', fontSize: '12px' }}>
+                              {gatilhoLabel(item.gatilho)}
+                            </span>
+                          </td>
+                          <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.6)', fontSize: '13px', textAlign: 'center' }}>
+                            {item.tentativas}/{item.maxTentativas}
+                          </td>
+                          <td style={{ padding: '12px 16px' }}>
+                            <span style={{ background: `rgba(${sc.cor},0.15)`, border: `1px solid rgba(${sc.cor},0.3)`, color: `rgb(${sc.cor})`, padding: '3px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: '600' }}>
+                              {sc.label}
+                            </span>
+                          </td>
+                          <td style={{ padding: '12px 16px', color: '#f87171', fontSize: '12px', maxWidth: '160px' }}>
+                            <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.erro || ''}>
+                              {item.erro || '—'}
+                            </span>
+                          </td>
+                          <td style={{ padding: '12px 16px' }}>
+                            <div style={{ display: 'flex', gap: '6px' }}>
+                              {item.status === 'erro' && (
+                                <button onClick={() => retryItem(item.id)} style={{ background: 'rgba(59,130,246,0.2)', border: '1px solid rgba(59,130,246,0.4)', color: '#60a5fa', borderRadius: '6px', padding: '5px 10px', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}>
+                                  Retry
+                                </button>
+                              )}
+                              {item.status === 'pendente' && (
+                                <button onClick={() => cancelarItem(item.id)} style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171', borderRadius: '6px', padding: '5px 10px', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}>
+                                  Cancelar
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}
