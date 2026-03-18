@@ -284,7 +284,18 @@ iniciarCron()
 
 // ---- Rotas ----
 
-app.get('/status', (req, res) => res.json({ qr: qrCodeBase64, ready: clientReady }))
+app.get('/status', (req, res) => {
+  try {
+    const numero = client.info?.wid?._serialized || sock.user?.id || 'Não detectado'
+    res.json({ 
+      qr: qrCodeBase64, 
+      ready: clientReady,
+      numero: numero  // 👈 NOVO!
+    })
+  } catch {
+    res.json({ qr: null, ready: false, numero: 'Erro' })
+  }
+})
 
 app.post('/send', async (req, res) => {
   const { phone, message } = req.body

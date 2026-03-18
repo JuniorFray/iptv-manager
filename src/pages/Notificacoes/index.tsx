@@ -95,6 +95,7 @@ export default function Notificacoes() {
   const [desconectando, setDesconectando] = useState(false)
   const [fila, setFila]                   = useState<FilaItem[]>([])
   const [carregandoFila, setCarregandoFila] = useState(false)
+  const [numero, setNumero] = useState('Detectando...')
 
   const [config, setConfig] = useState<Config>({
     horario: '09:00',
@@ -131,8 +132,9 @@ export default function Notificacoes() {
         const res = await fetch(`${API}/status`)
         const data = await res.json()
         if (data.ready !== prevReady.current) { prevReady.current = data.ready; setWhatsReady(data.ready) }
+        if (data.numero !== undefined) { setNumero(data.numero) }
         const qr = data.qr
-        if (!data.ready && qr !== prevQr.current) { prevQr.current = qr; setQrCode(qr || null) }
+        if (!data.ready && qr && qr !== prevQr.current) { prevQr.current = qr; setQrCode(qr) }
       } catch {
         if (prevReady.current) { prevReady.current = false; setWhatsReady(false) }
       }
@@ -313,9 +315,20 @@ export default function Notificacoes() {
         </div>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
           <div onClick={() => setMostrarQR(true)} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', borderRadius: '12px', cursor: 'pointer', background: whatsReady ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)', border: whatsReady ? '1px solid rgba(34,197,94,0.3)' : '1px solid rgba(239,68,68,0.3)' }}>
-            {whatsReady ? <Wifi size={16} color="#4ade80" /> : <WifiOff size={16} color="#f87171" />}
-            <span style={{ color: whatsReady ? '#4ade80' : '#f87171', fontSize: '13px', fontWeight: '600' }}>{whatsReady ? 'Conectado' : 'Desconectado'}</span>
-            {!whatsReady && <QrCode size={14} color="#f87171" />}
+            {whatsReady ? (
+              <>
+                <Wifi size={16} color="#4ade80" />
+                <span style={{ color: '#4ade80', fontSize: '13px', fontWeight: 600 }}>
+                  Conectado: <strong>{numero || 'Detectando...'}</strong>
+                </span>
+              </>
+            ) : (
+              <>
+                <WifiOff size={16} color="#f87171" />
+                <span style={{ color: '#f87171', fontSize: '13px', fontWeight: '600' }}>Desconectado</span>
+                <QrCode size={14} color="#f87171" />
+              </>
+            )}
           </div>
           <button onClick={() => setModalModelo(true)} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'linear-gradient(135deg,#3b82f6,#6366f1)', color: 'white', border: 'none', borderRadius: '12px', padding: '10px 18px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px' }}>
             <Plus size={16} /> Novo Modelo
