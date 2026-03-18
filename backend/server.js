@@ -44,7 +44,7 @@ const conectar = async () => {
     if (connection === 'open') { clientReady = true; qrCodeBase64 = null; console.log('WhatsApp conectado!') }
     if (connection === 'close') {
       clientReady = false
-      const motivo = new Boom(lastDisconnect?.error)?.output?.statusCode
+      const motivo = lastDisconnect?.error?.output?.statusCode ?? lastDisconnect?.error?.code ?? 'DESCONHECIDO'
       if (motivo === DisconnectReason.loggedOut) { limparAuth(); setTimeout(conectar, 1000) }
       else setTimeout(conectar, 5000)
     }
