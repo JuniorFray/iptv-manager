@@ -67,9 +67,10 @@ const conectarWhatsApp = async () => {
     printQRInTerminal: false,
     generateHighQualityLinkPreview: true,
     browser: ['Sistema TV', 'Chrome', '1.0'],
-    keepAliveIntervalMs: 30000,       // 👈 mantém conexão ativa
-    connectTimeoutMs: 60000,          // 👈 timeout maior
-    retryRequestDelayMs: 2000,
+    keepAliveIntervalMs: 30000,
+    connectTimeoutMs: 120000,
+    retryRequestDelayMs: 5000,
+    defaultQueryTimeoutMs: 60000,
   })
 
   sock.ev.on('creds.update', saveCreds)
@@ -338,6 +339,7 @@ iniciarCron()
 // ---- Rotas ----
 
 app.get('/status', (req, res) => {
+  res.set('Cache-Control', 'no-store')
   try {
     const numero = sock.user?.id || 'Não detectado'
     res.json({
