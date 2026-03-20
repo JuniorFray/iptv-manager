@@ -49,8 +49,6 @@ const autenticar = (req, res, next) => {
 
 app.use(autenticar)
 
-
-
 // ---- WhatsApp ----
 
 let sock = null
@@ -71,6 +69,10 @@ const useFirestoreAuthState = async () => {
     await ref.set(data, { merge: true })
   }
 
+  const sanitizeKey = (type, id) => {
+    return `${type}_${id}`.replace(/[^a-zA-Z0-9_]/g, '_')
+  }
+
   const credsDoc = await readData(docRef)
   const creds = credsDoc?.creds ? JSON.parse(credsDoc.creds) : initAuthCreds()
 
@@ -81,7 +83,8 @@ const useFirestoreAuthState = async () => {
         const data = await readData(keysRef)
         const result = {}
         for (const id of ids) {
-          const val = data?.[`${type}:${id}`]
+          const key = sanitizeKey(type, id)
+          const val = data?.[key]
           result[id] = val ? JSON.parse(val) : undefined
         }
         return result
@@ -90,10 +93,13 @@ const useFirestoreAuthState = async () => {
         const update = {}
         for (const [type, values] of Object.entries(data)) {
           for (const [id, val] of Object.entries(values || {})) {
-            update[`${type}:${id}`] = val ? JSON.stringify(val) : null
+            const key = sanitizeKey(type, id)
+            update[key] = val ? JSON.stringify(val) : null
           }
         }
-        await writeData(keysRef, update)
+        if (Object.keys(update).length > 0) {
+          await writeData(keysRef, update)
+        }
       }
     }
   }
@@ -103,6 +109,12 @@ const useFirestoreAuthState = async () => {
   }
 
   return { state, saveCreds }
+}
+
+const limparSessao = async () => {
+  await db.collection('whatsappAuth').doc('creds').delete().catch(() => {})
+  await db.collection('whatsappAuth').doc('keys').delete().catch(() => {})
+  console.log('🗑️ Sessão do Firestore limpa.')
 }
 
 const conectarWhatsApp = async () => {
@@ -136,12 +148,21 @@ const conectarWhatsApp = async () => {
       const statusCode = lastDisconnect?.error?.output?.statusCode
       console.log('❌ Desconectado:', statusCode)
 
-      // 401 = logout manual, não reconecta
-      if (statusCode !== 401) {
-        const delay = statusCode === 408 ? 5000 : 10000
-        console.log(`🔄 Reconectando em ${delay / 1000}s...`)
-        setTimeout(conectarWhatsApp, delay)
+      if (statusCode === 401) {
+        // Logout manual — não reconecta
+        return
       }
+
+      if (statusCode === undefined) {
+        // Sessão corrompida — limpa e reconecta
+        console.log('🗑️ Sessão inválida, limpando...')
+        await limparSessao()
+      }
+
+      const delay = statusCode === 408 ? 5000 : 10000
+      console.log(`🔄 Reconectando em ${delay / 1000}s...`)
+      setTimeout(conectarWhatsApp, delay)
+
     } else if (connection === 'open') {
       clientReady = true
       qrCodeBase64 = null
@@ -152,7 +173,6 @@ const conectarWhatsApp = async () => {
 
 // Inicia conexão
 conectarWhatsApp()
-
 
 // ---- Helpers ----
 
@@ -463,9 +483,7 @@ app.post('/logout', async (req, res) => {
     await sock.logout()
     clientReady = false
     qrCodeBase64 = null
-    // Limpa sessão do Firestore
-    await db.collection('whatsappAuth').doc('creds').delete()
-    await db.collection('whatsappAuth').doc('keys').delete()
+    await limparSessao()
     res.json({ success: true })
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
