@@ -2,9 +2,7 @@
 import { collection, onSnapshot, addDoc, deleteDoc, doc } from 'firebase/firestore'
 import { db } from '../../firebase'
 import { Send, Users, CheckCircle, Plus, Trash2, X, BookOpen, Wifi, WifiOff, QrCode, Settings, Clock, CheckCircle2, XCircle, Play, Save, RefreshCw } from 'lucide-react'
-import axios from 'axios'
-
-const API = 'https://iptv-manager-production.up.railway.app'
+import api from '../../services/api'
 
 interface Cliente { id: string; nome: string; telefone: string; servidor: string; tipo: string; status: string; vencimento: string; valor: string }
 interface ModeloMensagem { id: string; titulo: string; texto: string }
@@ -129,8 +127,8 @@ export default function Notificacoes() {
   useEffect(() => {
     const verificar = async () => {
       try {
-        const res = await fetch(`${API}/status`)
-        const data = await res.json()
+        const res = await api.get('/status')
+const data = res.data
         if (data.ready !== prevReady.current) { prevReady.current = data.ready; setWhatsReady(data.ready) }
         if (data.numero !== undefined) { setNumero(data.numero) }
         const qr = data.qr
@@ -145,31 +143,31 @@ export default function Notificacoes() {
   }, [])
 
   useEffect(() => {
-    axios.get(`${API}/config`).then(res => setConfig(res.data)).catch(() => {})
+    api.get(`/config`).then(res => setConfig(res.data)).catch(() => {})
   }, [])
 
   const carregarLogs = async () => {
-    try { const res = await axios.get(`${API}/logs`); setLogs(res.data) } catch {}
+    try { const res = await api.get(`/logs`); setLogs(res.data) } catch {}
   }
 
   const carregarFila = async () => {
     setCarregandoFila(true)
-    try { const res = await axios.get(`${API}/fila`); setFila(res.data) }
+    try { const res = await api.get(`/fila`); setFila(res.data) }
     finally { setCarregandoFila(false) }
   }
 
   const retryItem = async (id: string) => {
-    await axios.post(`${API}/fila/${id}/retry`)
+    await api.post(`/fila/${id}/retry`)
     carregarFila()
   }
 
   const cancelarItem = async (id: string) => {
-    await axios.post(`${API}/fila/${id}/cancelar`)
+    await api.post(`/fila/${id}/cancelar`)
     carregarFila()
   }
 
   const limparFila = async () => {
-    await axios.post(`${API}/fila/limpar`)
+    await api.post(`/fila/limpar`)
     carregarFila()
   }
 
@@ -243,8 +241,8 @@ export default function Notificacoes() {
   const enviarUm = async () => {
     if (!clienteSel || !mensagem.trim()) return
     try {
-      const res = await fetch(`${API}/send`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: formatarTelefone(clienteSel.telefone), message: substituir(mensagem, clienteSel) }) })
-      const data = await res.json()
+      const res = await api.post('/send', { phone: formatarTelefone(clienteSel.telefone), message: substituir(mensagem, clienteSel) })
+const data = res.data
       if (data.success) setResultado({ tipo: 'ok', msg: `Mensagem enviada para ${clienteSel.nome}!` })
       else setResultado({ tipo: 'erro', msg: data.error || 'Erro ao enviar.' })
     } catch { setResultado({ tipo: 'erro', msg: 'Backend offline.' }) }
@@ -257,7 +255,7 @@ export default function Notificacoes() {
     const base = template || mensagem
     for (let i = 0; i < clientesFiltrados.length; i++) {
       const c = clientesFiltrados[i]
-      try { await fetch(`${API}/send`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: formatarTelefone(c.telefone), message: substituir(base, c) }) }) } catch {}
+      try { await api.post('/send', { phone: formatarTelefone(c.telefone), message: substituir(base, c) }) } catch {}
       setProgresso(i + 1)
       await new Promise(r => setTimeout(r, intervalo))
     }
@@ -269,14 +267,14 @@ export default function Notificacoes() {
   const salvarConfig = async () => {
     if (!config) return
     setSalvando(true)
-    try { await axios.post(`${API}/config`, config); setSaved(true); setTimeout(() => setSaved(false), 3000) }
+    try { await api.post(`/config`, config); setSaved(true); setTimeout(() => setSaved(false), 3000) }
     finally { setSalvando(false) }
   }
 
   const dispararAgora = async () => {
     setDisparando(true)
     try {
-      await axios.post(`${API}/send-automatico`)
+      await api.post(`/send-automatico`)
       await carregarLogs()
       setResultado({ tipo: 'ok', msg: 'Disparo automático executado! Mensagens adicionadas na fila.' })
       setTimeout(() => setResultado(null), 4000)
@@ -290,7 +288,7 @@ export default function Notificacoes() {
 
   const desconectarWhatsApp = async () => {
     setDesconectando(true)
-    try { await axios.post(`${API}/logout`) } catch {}
+    try { await api.post(`/logout`) } catch {}
     setDesconectando(false); setMostrarQR(false)
   }
 

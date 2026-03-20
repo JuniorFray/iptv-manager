@@ -18,8 +18,35 @@ admin.initializeApp({ credential: admin.credential.cert(serviceAccount) })
 const db = admin.firestore()
 
 const app = express()
-app.use(cors())
+
+// ---- CORS restrito por origem ----
+const origens = (process.env.FRONTEND_URL || 'http://localhost:5173')
+  .split(',')
+  .map(s => s.trim())
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || origens.includes(origin)) return callback(null, true)
+    callback(new Error('Origem não permitida pelo CORS'))
+  },
+  methods: ['GET', 'POST'],
+}))
+
 app.use(express.json())
+
+// ---- Middleware de autenticação por API Key ----
+const API_KEY = process.env.API_KEY
+
+const autenticar = (req, res, next) => {
+  if (!API_KEY) return next()
+  const chave = req.headers['x-api-key']
+  if (chave !== API_KEY) {
+    return res.status(401).json({ error: 'Não autorizado' })
+  }
+  next()
+}
+
+app.use(autenticar)
 
 
 
