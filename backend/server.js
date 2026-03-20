@@ -4,7 +4,8 @@ import fs from 'fs'
 import makeWASocket, {
   DisconnectReason,
   fetchLatestBaileysVersion,
-  initAuthCreds
+  initAuthCreds,
+  Browsers
 } from '@whiskeysockets/baileys'
 import qrcode from 'qrcode'
 import cron from 'node-cron'
@@ -126,7 +127,7 @@ const conectarWhatsApp = async () => {
     auth: state,
     printQRInTerminal: false,
     generateHighQualityLinkPreview: true,
-    browser: ['Sistema TV', 'Chrome', '1.0'],
+    browser: Browsers.ubuntu('Chrome'),
     keepAliveIntervalMs: 30000,
     connectTimeoutMs: 120000,
     retryRequestDelayMs: 5000,
