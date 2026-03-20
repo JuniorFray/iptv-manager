@@ -38,6 +38,7 @@ app.use(express.json())
 const API_KEY = process.env.API_KEY
 
 const autenticar = (req, res, next) => {
+  if (req.method === 'OPTIONS') return next()
   if (!API_KEY) return next()
   const chave = req.headers['x-api-key']
   if (chave !== API_KEY) {
