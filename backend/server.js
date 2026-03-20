@@ -2,9 +2,9 @@
 import cors from 'cors'
 import fs from 'fs'
 import makeWASocket, {
-  useMultiFileAuthState,
   DisconnectReason,
-  fetchLatestBaileysVersion
+  fetchLatestBaileysVersion,
+  initAuthCreds
 } from '@whiskeysockets/baileys'
 import qrcode from 'qrcode'
 import cron from 'node-cron'
@@ -57,8 +57,56 @@ let sock = null
 let qrCodeBase64 = null
 let clientReady = false
 
+// ---- Auth State no Firestore ----
+const useFirestoreAuthState = async () => {
+  const docRef = db.collection('whatsappAuth').doc('creds')
+  const keysRef = db.collection('whatsappAuth').doc('keys')
+
+  const readData = async (ref) => {
+    const snap = await ref.get()
+    return snap.exists ? snap.data() : {}
+  }
+
+  const writeData = async (ref, data) => {
+    await ref.set(data, { merge: true })
+  }
+
+  const credsDoc = await readData(docRef)
+  const creds = credsDoc?.creds ? JSON.parse(credsDoc.creds) : initAuthCreds()
+
+  const state = {
+    creds,
+    keys: {
+      get: async (type, ids) => {
+        const data = await readData(keysRef)
+        const result = {}
+        for (const id of ids) {
+          const val = data?.[`${type}:${id}`]
+          result[id] = val ? JSON.parse(val) : undefined
+        }
+        return result
+      },
+      set: async (data) => {
+        const update = {}
+        for (const [type, values] of Object.entries(data)) {
+          for (const [id, val] of Object.entries(values || {})) {
+            update[`${type}:${id}`] = val ? JSON.stringify(val) : null
+          }
+        }
+        await writeData(keysRef, update)
+      }
+    }
+  }
+
+  const saveCreds = async () => {
+    await writeData(docRef, { creds: JSON.stringify(state.creds) })
+  }
+
+  return { state, saveCreds }
+}
+
 const conectarWhatsApp = async () => {
-  const { state, saveCreds } = await useMultiFileAuthState('auth_info')
+  const { state, saveCreds } = await useFirestoreAuthState()
   const { version } = await fetchLatestBaileysVersion()
 
   sock = makeWASocket({
@@ -92,7 +140,7 @@ const conectarWhatsApp = async () => {
       if (statusCode !== 401) {
         const delay = statusCode === 408 ? 5000 : 10000
         console.log(`🔄 Reconectando em ${delay / 1000}s...`)
-        setTimeout(conectarWhatsApp, delay) // 👈 recria o socket
+        setTimeout(conectarWhatsApp, delay)
       }
     } else if (connection === 'open') {
       clientReady = true
@@ -172,9 +220,8 @@ const getConfig = async () => {
 // ---- Sistema de Fila Robusta ----
 
 const MAX_TENTATIVAS = 3
-const BACKOFF_BASE_MS = 60000 // 1 minuto base, dobra a cada tentativa
+const BACKOFF_BASE_MS = 60000
 
-// Verifica se já enviou esta notificação hoje para este cliente
 const jaEnviouHoje = async (clienteId, gatilho) => {
   const hoje = new Date().toISOString().split('T')[0]
   const snap = await db.collection('notificacoesEnviadas')
@@ -186,7 +233,6 @@ const jaEnviouHoje = async (clienteId, gatilho) => {
   return !snap.empty
 }
 
-// Adiciona mensagem na fila com verificação anti-duplicata
 const adicionarNaFila = async (cliente, gatilho, mensagem) => {
   if (await jaEnviouHoje(cliente.id, gatilho)) {
     console.log(`⏭️ Duplicata ignorada: ${cliente.nome} [${gatilho}]`)
@@ -210,7 +256,6 @@ const adicionarNaFila = async (cliente, gatilho, mensagem) => {
   return true
 }
 
-// Worker: processa itens pendentes da fila
 let processandoFila = false
 
 const processarFila = async () => {
@@ -245,10 +290,8 @@ const processarFila = async () => {
         const numero = normalizarTelefone(item.telefone)
         await sock.sendMessage(numero, { text: item.mensagem })
 
-        // Sucesso
         await ref.update({ status: 'enviado', enviadoEm: admin.firestore.FieldValue.serverTimestamp(), erro: null })
 
-        // Registra anti-duplicata
         await db.collection('notificacoesEnviadas').add({
           clienteId: item.clienteId,
           clienteNome: item.clienteNome,
@@ -262,7 +305,6 @@ const processarFila = async () => {
 
       } catch (err) {
         const novasTentativas = (item.tentativas || 0) + 1
-        // Backoff exponencial: 1min, 2min, 4min
         const backoffMs = BACKOFF_BASE_MS * Math.pow(2, novasTentativas - 1)
         const proximaTentativa = admin.firestore.Timestamp.fromMillis(Date.now() + backoffMs)
 
@@ -283,7 +325,7 @@ const processarFila = async () => {
   }
 }
 
-// ---- Envio automático (agora popula a fila) ----
+// ---- Envio automático ----
 
 const executarEnvioAutomatico = async () => {
   console.log('🚀 Iniciando envio automático...')
@@ -317,13 +359,11 @@ const executarEnvioAutomatico = async () => {
   }
 
   console.log(`📥 ${adicionados} mensagens adicionadas na fila.`)
-  // Inicia processamento imediatamente
   processarFila()
 }
 
 // ---- Crons ----
 
-// Processa fila a cada 30 segundos
 cron.schedule('*/30 * * * * *', processarFila, { timezone: 'America/Sao_Paulo' })
 
 let cronJob = null
@@ -386,7 +426,6 @@ app.get('/fila', async (req, res) => {
   res.json(snap.docs.map(d => ({ id: d.id, ...d.data() })))
 })
 
-// Retentar item com erro
 app.post('/fila/:id/retry', async (req, res) => {
   try {
     await db.collection('filaEnvios').doc(req.params.id).update({
@@ -400,7 +439,6 @@ app.post('/fila/:id/retry', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-// Cancelar item pendente
 app.post('/fila/:id/cancelar', async (req, res) => {
   try {
     await db.collection('filaEnvios').doc(req.params.id).update({ status: 'cancelado' })
@@ -408,7 +446,6 @@ app.post('/fila/:id/cancelar', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-// Limpar enviados e cancelados
 app.post('/fila/limpar', async (req, res) => {
   try {
     const snap = await db.collection('filaEnvios')
@@ -426,6 +463,9 @@ app.post('/logout', async (req, res) => {
     await sock.logout()
     clientReady = false
     qrCodeBase64 = null
+    // Limpa sessão do Firestore
+    await db.collection('whatsappAuth').doc('creds').delete()
+    await db.collection('whatsappAuth').doc('keys').delete()
     res.json({ success: true })
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
