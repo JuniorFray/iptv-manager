@@ -5,6 +5,7 @@ import makeWASocket, {
   DisconnectReason,
   fetchLatestBaileysVersion,
   initAuthCreds,
+  makeCacheableSignalKeyStore,
   Browsers
 } from '@whiskeysockets/baileys'
 import qrcode from 'qrcode'
@@ -56,59 +57,86 @@ let sock = null
 let qrCodeBase64 = null
 let clientReady = false
 
-// ---- Auth State em documento único no Firestore ----
+// ---- Auth State no Firestore com cache em memória ----
 const useFirestoreAuthState = async () => {
   const docRef = db.collection('whatsappAuth').doc('session')
 
   const lerSessao = async () => {
-    const snap = await docRef.get()
-    return snap.exists ? snap.data() : {}
+    try {
+      const snap = await docRef.get()
+      return snap.exists ? snap.data() : {}
+    } catch { return {} }
   }
 
   const sessao = await lerSessao()
   const creds = sessao?.creds ? JSON.parse(sessao.creds) : initAuthCreds()
-  const keysData = sessao?.keys ? JSON.parse(sessao.keys) : {}
 
-  const state = {
-    creds,
-    keys: {
-      get: async (type, ids) => {
-        const result = {}
-        for (const id of ids) {
-          const key = `${type}__${id}`.replace(/[^a-zA-Z0-9_]/g, '_')
-          result[id] = keysData[key] ? JSON.parse(keysData[key]) : undefined
-        }
-        return result
-      },
-      set: async (data) => {
-        for (const [type, values] of Object.entries(data)) {
-          for (const [id, val] of Object.entries(values || {})) {
-            const key = `${type}__${id}`.replace(/[^a-zA-Z0-9_]/g, '_')
-            if (val) keysData[key] = JSON.stringify(val)
-            else delete keysData[key]
-          }
-        }
-        await docRef.set({
-          creds: JSON.stringify(state.creds),
-          keys: JSON.stringify(keysData)
-        })
-      }
+  // Cache em memória das keys
+  const keysCache = sessao?.keys ? JSON.parse(sessao.keys) : {}
+
+  const writeKeys = async () => {
+    try {
+      await docRef.set({
+        creds: JSON.stringify(creds),
+        keys: JSON.stringify(keysCache)
+      }, { merge: true })
+    } catch (err) {
+      console.error('Erro ao salvar keys:', err.message)
     }
   }
 
+  const keyStore = {
+    get: async (type, ids) => {
+      const result = {}
+      for (const id of ids) {
+        const k = `${type}__${id}`.replace(/[^a-zA-Z0-9_]/g, '_')
+        result[id] = keysCache[k] !== undefined ? JSON.parse(keysCache[k]) : undefined
+      }
+      return result
+    },
+    set: async (data) => {
+      let changed = false
+      for (const [type, values] of Object.entries(data)) {
+        for (const [id, val] of Object.entries(values || {})) {
+          const k = `${type}__${id}`.replace(/[^a-zA-Z0-9_]/g, '_')
+          if (val !== null && val !== undefined) {
+            keysCache[k] = JSON.stringify(val)
+          } else {
+            delete keysCache[k]
+          }
+          changed = true
+        }
+      }
+      if (changed) await writeKeys()
+    }
+  }
+
+  const state = {
+    creds,
+    keys: makeCacheableSignalKeyStore(keyStore, console)
+  }
+
   const saveCreds = async () => {
-    await docRef.set({
-      creds: JSON.stringify(state.creds),
-      keys: JSON.stringify(keysData)
-    })
+    try {
+      await docRef.set({
+        creds: JSON.stringify(state.creds),
+        keys: JSON.stringify(keysCache)
+      }, { merge: true })
+    } catch (err) {
+      console.error('Erro ao salvar creds:', err.message)
+    }
   }
 
   return { state, saveCreds }
 }
 
 const limparSessao = async () => {
-  await db.collection('whatsappAuth').doc('session').delete().catch(() => {})
-  console.log('🗑️ Sessão do Firestore limpa.')
+  try {
+    await db.collection('whatsappAuth').doc('session').delete()
+    console.log('🗑️ Sessão do Firestore limpa.')
+  } catch (err) {
+    console.error('Erro ao limpar sessão:', err.message)
+  }
 }
 
 const conectarWhatsApp = async () => {
@@ -143,7 +171,6 @@ const conectarWhatsApp = async () => {
       console.log('❌ Desconectado:', statusCode)
 
       if (statusCode === 401) {
-        // Logout manual — não reconecta
         return
       }
 
@@ -164,7 +191,6 @@ const conectarWhatsApp = async () => {
   })
 }
 
-// Inicia conexão
 conectarWhatsApp()
 
 // ---- Helpers ----
@@ -395,11 +421,7 @@ app.get('/status', (req, res) => {
   res.set('Cache-Control', 'no-store')
   try {
     const numero = sock.user?.id || 'Não detectado'
-    res.json({
-      qr: qrCodeBase64,
-      ready: clientReady,
-      numero: numero
-    })
+    res.json({ qr: qrCodeBase64, ready: clientReady, numero })
   } catch {
     res.json({ qr: null, ready: false, numero: 'Erro' })
   }
@@ -432,8 +454,6 @@ app.get('/logs', async (req, res) => {
   res.json(snap.docs.map(d => ({ id: d.id, ...d.data() })))
 })
 
-// ---- Rotas da Fila ----
-
 app.get('/fila', async (req, res) => {
   const snap = await db.collection('filaEnvios').orderBy('criadoEm', 'desc').limit(200).get()
   res.json(snap.docs.map(d => ({ id: d.id, ...d.data() })))
@@ -442,9 +462,7 @@ app.get('/fila', async (req, res) => {
 app.post('/fila/:id/retry', async (req, res) => {
   try {
     await db.collection('filaEnvios').doc(req.params.id).update({
-      status: 'pendente',
-      tentativas: 0,
-      erro: null,
+      status: 'pendente', tentativas: 0, erro: null,
       proximaTentativa: admin.firestore.Timestamp.now(),
     })
     processarFila()
@@ -462,8 +480,7 @@ app.post('/fila/:id/cancelar', async (req, res) => {
 app.post('/fila/limpar', async (req, res) => {
   try {
     const snap = await db.collection('filaEnvios')
-      .where('status', 'in', ['enviado', 'cancelado'])
-      .get()
+      .where('status', 'in', ['enviado', 'cancelado']).get()
     const batch = db.batch()
     snap.docs.forEach(d => batch.delete(d.ref))
     await batch.commit()
