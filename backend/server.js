@@ -56,65 +56,58 @@ let sock = null
 let qrCodeBase64 = null
 let clientReady = false
 
-// ---- Auth State no Firestore ----
+// ---- Auth State em documento único no Firestore ----
 const useFirestoreAuthState = async () => {
-  const docRef = db.collection('whatsappAuth').doc('creds')
-  const keysRef = db.collection('whatsappAuth').doc('keys')
+  const docRef = db.collection('whatsappAuth').doc('session')
 
-  const readData = async (ref) => {
-    const snap = await ref.get()
+  const lerSessao = async () => {
+    const snap = await docRef.get()
     return snap.exists ? snap.data() : {}
   }
 
-  const writeData = async (ref, data) => {
-    await ref.set(data, { merge: true })
-  }
-
-  const sanitizeKey = (type, id) => {
-    return `${type}_${id}`.replace(/[^a-zA-Z0-9_]/g, '_')
-  }
-
-  const credsDoc = await readData(docRef)
-  const creds = credsDoc?.creds ? JSON.parse(credsDoc.creds) : initAuthCreds()
+  const sessao = await lerSessao()
+  const creds = sessao?.creds ? JSON.parse(sessao.creds) : initAuthCreds()
+  const keysData = sessao?.keys ? JSON.parse(sessao.keys) : {}
 
   const state = {
     creds,
     keys: {
       get: async (type, ids) => {
-        const data = await readData(keysRef)
         const result = {}
         for (const id of ids) {
-          const key = sanitizeKey(type, id)
-          const val = data?.[key]
-          result[id] = val ? JSON.parse(val) : undefined
+          const key = `${type}__${id}`.replace(/[^a-zA-Z0-9_]/g, '_')
+          result[id] = keysData[key] ? JSON.parse(keysData[key]) : undefined
         }
         return result
       },
       set: async (data) => {
-        const update = {}
         for (const [type, values] of Object.entries(data)) {
           for (const [id, val] of Object.entries(values || {})) {
-            const key = sanitizeKey(type, id)
-            update[key] = val ? JSON.stringify(val) : null
+            const key = `${type}__${id}`.replace(/[^a-zA-Z0-9_]/g, '_')
+            if (val) keysData[key] = JSON.stringify(val)
+            else delete keysData[key]
           }
         }
-        if (Object.keys(update).length > 0) {
-          await writeData(keysRef, update)
-        }
+        await docRef.set({
+          creds: JSON.stringify(state.creds),
+          keys: JSON.stringify(keysData)
+        })
       }
     }
   }
 
   const saveCreds = async () => {
-    await writeData(docRef, { creds: JSON.stringify(state.creds) })
+    await docRef.set({
+      creds: JSON.stringify(state.creds),
+      keys: JSON.stringify(keysData)
+    })
   }
 
   return { state, saveCreds }
 }
 
 const limparSessao = async () => {
-  await db.collection('whatsappAuth').doc('creds').delete().catch(() => {})
-  await db.collection('whatsappAuth').doc('keys').delete().catch(() => {})
+  await db.collection('whatsappAuth').doc('session').delete().catch(() => {})
   console.log('🗑️ Sessão do Firestore limpa.')
 }
 
@@ -155,7 +148,6 @@ const conectarWhatsApp = async () => {
       }
 
       if (statusCode === undefined) {
-        // Sessão corrompida — limpa e reconecta
         console.log('🗑️ Sessão inválida, limpando...')
         await limparSessao()
       }
