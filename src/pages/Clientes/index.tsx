@@ -4,7 +4,7 @@ import { db } from '../../firebase'
 import { Plus, Pencil, Trash2, X, Check, Search, Upload, Download, RefreshCw, FlaskConical } from 'lucide-react'
 import * as XLSX from 'xlsx'
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001'
+const BACKEND_URL = 'https://iptv-manager-production.up.railway.app'
 
 interface Cliente {
   id: string
