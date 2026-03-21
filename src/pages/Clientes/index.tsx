@@ -84,24 +84,29 @@ export default function Clientes() {
 
   // ---- Renovar no WWPanel ----
   const renovarCliente = async (cliente: Cliente) => {
-    if (!cliente.usuario) return mostrarMsgPainel('erro', `❌ ${cliente.nome} não tem usuário cadastrado.`)
-    setRenovandoId(cliente.id)
-    try {
-      const buscaRes = await fetch(`${BACKEND_URL}/painel/buscar/${cliente.usuario}`)
-      const buscaData = await buscaRes.json()
-      const lineId = buscaData?.lines?.[0]?.id ?? buscaData?.[0]?.id
-      if (!lineId) throw new Error('Usuário não encontrado no painel Warez.')
+  setRenovandoId(cliente.id)
+  try {
+    // Busca por usuário OU por nome como fallback
+    const termoBusca = cliente.usuario?.trim() || cliente.nome?.trim()
+    if (!termoBusca) throw new Error('Sem usuário ou nome para buscar.')
 
-      const renovarRes = await fetch(`${BACKEND_URL}/painel/renovar/${lineId}`, { method: 'POST' })
-      if (!renovarRes.ok) throw new Error('Falha ao renovar no painel.')
+    const buscaRes = await fetch(`${BACKEND_URL}/painel/buscar/${encodeURIComponent(termoBusca)}`)
+    const buscaData = await buscaRes.json()
+    const lines = buscaData?.lines ?? buscaData ?? []
+    const lineId = lines[0]?.id
 
-      mostrarMsgPainel('ok', `✅ ${cliente.nome} renovado com sucesso no Warez!`)
-    } catch (err: any) {
-      mostrarMsgPainel('erro', `❌ Erro ao renovar ${cliente.nome}: ${err.message}`)
-    } finally {
-      setRenovandoId(null)
-    }
+    if (!lineId) throw new Error(`Usuário "${termoBusca}" não encontrado no painel Warez.`)
+
+    const renovarRes = await fetch(`${BACKEND_URL}/painel/renovar/${lineId}`, { method: 'POST' })
+    if (!renovarRes.ok) throw new Error('Falha ao renovar no painel.')
+
+    mostrarMsgPainel('ok', `✅ ${cliente.nome} renovado com sucesso no Warez!`)
+  } catch (err: any) {
+    mostrarMsgPainel('erro', `❌ Erro ao renovar ${cliente.nome}: ${err.message}`)
+  } finally {
+    setRenovandoId(null)
   }
+}
 
   // ---- Gerar Teste no WWPanel ----
   const gerarTeste = async (cliente: Cliente) => {
