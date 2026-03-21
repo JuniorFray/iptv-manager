@@ -3,7 +3,6 @@ import cors from 'cors'
 import fs from 'fs'
 import makeWASocket, {
   useMultiFileAuthState,
-  DisconnectReason,
   fetchLatestBaileysVersion
 } from '@whiskeysockets/baileys'
 import qrcode from 'qrcode'
@@ -12,7 +11,7 @@ import admin from 'firebase-admin'
 import { createRequire } from 'module'
 
 const require = createRequire(import.meta.url)
-const serviceAccount = JSON.parse(process.env.SERVICE_ACCOUNT_KEY)
+const serviceAccount = JSON.parse(process.env.SERVICEACCOUNTKEY)
 
 admin.initializeApp({ credential: admin.credential.cert(serviceAccount) })
 const db = admin.firestore()
@@ -28,20 +27,20 @@ let qrCodeBase64 = null
 let clientReady = false
 
 const conectarWhatsApp = async () => {
-  const { state, saveCreds } = await useMultiFileAuthState('auth_info')
+  const { state, saveCreds } = await useMultiFileAuthState('authinfo')
   const { version } = await fetchLatestBaileysVersion()
 
   sock = makeWASocket({
-  version,
-  auth: state,
-  printQRInTerminal: false,
-  generateHighQualityLinkPreview: true,
-  browser: ['Sistema TV', 'Chrome', '1.0'],
-  keepAliveIntervalMs: 30000,
-  connectTimeoutMs: 60000,
-  retryRequestDelayMs: 2000,
-  qrTimeout: 60000, // 👈 adicione esta linha
-})
+    version,
+    auth: state,
+    printQRInTerminal: false,
+    generateHighQualityLinkPreview: true,
+    browser: ['Sistema TV', 'Chrome', '1.0'],
+    keepAliveIntervalMs: 30000,
+    connectTimeoutMs: 60000,
+    retryRequestDelayMs: 2000,
+    qrTimeout: 60000,
+  })
 
   sock.ev.on('creds.update', saveCreds)
 
@@ -56,35 +55,76 @@ const conectarWhatsApp = async () => {
     if (connection === 'close') {
       clientReady = false
       const statusCode = lastDisconnect?.error?.output?.statusCode
-      console.log('❌ Desconectado:', statusCode)
-
+      console.log('Desconectado', statusCode)
       if (statusCode !== 401) {
         const delay = statusCode === 408 ? 5000 : 10000
-        console.log(`🔄 Reconectando em ${delay / 1000}s...`)
+        console.log(`Reconectando em ${delay / 1000}s...`)
         setTimeout(conectarWhatsApp, delay)
       }
     } else if (connection === 'open') {
       clientReady = true
       qrCodeBase64 = null
-      console.log('✅ WhatsApp conectado!')
+      console.log('WhatsApp conectado!')
     }
   })
 }
 
 conectarWhatsApp()
 
-// ---- Helpers ----
+// ---- WWPanel (mcapi.knewcms.com) ----
 
-const sleep = (ms) => new Promise(r => setTimeout(r, ms))
+let wpToken = null
+let wpTokenExp = 0
 
-const parseDate = (str) => {
+const wpLogin = async () => {
+  const res = await fetch('https://mcapi.knewcms.com:2087/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      username: process.env.WPAINEL_USER,
+      password: process.env.WPAINEL_PASS
+    })
+  })
+  const data = await res.json()
+  if (!data.token) throw new Error('Login WWPanel falhou: ' + JSON.stringify(data))
+  wpToken = data.token
+  wpTokenExp = Date.now() + (1.5 * 60 * 60 * 1000) // renova 30min antes de expirar (token dura 2h)
+  console.log('🔑 WWPanel token renovado!')
+  return wpToken
+}
+
+const getWpToken = async () => {
+  if (!wpToken || Date.now() > wpTokenExp) await wpLogin()
+  return wpToken
+}
+
+const wpFetch = async (path, method = 'GET', body = null) => {
+  const token = await getWpToken()
+  const res = await fetch(`https://mcapi.knewcms.com:2087${path}`, {
+    method,
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      'Origin': 'https://wwpanel.link',
+      'Referer': 'https://wwpanel.link/'
+    },
+    body: body ? JSON.stringify(body) : null
+  })
+  return res.json()
+}
+
+// ---- Helpers WhatsApp ----
+
+const sleep = ms => new Promise(r => setTimeout(r, ms))
+
+const parseDate = str => {
   if (!str) return null
   const [d, m, y] = str.split('/').map(Number)
   if (!d || !m || !y) return null
   return new Date(y, m - 1, d)
 }
 
-const diffDias = (dataStr) => {
+const diffDias = dataStr => {
   const hoje = new Date(); hoje.setHours(0, 0, 0, 0)
   const data = parseDate(dataStr)
   if (!data) return null
@@ -99,7 +139,7 @@ const formatarMensagem = (template, cliente) => {
     .replace(/VALOR/gi, cliente.valor ? `R$ ${parseFloat(cliente.valor).toFixed(2).replace('.', ',')}` : '')
 }
 
-const normalizarTelefone = (tel) => {
+const normalizarTelefone = tel => {
   let num = String(tel).replace(/\D/g, '')
   if (num.startsWith('5555')) num = num.substring(2)
   else if (!num.startsWith('55')) num = '55' + num
@@ -122,12 +162,12 @@ const configPadrao = {
   ativo: true,
   intervaloMs: 5000,
   regras: {
-    dias7: { ativo: true, mensagem: 'Olá NOME! Sua assinatura do servidor SERVIDOR vence em 7 dias, no dia VENCIMENTO. Entre em contato com antecedência! 🙏' },
+    dias7: { ativo: true, mensagem: 'Olá NOME! Sua assinatura do servidor SERVIDOR vence em 7 dias, no dia VENCIMENTO. Entre em contato com antecedência!' },
     dias4: { ativo: true, mensagem: 'Olá NOME! Sua assinatura do servidor SERVIDOR vence em 4 dias, no dia VENCIMENTO. Não deixe para a última hora!' },
-    dia0:  { ativo: true, mensagem: 'Olá NOME! Sua assinatura do servidor SERVIDOR vence HOJE! Entre em contato agora. Valor: VALOR' },
-    pos1:  { ativo: true, mensagem: 'Olá NOME! Sua assinatura do servidor SERVIDOR venceu ontem (VENCIMENTO). Entre em contato para reativar!' },
-    pos3:  { ativo: true, mensagem: 'Olá NOME! Sua assinatura do servidor SERVIDOR está vencida há 3 dias (VENCIMENTO). Regularize o quanto antes!' },
-  },
+    dia0:  { ativo: true, mensagem: 'Olá NOME! Sua assinatura do servidor SERVIDOR vence HOJE! Entre em contato agora. Valor VALOR' },
+    pos1:  { ativo: true, mensagem: 'Olá NOME! Sua assinatura do servidor SERVIDOR venceu ontem VENCIMENTO. Entre em contato para reativar!' },
+    pos3:  { ativo: true, mensagem: 'Olá NOME! Sua assinatura do servidor SERVIDOR está vencida há 3 dias VENCIMENTO. Regularize o quanto antes!' },
+  }
 }
 
 const getConfig = async () => {
@@ -139,7 +179,7 @@ const getConfig = async () => {
   return snap.data()
 }
 
-// ---- Sistema de Fila ----
+// ---- Fila ----
 
 const MAX_TENTATIVAS = 3
 const BACKOFF_BASE_MS = 60000
@@ -150,22 +190,20 @@ const jaEnviouHoje = async (clienteId, gatilho) => {
     .where('clienteId', '==', clienteId)
     .where('gatilho', '==', gatilho)
     .where('data', '==', hoje)
-    .limit(1)
-    .get()
+    .limit(1).get()
   return !snap.empty
 }
 
 const adicionarNaFila = async (cliente, gatilho, mensagem) => {
   if (await jaEnviouHoje(cliente.id, gatilho)) {
-    console.log(`⏭️ Duplicata ignorada: ${cliente.nome} [${gatilho}]`)
+    console.log(`Duplicata ignorada: ${cliente.nome} ${gatilho}`)
     return false
   }
   await db.collection('filaEnvios').add({
     clienteId: cliente.id,
     clienteNome: cliente.nome,
     telefone: cliente.telefone,
-    mensagem,
-    gatilho,
+    mensagem, gatilho,
     status: 'pendente',
     tentativas: 0,
     maxTentativas: MAX_TENTATIVAS,
@@ -174,7 +212,7 @@ const adicionarNaFila = async (cliente, gatilho, mensagem) => {
     enviadoEm: null,
     erro: null,
   })
-  console.log(`📥 Adicionado na fila: ${cliente.nome} [${gatilho}]`)
+  console.log(`Adicionado na fila: ${cliente.nome} ${gatilho}`)
   return true
 }
 
@@ -183,63 +221,44 @@ let processandoFila = false
 const processarFila = async () => {
   if (!clientReady || processandoFila) return
   processandoFila = true
-
   try {
     const agora = admin.firestore.Timestamp.now()
     const config = await getConfig()
     const intervalo = config.intervaloMs ?? 5000
-
     const snap = await db.collection('filaEnvios')
       .where('status', '==', 'pendente')
-      .where('proximaTentativa', '<=', agora)
+      .where('proximaTentativa', '<', agora)
       .orderBy('proximaTentativa')
-      .limit(10)
-      .get()
-
+      .limit(10).get()
     if (snap.empty) return
-
-    console.log(`⚙️ Processando ${snap.size} itens da fila...`)
-
+    console.log(`Processando ${snap.size} itens da fila...`)
     for (const docSnap of snap.docs) {
-      if (!clientReady) { console.log('📵 WhatsApp desconectou, pausando fila.'); break }
-
+      if (!clientReady) { console.log('WhatsApp desconectou, pausando fila.'); break }
       const item = docSnap.data()
       const ref = docSnap.ref
-
       await ref.update({ status: 'enviando' })
-
       try {
         const numero = normalizarTelefone(item.telefone)
         await sock.sendMessage(numero, { text: item.mensagem })
-
         await ref.update({ status: 'enviado', enviadoEm: admin.firestore.FieldValue.serverTimestamp(), erro: null })
-
         await db.collection('notificacoesEnviadas').add({
-          clienteId: item.clienteId,
-          clienteNome: item.clienteNome,
-          gatilho: item.gatilho,
-          data: new Date().toISOString().split('T')[0],
+          clienteId: item.clienteId, clienteNome: item.clienteNome,
+          gatilho: item.gatilho, data: new Date().toISOString().split('T')[0],
           enviadoEm: admin.firestore.FieldValue.serverTimestamp(),
         })
-
         await salvarLog(item.clienteNome, item.telefone, item.gatilho, item.mensagem, 'enviado')
-        console.log(`✅ Enviado: ${item.clienteNome} [${item.gatilho}]`)
-
+        console.log(`Enviado: ${item.clienteNome} ${item.gatilho}`)
       } catch (err) {
         const novasTentativas = (item.tentativas || 0) + 1
         const backoffMs = BACKOFF_BASE_MS * Math.pow(2, novasTentativas - 1)
         const proximaTentativa = admin.firestore.Timestamp.fromMillis(Date.now() + backoffMs)
-
         if (novasTentativas >= MAX_TENTATIVAS) {
           await ref.update({ status: 'erro', tentativas: novasTentativas, erro: err.message, proximaTentativa })
           await salvarLog(item.clienteNome, item.telefone, item.gatilho, item.mensagem, 'erro')
-          console.error(`❌ Falhou definitivamente: ${item.clienteNome} — ${err.message}`)
         } else {
           await ref.update({ status: 'pendente', tentativas: novasTentativas, erro: err.message, proximaTentativa })
-          console.warn(`⚠️ Tentativa ${novasTentativas}/${MAX_TENTATIVAS}: ${item.clienteNome}. Retry em ${backoffMs / 1000}s`)
         }
       }
-
       await sleep(intervalo)
     }
   } finally {
@@ -250,26 +269,21 @@ const processarFila = async () => {
 // ---- Envio Automático ----
 
 const executarEnvioAutomatico = async () => {
-  console.log('🚀 Iniciando envio automático...')
-  if (!clientReady) { console.log('📵 WhatsApp não conectado.'); return }
-
+  console.log('Iniciando envio automático...')
+  if (!clientReady) { console.log('WhatsApp não conectado.'); return }
   const config = await getConfig()
-  if (!config.ativo) { console.log('⏸️ Envio automático desativado.'); return }
-
+  if (!config.ativo) { console.log('Envio automático desativado.'); return }
   const snapshot = await db.collection('clientes').get()
   const clientes = snapshot.docs.map(d => ({ id: d.id, ...d.data() }))
-
   const regrasMap = [
     { key: 'dias7', diff: 7 }, { key: 'dias4', diff: 4 },
-    { key: 'dia0', diff: 0 }, { key: 'pos1', diff: -1 }, { key: 'pos3', diff: -3 },
+    { key: 'dia0',  diff: 0 }, { key: 'pos1',  diff: -1 }, { key: 'pos3', diff: -3 },
   ]
-
   let adicionados = 0
   for (const cliente of clientes) {
     if (!cliente.telefone) continue
     const diff = diffDias(cliente.vencimento)
     if (diff === null) continue
-
     for (const { key, diff: diffAlvo } of regrasMap) {
       if (diff !== diffAlvo) continue
       const regra = config.regras?.[key]
@@ -279,8 +293,7 @@ const executarEnvioAutomatico = async () => {
       if (adicionou) adicionados++
     }
   }
-
-  console.log(`📥 ${adicionados} mensagens adicionadas na fila.`)
+  console.log(`${adicionados} mensagens adicionadas na fila.`)
   processarFila()
 }
 
@@ -294,11 +307,11 @@ const iniciarCron = async () => {
   const [hora, minuto] = (config.horario || '09:00').split(':').map(Number)
   if (cronJob) cronJob.stop()
   cronJob = cron.schedule(`${minuto} ${hora} * * *`, executarEnvioAutomatico, { timezone: 'America/Sao_Paulo' })
-  console.log(`🕐 Cron agendado para ${config.horario}`)
+  console.log(`Cron agendado para ${config.horario}`)
 }
 iniciarCron()
 
-// ---- Rotas ----
+// ---- Rotas WhatsApp ----
 
 app.get('/status', (req, res) => {
   try {
@@ -346,9 +359,7 @@ app.get('/fila', async (req, res) => {
 app.post('/fila/:id/retry', async (req, res) => {
   try {
     await db.collection('filaEnvios').doc(req.params.id).update({
-      status: 'pendente',
-      tentativas: 0,
-      erro: null,
+      status: 'pendente', tentativas: 0, erro: null,
       proximaTentativa: admin.firestore.Timestamp.now(),
     })
     processarFila()
@@ -366,8 +377,7 @@ app.post('/fila/:id/cancelar', async (req, res) => {
 app.post('/fila/limpar', async (req, res) => {
   try {
     const snap = await db.collection('filaEnvios')
-      .where('status', 'in', ['enviado', 'cancelado'])
-      .get()
+      .where('status', 'in', ['enviado', 'cancelado']).get()
     const batch = db.batch()
     snap.docs.forEach(d => batch.delete(d.ref))
     await batch.commit()
@@ -382,6 +392,37 @@ app.post('/logout', async (req, res) => {
     clientReady = false
     qrCodeBase64 = null
     res.json({ success: true })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+// ---- Rotas WWPanel ----
+
+app.get('/painel/buscar/:termo', async (req, res) => {
+  try {
+    const termo = decodeURIComponent(req.params.termo)
+    const data = await wpFetch(`/lines?search=${encodeURIComponent(termo)}&limit=5`)
+    res.json(data)
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+app.post('/painel/renovar/:lineId', async (req, res) => {
+  try {
+    const data = await wpFetch(`/lines/renew/${req.params.lineId}`, 'PATCH', { days: 30 })
+    res.json(data)
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+app.get('/painel/planos', async (req, res) => {
+  try {
+    const data = await wpFetch('/products')
+    res.json(data)
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+app.post('/painel/teste', async (req, res) => {
+  try {
+    const data = await wpFetch('/lines/trial', 'POST', req.body)
+    res.json(data)
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
