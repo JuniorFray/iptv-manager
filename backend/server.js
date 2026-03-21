@@ -32,15 +32,16 @@ const conectarWhatsApp = async () => {
   const { version } = await fetchLatestBaileysVersion()
 
   sock = makeWASocket({
-    version,
-    auth: state,
-    printQRInTerminal: false,
-    generateHighQualityLinkPreview: true,
-    browser: ['Sistema TV', 'Chrome', '1.0'],
-    keepAliveIntervalMs: 30000,
-    connectTimeoutMs: 60000,
-    retryRequestDelayMs: 2000,
-  })
+  version,
+  auth: state,
+  printQRInTerminal: false,
+  generateHighQualityLinkPreview: true,
+  browser: ['Sistema TV', 'Chrome', '1.0'],
+  keepAliveIntervalMs: 30000,
+  connectTimeoutMs: 60000,
+  retryRequestDelayMs: 2000,
+  qrTimeout: 60000, // 👈 adicione esta linha
+})
 
   sock.ev.on('creds.update', saveCreds)
 
