@@ -86,7 +86,7 @@ export default function Clientes() {
   const renovarCliente = async (cliente: Cliente) => {
   setRenovandoId(cliente.id)
   try {
-    // Busca por usuário OU por nome como fallback
+    // Busca por usuário OU por nome como fallback.
     const termoBusca = cliente.usuario?.trim() || cliente.nome?.trim()
     if (!termoBusca) throw new Error('Sem usuário ou nome para buscar.')
 
