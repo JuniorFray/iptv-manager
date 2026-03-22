@@ -432,42 +432,23 @@ app.post('/painel/renovar/:lineId', async (req, res) => {
   try {
     const lineId = req.params.lineId
 
-    // Formato correto: PATCH /lines/:id/renew
-    const data = await wpFetch(`/lines/${lineId}/renew`, 'PATCH', { days: 30 })
+    // Busca a linha atual para pegar a exp_date vigente
+    const linha = await wpFetch(`/lines/${lineId}`)
+    if (!linha?.exp_date) return res.status(404).json({ error: 'Linha não encontrada no painel.' })
 
-    if (data?.error || (typeof data?.message === 'string' && data.message.toLowerCase().includes('cannot'))) {
-      return res.status(400).json(data)
-    }
+    // Calcula nova data: exp_date atual + 30 dias (ou hoje + 30 se já vencida)
+    const expAtual = new Date(linha.exp_date)
+    const hoje = new Date()
+    const base = expAtual > hoje ? expAtual : hoje
+    const novaExp = new Date(base)
+    novaExp.setDate(novaExp.getDate() + 30)
+
+    const data = await wpFetch(`/lines/${lineId}`, 'PATCH', {
+      exp_date: novaExp.toISOString()
+    })
 
     res.json(data)
   } catch (err) { res.status(500).json({ error: err.message }) }
-})
-
-app.get('/painel/testar-renovar/:lineId', async (req, res) => {
-  const lineId = req.params.lineId
-  const resultados = {}
-
-  const tentativas = [
-    { key: 'PATCH /lines/renew/:id',    method: 'PATCH', path: `/lines/renew/${lineId}` },
-    { key: 'POST /lines/renew/:id',     method: 'POST',  path: `/lines/renew/${lineId}` },
-    { key: 'PATCH /lines/:id/renew',    method: 'PATCH', path: `/lines/${lineId}/renew` },
-    { key: 'POST /lines/:id/renew',     method: 'POST',  path: `/lines/${lineId}/renew` },
-    { key: 'PUT /lines/:id',            method: 'PUT',   path: `/lines/${lineId}` },
-    { key: 'POST /lines/:id/extend',    method: 'POST',  path: `/lines/${lineId}/extend` },
-    { key: 'PATCH /lines/:id',          method: 'PATCH', path: `/lines/${lineId}` },
-    { key: 'POST /subscriptions/renew', method: 'POST',  path: `/subscriptions/renew` },
-  ]
-
-  for (const t of tentativas) {
-    try {
-      const data = await wpFetch(t.path, t.method, { days: 30, lineId })
-      resultados[t.key] = data
-    } catch (err) {
-      resultados[t.key] = { exception: err.message }
-    }
-  }
-
-  res.json(resultados)
 })
 
 app.get('/painel/planos', async (req, res) => {
