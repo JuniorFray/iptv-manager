@@ -84,59 +84,46 @@ export default function Clientes() {
 
   // ---- Renovar no WWPanel ----
   const renovarCliente = async (cliente: Cliente) => {
-  // Para clientes Warez, o username do painel fica no campo observacao
-  const termoBusca = cliente.observacao?.trim() || cliente.usuario?.trim()
+    setRenovandoId(cliente.id)
+    try {
+      const nomeBusca = cliente.nome?.trim()
+      if (!nomeBusca) throw new Error('Cliente sem nome cadastrado.')
 
-  if (!termoBusca) {
-    mostrarMsgPainel('erro', `❌ ${cliente.nome} não tem usuário do Warez cadastrado.\nPreencha o campo "Observação" com o username do painel.`)
-    return
+      const buscaRes = await fetch(`${BACKEND_URL}/painel/buscar/${encodeURIComponent(nomeBusca)}`)
+      const buscaData = await buscaRes.json()
+
+      const items = buscaData?.items ?? buscaData?.data ?? buscaData?.lines ?? (Array.isArray(buscaData) ? buscaData : [])
+
+      if (!items || items.length === 0) {
+        throw new Error(`Nenhum resultado retornado pelo Warez para "${nomeBusca}".`)
+      }
+
+      const nomeLower = nomeBusca.toLowerCase()
+      const linha = items.find((item: any) => {
+        const notes = item.notes?.toLowerCase()?.trim() ?? ''
+        return notes.includes(nomeLower) || nomeLower.includes(notes)
+      })
+
+      if (!linha) {
+        const exemplos = items.slice(0, 5).map((i: any) => `"${i.notes}"`).join(', ')
+        throw new Error(`"${nomeBusca}" não encontrado no campo Observação do Warez.\n\nPrimeiros resultados: ${exemplos}`)
+      }
+
+      const lineId = linha.id ?? linha._id
+      if (!lineId) throw new Error('Linha encontrada mas sem ID válido.')
+
+      const renovarRes = await fetch(`${BACKEND_URL}/painel/renovar/${lineId}`, { method: 'POST' })
+      const renovarData = await renovarRes.json()
+
+      if (!renovarRes.ok) throw new Error(renovarData?.message ?? renovarData?.error ?? 'Falha ao renovar no painel.')
+
+      mostrarMsgPainel('ok', `✅ ${cliente.nome} renovado com sucesso!\n👤 Warez: "${linha.notes}" | ID: ${lineId}`)
+    } catch (err: any) {
+      mostrarMsgPainel('erro', `❌ Erro ao renovar ${cliente.nome}:\n${err.message}`)
+    } finally {
+      setRenovandoId(null)
+    }
   }
-
-  setRenovandoId(cliente.id)
-  try {
-    const buscaRes = await fetch(`${BACKEND_URL}/painel/buscar/${encodeURIComponent(termoBusca)}`)
-    const buscaData = await buscaRes.json()
-
-    // Extrai o array de linhas tentando as estruturas mais comuns do WWPanel
-    // O campo real só será confirmado após acessar /painel/debug/:termo
-    const lines =
-      buscaData?.data ??
-      buscaData?.lines ??
-      buscaData?.result ??
-      buscaData?.items ??
-      buscaData?.records ??
-      (Array.isArray(buscaData) ? buscaData : null)
-
-    // Se ainda não achou, loga o JSON cru na mensagem de erro para diagnóstico
-    if (!lines || lines.length === 0) {
-      const rawPreview = JSON.stringify(buscaData).slice(0, 300)
-      throw new Error(
-        `Usuário "${termoBusca}" não encontrado no Warez.\n\nResposta da API:\n${rawPreview}`
-      )
-    }
-
-    // WWPanel pode usar 'id' ou '_id' dependendo da versão
-    const lineId = lines[0]?.id ?? lines[0]?._id ?? lines[0]?.line_id
-
-    if (!lineId) {
-      const rawPreview = JSON.stringify(lines[0]).slice(0, 300)
-      throw new Error(`Linha encontrada mas sem ID reconhecível.\n\nObjeto retornado:\n${rawPreview}`)
-    }
-
-    const renovarRes = await fetch(`${BACKEND_URL}/painel/renovar/${lineId}`, { method: 'POST' })
-    const renovarData = await renovarRes.json()
-
-    if (!renovarRes.ok) {
-      throw new Error(renovarData?.message ?? renovarData?.error ?? 'Falha ao renovar no painel.')
-    }
-
-    mostrarMsgPainel('ok', `✅ ${cliente.nome} renovado com sucesso no Warez!\n👤 Username: ${termoBusca} | ID: ${lineId}`)
-  } catch (err: any) {
-    mostrarMsgPainel('erro', `❌ Erro ao renovar ${cliente.nome}:\n${err.message}`)
-  } finally {
-    setRenovandoId(null)
-  }
-}
 
 
   // ---- Gerar Teste no WWPanel ----
