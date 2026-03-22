@@ -117,7 +117,13 @@ export default function Clientes() {
 
       if (!renovarRes.ok) throw new Error(renovarData?.message ?? renovarData?.error ?? 'Falha ao renovar no painel.')
 
-      mostrarMsgPainel('ok', `✅ ${cliente.nome} renovado com sucesso!\n👤 Warez: "${linha.notes}" | ID: ${lineId}`)
+      // Calcula nova data +30 dias e atualiza no Firestore
+      const hoje = new Date()
+      const novaData = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() + 30)
+      const novaDataStr = `${String(novaData.getDate()).padStart(2, '0')}/${String(novaData.getMonth() + 1).padStart(2, '0')}/${novaData.getFullYear()}`
+      await updateDoc(doc(db, 'clientes', cliente.id), { vencimento: novaDataStr })
+
+      mostrarMsgPainel('ok', `✅ ${cliente.nome} renovado com sucesso!\n📅 Novo vencimento: ${novaDataStr} | ID: ${lineId}`)
     } catch (err: any) {
       mostrarMsgPainel('erro', `❌ Erro ao renovar ${cliente.nome}:\n${err.message}`)
     } finally {

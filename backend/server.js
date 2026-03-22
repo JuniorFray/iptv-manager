@@ -431,6 +431,10 @@ app.get('/painel/debug/:termo', async (req, res) => {
 app.post('/painel/renovar/:lineId', async (req, res) => {
   try {
     const data = await wpFetch(`/lines/renew/${req.params.lineId}`, 'PATCH', { days: 30 })
+    // Se o WWPanel retornar erro, propaga com status 400
+    if (data?.error || data?.message?.toLowerCase().includes('error')) {
+      return res.status(400).json(data)
+    }
     res.json(data)
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
