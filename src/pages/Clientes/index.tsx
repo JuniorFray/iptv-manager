@@ -112,7 +112,11 @@ export default function Clientes() {
       const lineId = linha.id ?? linha._id
       if (!lineId) throw new Error('Linha encontrada mas sem ID válido.')
 
-      const renovarRes = await fetch(`${BACKEND_URL}/painel/renovar/${lineId}`, { method: 'POST' })
+      const renovarRes = await fetch(`${BACKEND_URL}/painel/renovar/${lineId}`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ exp_date: linha.exp_date })
+})
       const renovarData = await renovarRes.json()
 
       if (!renovarRes.ok) throw new Error(renovarData?.message ?? renovarData?.error ?? 'Falha ao renovar no painel.')

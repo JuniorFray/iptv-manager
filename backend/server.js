@@ -438,13 +438,11 @@ app.get('/painel/linha/:lineId', async (req, res) => {
 app.post('/painel/renovar/:lineId', async (req, res) => {
   try {
     const lineId = req.params.lineId
+    const { exp_date } = req.body
 
-    // Busca a linha atual para pegar a exp_date vigente
-    const linha = await wpFetch(`/lines/${lineId}`)
-    if (!linha?.exp_date) return res.status(404).json({ error: 'Linha não encontrada no painel.' })
+    if (!exp_date) return res.status(400).json({ error: 'exp_date não informada.' })
 
-    // Calcula nova data: exp_date atual + 30 dias (ou hoje + 30 se já vencida)
-    const expAtual = new Date(linha.exp_date)
+    const expAtual = new Date(exp_date)
     const hoje = new Date()
     const base = expAtual > hoje ? expAtual : hoje
     const novaExp = new Date(base)
