@@ -443,6 +443,33 @@ app.post('/painel/renovar/:lineId', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
+app.get('/painel/testar-renovar/:lineId', async (req, res) => {
+  const lineId = req.params.lineId
+  const resultados = {}
+
+  const tentativas = [
+    { key: 'PATCH /lines/renew/:id',    method: 'PATCH', path: `/lines/renew/${lineId}` },
+    { key: 'POST /lines/renew/:id',     method: 'POST',  path: `/lines/renew/${lineId}` },
+    { key: 'PATCH /lines/:id/renew',    method: 'PATCH', path: `/lines/${lineId}/renew` },
+    { key: 'POST /lines/:id/renew',     method: 'POST',  path: `/lines/${lineId}/renew` },
+    { key: 'PUT /lines/:id',            method: 'PUT',   path: `/lines/${lineId}` },
+    { key: 'POST /lines/:id/extend',    method: 'POST',  path: `/lines/${lineId}/extend` },
+    { key: 'PATCH /lines/:id',          method: 'PATCH', path: `/lines/${lineId}` },
+    { key: 'POST /subscriptions/renew', method: 'POST',  path: `/subscriptions/renew` },
+  ]
+
+  for (const t of tentativas) {
+    try {
+      const data = await wpFetch(t.path, t.method, { days: 30, lineId })
+      resultados[t.key] = data
+    } catch (err) {
+      resultados[t.key] = { exception: err.message }
+    }
+  }
+
+  res.json(resultados)
+})
+
 app.get('/painel/planos', async (req, res) => {
   try {
     const data = await wpFetch('/products')
