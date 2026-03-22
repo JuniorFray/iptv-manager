@@ -86,23 +86,26 @@ export default function Clientes() {
   const renovarCliente = async (cliente: Cliente) => {
   setRenovandoId(cliente.id)
   try {
-    // Busca por usuário OU por nome como fallback.
-    const termoBusca = cliente.usuario?.trim() || cliente.nome?.trim()
-    if (!termoBusca) throw new Error('Sem usuário ou nome para buscar.')
+    // Prioridade: usuario > observacao > nome
+    const termoBusca = cliente.usuario?.trim() || cliente.observacao?.trim() || cliente.nome?.trim()
+    if (!termoBusca) throw new Error('Sem termo de busca disponível.')
 
     const buscaRes = await fetch(`${BACKEND_URL}/painel/buscar/${encodeURIComponent(termoBusca)}`)
     const buscaData = await buscaRes.json()
-    const lines = buscaData?.lines ?? buscaData ?? []
+
+    // WWPanel pode retornar { data: [...] } ou { lines: [...] } ou array direto
+    const lines = buscaData?.data ?? buscaData?.lines ?? (Array.isArray(buscaData) ? buscaData : [])
     const lineId = lines[0]?.id
 
-    if (!lineId) throw new Error(`Usuário "${termoBusca}" não encontrado no painel Warez.`)
+    if (!lineId) throw new Error(`Nenhuma linha encontrada para "${termoBusca}" no painel Warez.`)
 
     const renovarRes = await fetch(`${BACKEND_URL}/painel/renovar/${lineId}`, { method: 'POST' })
-    if (!renovarRes.ok) throw new Error('Falha ao renovar no painel.')
+    const renovarData = await renovarRes.json()
+    if (!renovarRes.ok) throw new Error(renovarData?.message || 'Falha ao renovar no painel.')
 
-    mostrarMsgPainel('ok', `✅ ${cliente.nome} renovado com sucesso no Warez!`)
+    mostrarMsgPainel('ok', `${cliente.nome} renovado com sucesso no Warez! (ID: ${lineId})`)
   } catch (err: any) {
-    mostrarMsgPainel('erro', `❌ Erro ao renovar ${cliente.nome}: ${err.message}`)
+    mostrarMsgPainel('erro', `Erro ao renovar ${cliente.nome}: ${err.message}`)
   } finally {
     setRenovandoId(null)
   }
