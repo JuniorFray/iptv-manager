@@ -432,15 +432,10 @@ app.post('/painel/renovar/:lineId', async (req, res) => {
   try {
     const lineId = req.params.lineId
 
-    // Tenta POST primeiro (formato mais comum)
-    let data = await wpFetch(`/lines/${lineId}/renew`, 'POST', { days: 30 })
+    // Formato correto: PATCH /lines/:id/renew
+    const data = await wpFetch(`/lines/${lineId}/renew`, 'PATCH', { days: 30 })
 
-    // Se falhar, tenta PATCH no formato alternativo
-    if (data?.error || data?.message?.toLowerCase?.().includes('cannot')) {
-      data = await wpFetch(`/lines/renew/${lineId}`, 'POST', { days: 30 })
-    }
-
-    if (data?.error || data?.message?.toLowerCase?.().includes('cannot')) {
+    if (data?.error || (typeof data?.message === 'string' && data.message.toLowerCase().includes('cannot'))) {
       return res.status(400).json(data)
     }
 
