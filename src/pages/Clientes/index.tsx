@@ -504,14 +504,14 @@ export default function Clientes() {
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '780px' }}>
             <thead>
               <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                {['Nome', 'Telefone', 'Tipo', 'Servidor', 'Vencimento', 'Valor', 'Status', 'Obs.', 'Ações'].map(h => (
+                {['Nome', 'Telefone', 'Tipo', 'Servidor', 'Usuário', 'Senha', 'Vencimento', 'Valor', 'Status', 'Obs.', 'Ações'].map(h => (
                   <th key={h} style={{ padding: '14px 16px', textAlign: 'left', color: 'rgba(255,255,255,0.4)', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {clientesFiltrados.length === 0 ? (
-                <tr><td colSpan={9} style={{ padding: '40px', textAlign: 'center', color: 'rgba(255,255,255,0.3)' }}>Nenhum cliente encontrado.</td></tr>
+                <tr><td colSpan={11} style={{ padding: '40px', textAlign: 'center', color: 'rgba(255,255,255,0.3)' }}>Nenhum cliente encontrado.</td></tr>
               ) : clientesFiltrados.map(cliente => {
                 const sc = statusColor(cliente.status)
                 const tc = tipoColor(cliente.tipo || 'IPTV')
@@ -528,6 +528,8 @@ export default function Clientes() {
                       </span>
                     </td>
                     <td style={{ padding: '14px 16px', color: 'rgba(255,255,255,0.6)', fontSize: '14px' }}>{cliente.servidor}</td>
+                    <td style={{ padding: '14px 16px', color: 'rgba(255,255,255,0.6)', fontSize: '13px', fontFamily: 'monospace' }}>{cliente.usuario || '—'}</td>
+                    <td style={{ padding: '14px 16px', color: 'rgba(255,255,255,0.6)', fontSize: '13px', fontFamily: 'monospace' }}>{cliente.senha || '—'}</td>
                     <td style={{ padding: '14px 16px', color: '#fbbf24', fontSize: '14px', fontWeight: '500' }}>{cliente.vencimento}</td>
                     <td style={{ padding: '14px 16px', color: '#4ade80', fontWeight: '600', fontSize: '14px' }}>
                       {cliente.valor ? `R$ ${parseFloat(cliente.valor).toFixed(2).replace('.', ',')}` : '-'}
