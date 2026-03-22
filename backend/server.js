@@ -400,8 +400,31 @@ app.post('/logout', async (req, res) => {
 app.get('/painel/buscar/:termo', async (req, res) => {
   try {
     const termo = decodeURIComponent(req.params.termo)
-    const data = await wpFetch(`/lines?search=${encodeURIComponent(termo)}&limit=5`)
+    const data = await wpFetch(`/lines?search=${encodeURIComponent(termo)}&limit=10`)
+    // Retorna o JSON cru completo para facilitar debug
     res.json(data)
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+// NOVA rota de debug — expõe o JSON real da API para inspeção
+app.get('/painel/debug/:termo', async (req, res) => {
+  try {
+    const termo = decodeURIComponent(req.params.termo)
+    const token = await getWpToken()
+    const headers = {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      'Origin': 'https://wwpanel.link',
+      'Referer': 'https://wwpanel.link/'
+    }
+    const [r1, r2] = await Promise.all([
+      fetch(`https://mcapi.knewcms.com:2087/lines?search=${encodeURIComponent(termo)}&limit=5`, { headers }),
+      fetch(`https://mcapi.knewcms.com:2087/lines?username=${encodeURIComponent(termo)}&limit=5`, { headers }),
+    ])
+    res.json({
+      search_param: await r1.json(),
+      username_param: await r2.json(),
+    })
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
