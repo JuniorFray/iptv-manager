@@ -501,11 +501,11 @@ export default function Clientes() {
       {/* Tabela */}
       <div className="glass-card" style={{ overflow: 'hidden' }}>
         <div className="table-responsive">
-          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '780px' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '1000px' }}>
             <thead>
               <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
                 {['Nome', 'Telefone', 'Tipo', 'Servidor', 'Usuário', 'Senha', 'Vencimento', 'Valor', 'Status', 'Obs.', 'Ações'].map(h => (
-                  <th key={h} style={{ padding: '14px 16px', textAlign: 'left', color: 'rgba(255,255,255,0.4)', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</th>
+                  <th key={h} style={{ padding: '10px 12px', textAlign: 'left', color: 'rgba(255,255,255,0.4)', fontSize: '11px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -520,27 +520,27 @@ export default function Clientes() {
                 const testando = testandoId === cliente.id
                 return (
                   <tr key={cliente.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                    <td style={{ padding: '14px 16px', color: 'white', fontWeight: '500' }}>{cliente.nome}</td>
-                    <td style={{ padding: '14px 16px', color: 'rgba(255,255,255,0.6)', fontSize: '14px' }}>{cliente.telefone}</td>
-                    <td style={{ padding: '14px 16px' }}>
-                      <span style={{ background: tc.bg, border: tc.border, color: tc.text, padding: '4px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: '600' }}>
+                    <td style={{ padding: '10px 12px', color: 'white', fontWeight: '500', fontSize: '12px' }}>{cliente.nome}</td>
+                    <td style={{ padding: '10px 12px', color: 'rgba(255,255,255,0.6)', fontSize: '11px' }}>{cliente.telefone}</td>
+                    <td style={{ padding: '10px 12px' }}>
+                      <span style={{ background: tc.bg, border: tc.border, color: tc.text, padding: '3px 8px', borderRadius: '20px', fontSize: '11px', fontWeight: '600' }}>
                         {cliente.tipo || 'IPTV'}
                       </span>
                     </td>
-                    <td style={{ padding: '14px 16px', color: 'rgba(255,255,255,0.6)', fontSize: '14px' }}>{cliente.servidor}</td>
-                    <td style={{ padding: '14px 16px', color: 'rgba(255,255,255,0.6)', fontSize: '13px', fontFamily: 'monospace' }}>{cliente.usuario || '—'}</td>
-                    <td style={{ padding: '14px 16px', color: 'rgba(255,255,255,0.6)', fontSize: '13px', fontFamily: 'monospace' }}>{cliente.senha || '—'}</td>
-                    <td style={{ padding: '14px 16px', color: '#fbbf24', fontSize: '14px', fontWeight: '500' }}>{cliente.vencimento}</td>
-                    <td style={{ padding: '14px 16px', color: '#4ade80', fontWeight: '600', fontSize: '14px' }}>
+                    <td style={{ padding: '10px 12px', color: 'rgba(255,255,255,0.6)', fontSize: '11px' }}>{cliente.servidor}</td>
+                    <td style={{ padding: '10px 12px', color: 'rgba(255,255,255,0.6)', fontSize: '11px', fontFamily: 'monospace' }}>{cliente.usuario || '—'}</td>
+                    <td style={{ padding: '10px 12px', color: 'rgba(255,255,255,0.6)', fontSize: '11px', fontFamily: 'monospace' }}>{cliente.senha || '—'}</td>
+                    <td style={{ padding: '10px 12px', color: '#fbbf24', fontSize: '12px', fontWeight: '500' }}>{cliente.vencimento}</td>
+                    <td style={{ padding: '10px 12px', color: '#4ade80', fontWeight: '600', fontSize: '12px' }}>
                       {cliente.valor ? `R$ ${parseFloat(cliente.valor).toFixed(2).replace('.', ',')}` : '-'}
                     </td>
-                    <td style={{ padding: '14px 16px' }}>
-                      <span style={{ background: sc.bg, border: sc.border, color: sc.text, padding: '4px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: '600' }}>
+                    <td style={{ padding: '10px 12px' }}>
+                      <span style={{ background: sc.bg, border: sc.border, color: sc.text, padding: '3px 8px', borderRadius: '20px', fontSize: '11px', fontWeight: '600' }}>
                         {cliente.status === 'ativo' ? 'Ativo' : 'Inativo'}
                       </span>
                     </td>
-                    <td style={{ padding: '14px 16px', color: 'rgba(255,255,255,0.45)', fontSize: '13px', maxWidth: '160px' }}>
-                      <span title={cliente.observacao || ''} style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '140px' }}>
+                    <td style={{ padding: '10px 12px', color: 'rgba(255,255,255,0.45)', fontSize: '11px', maxWidth: '120px' }}>
+                      <span title={cliente.observacao || ''} style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '110px' }}>
                         {cliente.observacao || '—'}
                       </span>
                     </td>
