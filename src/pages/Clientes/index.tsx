@@ -60,6 +60,8 @@ export default function Clientes() {
   const [renovandoId, setRenovandoId] = useState<string | null>(null)
   const [testandoId, setTestandoId] = useState<string | null>(null)
   const [painelMsg, setPainelMsg] = useState<{ tipo: 'ok' | 'erro'; msg: string } | null>(null)
+  const [sincronizando, setSincronizando] = useState(false)
+  const [syncResult, setSyncResult] = useState<{ tipo: 'ok' | 'erro'; msg: string } | null>(null)
 
   const [form, setForm] = useState({
     nome: '', telefone: '', tipo: 'IPTV', servidor: '',
@@ -82,6 +84,8 @@ export default function Clientes() {
     setTimeout(() => setPainelMsg(null), 5000)
   }
 
+  const isWarez = (servidor: string) => servidor?.toUpperCase().includes('WAREZ')
+
   // ---- Renovar no WWPanel ----
   const renovarCliente = async (cliente: Cliente) => {
     setRenovandoId(cliente.id)
@@ -99,9 +103,13 @@ export default function Clientes() {
       }
 
       const nomeLower = nomeBusca.toLowerCase()
+      const palavrasNome = nomeLower.split(' ').filter((p: string) => p.length > 2)
+
       const linha = items.find((item: any) => {
         const notes = item.notes?.toLowerCase()?.trim() ?? ''
-        return notes.includes(nomeLower) || nomeLower.includes(notes)
+        if (!notes) return false
+        const matches = palavrasNome.filter((p: string) => notes.includes(p))
+        return matches.length >= 2
       })
 
       if (!linha) {
@@ -113,10 +121,10 @@ export default function Clientes() {
       if (!lineId) throw new Error('Linha encontrada mas sem ID válido.')
 
       const renovarRes = await fetch(`${BACKEND_URL}/painel/renovar/${lineId}`, {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ exp_date: linha.exp_date })
-})
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ exp_date: linha.exp_date })
+      })
       const renovarData = await renovarRes.json()
 
       if (!renovarRes.ok) throw new Error(renovarData?.message ?? renovarData?.error ?? 'Falha ao renovar no painel.')
@@ -135,13 +143,62 @@ export default function Clientes() {
     }
   }
 
+  // ---- Sincronizar usuário/senha com WWPanel ----
+  const sincronizarWWPanel = async () => {
+    setSincronizando(true)
+    setSyncResult(null)
+    try {
+      const res = await fetch(`${BACKEND_URL}/painel/sincronizar`)
+      const data = await res.json()
+      const linhasWarez: any[] = data.linhas ?? []
+
+      let atualizados = 0
+      let pulados = 0
+      let naoEncontrados = 0
+
+      for (const cliente of clientes) {
+        // Pula quem já tem usuário preenchido
+        if (cliente.usuario?.trim()) { pulados++; continue }
+        // Só sincroniza clientes WAREZ
+        if (!isWarez(cliente.servidor)) continue
+
+        const nomeLower = cliente.nome?.toLowerCase() ?? ''
+        const palavras = nomeLower.split(' ').filter((p: string) => p.length > 2)
+
+        const match = linhasWarez.find((l: any) => {
+          const notes = l.notes?.toLowerCase() ?? ''
+          if (!notes) return false
+          const matches = palavras.filter((p: string) => notes.includes(p))
+          return matches.length >= 2
+        })
+
+        if (match) {
+          await updateDoc(doc(db, 'clientes', cliente.id), {
+            usuario: match.username,
+            senha: match.password,
+          })
+          atualizados++
+        } else {
+          naoEncontrados++
+        }
+      }
+
+      setSyncResult({
+        tipo: 'ok',
+        msg: `✅ Sincronização concluída!\n✔ ${atualizados} atualizados\n⏭ ${pulados} pulados (já tinham usuário)\n❌ ${naoEncontrados} não encontrados no Warez`
+      })
+    } catch (err: any) {
+      setSyncResult({ tipo: 'erro', msg: `❌ Erro na sincronização: ${err.message}` })
+    } finally {
+      setSincronizando(false)
+    }
+  }
 
   // ---- Gerar Teste no WWPanel ----
   const gerarTeste = async (cliente: Cliente) => {
     if (!cliente.usuario || !cliente.senha) return mostrarMsgPainel('erro', `❌ ${cliente.nome} não tem usuário/senha cadastrados.`)
     setTestandoId(cliente.id)
     try {
-      // Busca planos para pegar o package_p2p automaticamente
       const planosRes = await fetch(`${BACKEND_URL}/painel/planos`)
       const planosData = await planosRes.json()
       const planos = planosData?.products ?? planosData ?? []
@@ -321,8 +378,6 @@ export default function Clientes() {
     if (confirm('Deseja excluir este cliente?')) await deleteDoc(doc(db, 'clientes', id))
   }
 
-  const isWarez = (servidor: string) => servidor?.toUpperCase().includes('WAREZ')
-
   const statusColor = (status: string) => status === 'ativo'
     ? { bg: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.3)', text: '#4ade80' }
     : { bg: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', text: '#f87171' }
@@ -370,6 +425,17 @@ export default function Clientes() {
           }}>
             <Upload size={18} /> {importando ? 'Importando...' : 'Importar'}
           </button>
+          <button onClick={sincronizarWWPanel} disabled={sincronizando} style={{
+            display: 'flex', alignItems: 'center', gap: '8px',
+            background: sincronizando ? 'rgba(255,255,255,0.08)' : 'rgba(59,130,246,0.15)',
+            color: sincronizando ? 'rgba(255,255,255,0.3)' : '#60a5fa',
+            border: '1px solid rgba(59,130,246,0.3)', borderRadius: '12px',
+            padding: '12px 20px', cursor: sincronizando ? 'not-allowed' : 'pointer',
+            fontWeight: 'bold', fontSize: '14px'
+          }}>
+            <RefreshCw size={18} style={{ animation: sincronizando ? 'spin 1s linear infinite' : 'none' }} />
+            {sincronizando ? 'Sincronizando...' : 'Sincronizar Warez'}
+          </button>
           <button onClick={() => abrirModal()} style={{
             display: 'flex', alignItems: 'center', gap: '8px',
             background: 'linear-gradient(135deg,#3b82f6,#6366f1)', color: 'white',
@@ -405,6 +471,19 @@ export default function Clientes() {
           fontWeight: '600', fontSize: '13px', whiteSpace: 'pre-wrap', wordBreak: 'break-word'
         }}>
           {importResult.msg}
+        </div>
+      )}
+
+      {/* Resultado sincronização */}
+      {syncResult && (
+        <div style={{
+          marginBottom: '16px', padding: '14px 18px', borderRadius: '12px',
+          background: syncResult.tipo === 'ok' ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
+          border: syncResult.tipo === 'ok' ? '1px solid rgba(34,197,94,0.3)' : '1px solid rgba(239,68,68,0.3)',
+          color: syncResult.tipo === 'ok' ? '#4ade80' : '#f87171',
+          fontWeight: '600', fontSize: '13px', whiteSpace: 'pre-wrap'
+        }}>
+          {syncResult.msg}
         </div>
       )}
 

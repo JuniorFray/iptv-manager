@@ -435,6 +435,44 @@ app.get('/painel/linha/:lineId', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
+app.get('/painel/sincronizar', async (req, res) => {
+  try {
+    const token = await getWpToken()
+    const headers = {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      'Origin': 'https://wwpanel.link',
+      'Referer': 'https://wwpanel.link/'
+    }
+
+    // Busca primeira página para saber quantas páginas existem
+    const r1 = await fetch(`https://mcapi.knewcms.com:2087/lines?limit=100&page=1`, { headers })
+    const d1 = await r1.json()
+    const totalPaginas = d1?.pagesQuantity ?? 1
+    let linhas = d1?.items ?? []
+
+    // Busca páginas restantes em paralelo
+    const paginas = Array.from({ length: totalPaginas - 1 }, (_, i) => i + 2)
+    const resultados = await Promise.all(paginas.map(async (page) => {
+      const r = await fetch(`https://mcapi.knewcms.com:2087/lines?limit=100&page=${page}`, { headers })
+      const d = await r.json()
+      return d?.items ?? []
+    }))
+    resultados.forEach(items => linhas.push(...items))
+
+    // Retorna só os campos necessários
+    const mapa = linhas.map(l => ({
+      id: l.id,
+      username: l.username,
+      password: l.password,
+      notes: l.notes?.trim() ?? '',
+      exp_date: l.exp_date,
+    }))
+
+    res.json({ total: mapa.length, linhas: mapa })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
 app.post('/painel/renovar/:lineId', async (req, res) => {
   try {
     const lineId = req.params.lineId
