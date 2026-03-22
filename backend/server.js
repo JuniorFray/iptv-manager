@@ -428,6 +428,13 @@ app.get('/painel/debug/:termo', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
+app.get('/painel/linha/:lineId', async (req, res) => {
+  try {
+    const data = await wpFetch(`/lines/${req.params.lineId}`)
+    res.json(data)
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
 app.post('/painel/renovar/:lineId', async (req, res) => {
   try {
     const lineId = req.params.lineId
