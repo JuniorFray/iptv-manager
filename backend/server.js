@@ -88,7 +88,7 @@ const wpLogin = async () => {
   const data = await res.json()
   if (!data.token) throw new Error('Login WWPanel falhou: ' + JSON.stringify(data))
   wpToken = data.token
-  wpTokenExp = Date.now() + (1.5 * 60 * 60 * 1000) // renova 30min antes de expirar (token dura 2h)
+  wpTokenExp = Date.now() + (1.5 * 60 * 60 * 1000)
   console.log('🔑 WWPanel token renovado!')
   return wpToken
 }
@@ -110,6 +110,73 @@ const wpFetch = async (path, method = 'GET', body = null) => {
     },
     body: body ? JSON.stringify(body) : null
   })
+  return res.json()
+}
+
+// ---- Elite (adminx.offo.dad) ----
+
+let eliteToken = null
+let eliteCookies = null
+
+const eliteLogin = async () => {
+  const loginPage = await fetch('https://adminx.offo.dad/login', {
+    headers: { 'User-Agent': 'Mozilla/5.0' }
+  })
+  const setCookieHeader = loginPage.headers.get('set-cookie') || ''
+  const xsrfMatch = setCookieHeader.match(/XSRF-TOKEN=([^;]+)/)
+  const sessionMatch = setCookieHeader.match(/office_session=([^;]+)/)
+  const xsrf = xsrfMatch ? decodeURIComponent(xsrfMatch[1]) : ''
+  const cookieStr = `XSRF-TOKEN=${xsrfMatch?.[1] || ''}; office_session=${sessionMatch?.[1] || ''}`
+
+  const res = await fetch('https://adminx.offo.dad/login', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'Cookie': cookieStr,
+      'User-Agent': 'Mozilla/5.0',
+      'Origin': 'https://adminx.offo.dad',
+      'Referer': 'https://adminx.offo.dad/login',
+    },
+    body: new URLSearchParams({
+      _token: xsrf,
+      email: process.env.ELITE_USER,
+      password: process.env.ELITE_PASS,
+    }).toString(),
+    redirect: 'manual'
+  })
+
+  const newCookies = res.headers.get('set-cookie') || ''
+  const newXsrf = newCookies.match(/XSRF-TOKEN=([^;]+)/)
+  const newSession = newCookies.match(/office_session=([^;]+)/)
+
+  eliteToken = newXsrf ? decodeURIComponent(newXsrf[1]) : ''
+  eliteCookies = `XSRF-TOKEN=${newXsrf?.[1] || ''}; office_session=${newSession?.[1] || ''}`
+  console.log('🔑 Elite login OK')
+}
+
+const eliteFetch = async (path, method = 'GET', body = null, contentType = 'application/json') => {
+  if (!eliteToken) await eliteLogin()
+  const headers = {
+    'Accept': '*/*',
+    'Content-Type': contentType,
+    'Cookie': eliteCookies,
+    'Origin': 'https://adminx.offo.dad',
+    'Referer': 'https://adminx.offo.dad/dashboard/iptv',
+    'X-CSRF-TOKEN': eliteToken,
+    'User-Agent': 'Mozilla/5.0',
+  }
+  const res = await fetch(`https://adminx.offo.dad/${path}`, {
+    method, headers,
+    body: body
+      ? (contentType.includes('json')
+          ? JSON.stringify(body)
+          : new URLSearchParams(body).toString())
+      : null
+  })
+  if (res.status === 401 || res.status === 419) {
+    await eliteLogin()
+    return eliteFetch(path, method, body, contentType)
+  }
   return res.json()
 }
 
@@ -400,12 +467,8 @@ app.post('/logout', async (req, res) => {
 app.get('/painel/buscar/:termo', async (req, res) => {
   try {
     const termo = decodeURIComponent(req.params.termo)
-
-    // Tenta primeiro por username exato
     const byUsername = await wpFetch(`/lines?username=${encodeURIComponent(termo)}&limit=10`)
     if (byUsername?.items?.length > 0) return res.json(byUsername)
-
-    // Fallback: busca geral por nome/notes
     const bySearch = await wpFetch(`/lines?search=${encodeURIComponent(termo)}&limit=10`)
     res.json(bySearch)
   } catch (err) { res.status(500).json({ error: err.message }) }
@@ -421,13 +484,10 @@ app.get('/painel/buscar-username/:username', async (req, res) => {
       'Origin': 'https://wwpanel.link',
       'Referer': 'https://wwpanel.link/'
     }
-
-    // Busca todas as páginas e filtra pelo username exato
     const r1 = await fetch(`https://mcapi.knewcms.com:2087/lines?limit=100&page=1`, { headers })
     const d1 = await r1.json()
     const totalPaginas = d1?.pagesQuantity ?? 1
     let linhas = d1?.items ?? []
-
     const paginas = Array.from({ length: totalPaginas - 1 }, (_, i) => i + 2)
     const resultados = await Promise.all(paginas.map(async (page) => {
       const r = await fetch(`https://mcapi.knewcms.com:2087/lines?limit=100&page=${page}`, { headers })
@@ -435,15 +495,12 @@ app.get('/painel/buscar-username/:username', async (req, res) => {
       return d?.items ?? []
     }))
     resultados.forEach(items => linhas.push(...items))
-
     const linha = linhas.find(l => l.username === username)
     if (!linha) return res.status(404).json({ error: `Usuário "${username}" não encontrado.` })
-
     res.json({ items: [linha] })
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-// NOVA rota de debug — expõe o JSON real da API para inspeção
 app.get('/painel/debug/:termo', async (req, res) => {
   try {
     const termo = decodeURIComponent(req.params.termo)
@@ -481,14 +538,10 @@ app.get('/painel/sincronizar', async (req, res) => {
       'Origin': 'https://wwpanel.link',
       'Referer': 'https://wwpanel.link/'
     }
-
-    // Busca primeira página para saber quantas páginas existem
     const r1 = await fetch(`https://mcapi.knewcms.com:2087/lines?limit=100&page=1`, { headers })
     const d1 = await r1.json()
     const totalPaginas = d1?.pagesQuantity ?? 1
     let linhas = d1?.items ?? []
-
-    // Busca páginas restantes em paralelo
     const paginas = Array.from({ length: totalPaginas - 1 }, (_, i) => i + 2)
     const resultados = await Promise.all(paginas.map(async (page) => {
       const r = await fetch(`https://mcapi.knewcms.com:2087/lines?limit=100&page=${page}`, { headers })
@@ -496,8 +549,6 @@ app.get('/painel/sincronizar', async (req, res) => {
       return d?.items ?? []
     }))
     resultados.forEach(items => linhas.push(...items))
-
-    // Retorna só os campos necessários
     const mapa = linhas.map(l => ({
       id: l.id,
       username: l.username,
@@ -505,7 +556,6 @@ app.get('/painel/sincronizar', async (req, res) => {
       notes: l.notes?.trim() ?? '',
       exp_date: l.exp_date,
     }))
-
     res.json({ total: mapa.length, linhas: mapa })
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
@@ -519,9 +569,7 @@ app.post('/painel/renovar/:lineId', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-    // WWPanel calcula exp_date = lastExtendDate + lastExtendPeriod
-    // Então enviamos lastExtendDate = hoje para renovar a partir de hoje
-    app.get('/painel/planos', async (req, res) => {
+app.get('/painel/planos', async (req, res) => {
   try {
     const data = await wpFetch('/products')
     res.json(data)
@@ -531,6 +579,38 @@ app.post('/painel/renovar/:lineId', async (req, res) => {
 app.post('/painel/teste', async (req, res) => {
   try {
     const data = await wpFetch('/lines/trial', 'POST', req.body)
+    res.json(data)
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+// ---- Rotas Elite ----
+
+app.post('/elite/iptv/renovar/:id', async (req, res) => {
+  try {
+    const { id } = req.params
+    const months = parseInt(req.body?.months ?? '1')
+    let data
+    if (months === 1) {
+      data = await eliteFetch(`api/iptv/renewone/${id}`, 'POST')
+    } else {
+      data = await eliteFetch(`api/iptv/renewmulti/${id}`, 'POST', { user_id: id, months: String(months) })
+    }
+    console.log(`[ELITE IPTV RENOVAR] id=${id} months=${months}`, JSON.stringify(data))
+    res.json(data)
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+app.post('/elite/p2p/renovar/:id', async (req, res) => {
+  try {
+    const { id } = req.params
+    const months = parseInt(req.body?.months ?? '1')
+    let data
+    if (months === 1) {
+      data = await eliteFetch(`api/p2p/renewone/${id}`, 'POST')
+    } else {
+      data = await eliteFetch(`api/p2p/renewmulti/${id}`, 'POST', { user_id: id, months: String(months) }, 'application/x-www-form-urlencoded')
+    }
+    console.log(`[ELITE P2P RENOVAR] id=${id} months=${months}`, JSON.stringify(data))
     res.json(data)
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
