@@ -631,4 +631,31 @@ app.get('/meu-ip', async (req, res) => {
   }
 })
 
+app.post('/logout', async (req, res) => {
+  try {
+    if (sock) {
+      await sock.logout()
+      sock = null
+    }
+    clientReady = false
+    qrCodeBase64 = null
+
+    // Remove arquivos de sessão corrompidos
+    const fs2 = await import('fs/promises')
+    const arquivos = await fs2.readdir('authinfo').catch(() => [])
+    for (const arq of arquivos) {
+      await fs2.unlink(`authinfo/${arq}`).catch(() => {})
+    }
+
+    setTimeout(conectarWhatsApp, 2000)
+    res.json({ success: true, msg: 'Sessão limpa. Novo QR sendo gerado...' })
+  } catch (err) {
+    // Mesmo com erro, tenta limpar e reconectar
+    clientReady = false
+    qrCodeBase64 = null
+    setTimeout(conectarWhatsApp, 2000)
+    res.json({ success: true, msg: 'Sessão resetada.' })
+  }
+})
+
 app.listen(3001, () => console.log('Servidor rodando na porta 3001'))
