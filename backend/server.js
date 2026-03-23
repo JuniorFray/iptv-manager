@@ -400,9 +400,14 @@ app.post('/logout', async (req, res) => {
 app.get('/painel/buscar/:termo', async (req, res) => {
   try {
     const termo = decodeURIComponent(req.params.termo)
-    const data = await wpFetch(`/lines?search=${encodeURIComponent(termo)}&limit=10`)
-    // Retorna o JSON cru completo para facilitar debug
-    res.json(data)
+
+    // Tenta primeiro por username exato
+    const byUsername = await wpFetch(`/lines?username=${encodeURIComponent(termo)}&limit=10`)
+    if (byUsername?.items?.length > 0) return res.json(byUsername)
+
+    // Fallback: busca geral por nome/notes
+    const bySearch = await wpFetch(`/lines?search=${encodeURIComponent(termo)}&limit=10`)
+    res.json(bySearch)
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
