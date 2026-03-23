@@ -587,44 +587,38 @@ app.post('/painel/teste', async (req, res) => {
 
 app.get('/elite/debug', async (req, res) => {
   try {
-    const [iptv, p2p] = await Promise.all([
-      eliteFetch('dashboard/iptv/data?per_page=5'),
-      eliteFetch('dashboard/p2p/data?per_page=5'),
-    ])
-    res.json({ iptv, p2p })
-  } catch (err) { res.status(500).json({ error: err.message }) }
-})
+    // Força novo login
+    await eliteLogin()
 
-app.get('/elite/sincronizar', async (req, res) => {
-  try {
-    const [iptvData, p2pData] = await Promise.all([
-      eliteFetch('dashboard/iptv/data?per_page=1000'),
-      eliteFetch('dashboard/p2p/data?per_page=1000'),
-    ])
-    const mapear = (raw, tipo) => {
-      const arr = Array.isArray(raw) ? raw : (raw?.data ?? raw?.items ?? [])
-      return arr.map(c => ({
-        id: c.id,
-        username: c.username,
-        password: c.password,
-        name: c.name ?? c.member_name ?? c.notes ?? '',
-        exp_date: c.expiry_date ?? c.exp_date ?? null,
-        tipo,
-      }))
-    }
-    const linhas = [...mapear(iptvData, 'IPTV'), ...mapear(p2pData, 'P2P')]
-    res.json({ total: linhas.length, linhas })
-  } catch (err) { res.status(500).json({ error: err.message }) }
-})
+    // Testa a URL raw sem parsear JSON
+    const resIptv = await fetch('https://adminx.offo.dad/dashboard/iptv/data?per_page=5', {
+      headers: {
+        'Accept': 'application/json, text/plain, */*',
+        'Cookie': eliteCookies,
+        'X-CSRF-TOKEN': eliteToken,
+        'Referer': 'https://adminx.offo.dad/dashboard/iptv',
+        'User-Agent': 'Mozilla/5.0',
+      }
+    })
 
-app.post('/elite/renovar', async (req, res) => {
-  try {
-    const { id, tipo } = req.body
-    if (!id) throw new Error('ID não informado')
-    const path = (tipo ?? 'IPTV').toUpperCase() === 'P2P' ? 'p2p' : 'iptv'
-    const data = await eliteFetch(`dashboard/${path}/renew/${id}`, 'POST', { months: 1 })
-    res.json(data)
-  } catch (err) { res.status(500).json({ error: err.message }) }
+    const rawText = await resIptv.text()
+    const status = resIptv.status
+    const contentType = resIptv.headers.get('content-type') ?? 'unknown'
+
+    // Tenta parsear, se não conseguir retorna texto cru
+    let parsed = null
+    try { parsed = JSON.parse(rawText) } catch { parsed = null }
+
+    res.json({
+      status,
+      contentType,
+      isJson: parsed !== null,
+      preview: rawText.substring(0, 500),
+      data: parsed,
+    })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
 })
 
 app.listen(3001, () => console.log('Servidor rodando na porta 3001'))
