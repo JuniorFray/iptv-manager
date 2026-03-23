@@ -93,7 +93,7 @@ export default function Clientes() {
       const username = cliente.usuario?.trim()
       if (!username) throw new Error('Cliente sem usuário cadastrado. Clique em "Sincronizar Warez" primeiro.')
 
-      const buscaRes = await fetch(`${BACKEND_URL}/painel/buscar/${encodeURIComponent(username)}`)
+      const buscaRes = await fetch(`${BACKEND_URL}/painel/buscar-username/${encodeURIComponent(username)}`)
       const buscaData = await buscaRes.json()
 
       const items = buscaData?.items ?? buscaData?.data ?? buscaData?.lines ?? (Array.isArray(buscaData) ? buscaData : [])

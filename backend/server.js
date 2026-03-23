@@ -411,6 +411,38 @@ app.get('/painel/buscar/:termo', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
+app.get('/painel/buscar-username/:username', async (req, res) => {
+  try {
+    const username = decodeURIComponent(req.params.username)
+    const token = await getWpToken()
+    const headers = {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      'Origin': 'https://wwpanel.link',
+      'Referer': 'https://wwpanel.link/'
+    }
+
+    // Busca todas as páginas e filtra pelo username exato
+    const r1 = await fetch(`https://mcapi.knewcms.com:2087/lines?limit=100&page=1`, { headers })
+    const d1 = await r1.json()
+    const totalPaginas = d1?.pagesQuantity ?? 1
+    let linhas = d1?.items ?? []
+
+    const paginas = Array.from({ length: totalPaginas - 1 }, (_, i) => i + 2)
+    const resultados = await Promise.all(paginas.map(async (page) => {
+      const r = await fetch(`https://mcapi.knewcms.com:2087/lines?limit=100&page=${page}`, { headers })
+      const d = await r.json()
+      return d?.items ?? []
+    }))
+    resultados.forEach(items => linhas.push(...items))
+
+    const linha = linhas.find(l => l.username === username)
+    if (!linha) return res.status(404).json({ error: `Usuário "${username}" não encontrado.` })
+
+    res.json({ items: [linha] })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
 // NOVA rota de debug — expõe o JSON real da API para inspeção
 app.get('/painel/debug/:termo', async (req, res) => {
   try {
