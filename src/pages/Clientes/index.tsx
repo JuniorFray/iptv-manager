@@ -121,13 +121,15 @@ export default function Clientes() {
 
       if (!renovarRes.ok) throw new Error(renovarData?.message ?? renovarData?.error ?? 'Falha ao renovar no painel.')
 
-      // Calcula nova data +30 dias e atualiza no Firestore
-      const hoje = new Date()
-      const novaData = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() + 30)
-      const novaDataStr = `${String(novaData.getDate()).padStart(2, '0')}/${String(novaData.getMonth() + 1).padStart(2, '0')}/${novaData.getFullYear()}`
-      await updateDoc(doc(db, 'clientes', cliente.id), { vencimento: novaDataStr })
+// Pega a data diretamente do retorno do WWPanel
+const expDate = renovarData?.exp_date
+if (!expDate) throw new Error('Renovação feita mas data não retornada pelo painel.')
 
-      mostrarMsgPainel('ok', `✅ ${cliente.nome} renovado com sucesso!\n👤 Usuário: ${username} | 📅 Novo vencimento: ${novaDataStr}`)
+const d = new Date(expDate)
+const novaDataStr = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
+await updateDoc(doc(db, 'clientes', cliente.id), { vencimento: novaDataStr })
+
+mostrarMsgPainel('ok', `✅ ${cliente.nome} renovado com sucesso!\n👤 Usuário: ${username} | 📅 Novo vencimento: ${novaDataStr}`)
     } catch (err: any) {
       mostrarMsgPainel('erro', `❌ Erro ao renovar ${cliente.nome}:\n${err.message}`)
     } finally {
