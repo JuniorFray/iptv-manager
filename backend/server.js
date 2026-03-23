@@ -523,9 +523,11 @@ app.post('/painel/renovar/:lineId', async (req, res) => {
     const novaExp = new Date(base)
     novaExp.setDate(novaExp.getDate() + 30)
 
-    const data = await wpFetch(`/lines/${lineId}`, 'PATCH', {
-      exp_date: novaExp.toISOString()
-    })
+    const payload = { exp_date: novaExp.toISOString() }
+    console.log(`[RENOVAR] lineId=${lineId} payload=`, JSON.stringify(payload))
+
+    const data = await wpFetch(`/lines/${lineId}`, 'PATCH', payload)
+    console.log(`[RENOVAR] resposta=`, JSON.stringify(data))
 
     res.json(data)
   } catch (err) { res.status(500).json({ error: err.message }) }
