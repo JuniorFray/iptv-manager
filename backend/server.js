@@ -585,32 +585,44 @@ app.post('/painel/teste', async (req, res) => {
 
 // ---- Rotas Elite ----
 
-app.post('/elite/iptv/renovar/:id', async (req, res) => {
+app.get('/elite/debug', async (req, res) => {
   try {
-    const { id } = req.params
-    const months = parseInt(req.body?.months ?? '1')
-    let data
-    if (months === 1) {
-      data = await eliteFetch(`api/iptv/renewone/${id}`, 'POST')
-    } else {
-      data = await eliteFetch(`api/iptv/renewmulti/${id}`, 'POST', { user_id: id, months: String(months) })
-    }
-    console.log(`[ELITE IPTV RENOVAR] id=${id} months=${months}`, JSON.stringify(data))
-    res.json(data)
+    const [iptv, p2p] = await Promise.all([
+      eliteFetch('dashboard/iptv/data?per_page=5'),
+      eliteFetch('dashboard/p2p/data?per_page=5'),
+    ])
+    res.json({ iptv, p2p })
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-app.post('/elite/p2p/renovar/:id', async (req, res) => {
+app.get('/elite/sincronizar', async (req, res) => {
   try {
-    const { id } = req.params
-    const months = parseInt(req.body?.months ?? '1')
-    let data
-    if (months === 1) {
-      data = await eliteFetch(`api/p2p/renewone/${id}`, 'POST')
-    } else {
-      data = await eliteFetch(`api/p2p/renewmulti/${id}`, 'POST', { user_id: id, months: String(months) }, 'application/x-www-form-urlencoded')
+    const [iptvData, p2pData] = await Promise.all([
+      eliteFetch('dashboard/iptv/data?per_page=1000'),
+      eliteFetch('dashboard/p2p/data?per_page=1000'),
+    ])
+    const mapear = (raw, tipo) => {
+      const arr = Array.isArray(raw) ? raw : (raw?.data ?? raw?.items ?? [])
+      return arr.map(c => ({
+        id: c.id,
+        username: c.username,
+        password: c.password,
+        name: c.name ?? c.member_name ?? c.notes ?? '',
+        exp_date: c.expiry_date ?? c.exp_date ?? null,
+        tipo,
+      }))
     }
-    console.log(`[ELITE P2P RENOVAR] id=${id} months=${months}`, JSON.stringify(data))
+    const linhas = [...mapear(iptvData, 'IPTV'), ...mapear(p2pData, 'P2P')]
+    res.json({ total: linhas.length, linhas })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+app.post('/elite/renovar', async (req, res) => {
+  try {
+    const { id, tipo } = req.body
+    if (!id) throw new Error('ID não informado')
+    const path = (tipo ?? 'IPTV').toUpperCase() === 'P2P' ? 'p2p' : 'iptv'
+    const data = await eliteFetch(`dashboard/${path}/renew/${id}`, 'POST', { months: 1 })
     res.json(data)
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
