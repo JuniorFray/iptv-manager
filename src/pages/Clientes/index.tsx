@@ -1,8 +1,7 @@
-﻿import { useEffect, useState, useRef } from 'react'
-import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot } from 'firebase/firestore'
+﻿import { useEffect, useState } from 'react'
+import { collection, onSnapshot, doc, updateDoc, deleteDoc, addDoc } from 'firebase/firestore'
 import { db } from '../../firebase'
-import { Plus, Pencil, Trash2, X, Check, Search, Upload, Download, RefreshCw, FlaskConical } from 'lucide-react'
-import * as XLSX from 'xlsx'
+import { Plus, Search, Pencil, Trash2, RefreshCw, Check, X } from 'lucide-react'
 
 const BACKEND_URL = 'https://iptv-manager-production.up.railway.app'
 
@@ -15,155 +14,134 @@ interface Cliente {
   usuario: string
   senha: string
   vencimento: string
-  status: string
   valor: string
-  observacao: string
+  status: string
+  obs: string
 }
 
-interface Servidor {
-  id: string
-  nome: string
-}
-
-const inputParaData = (val: string) => {
-  if (!val) return ''
-  const [y, m, d] = val.split('-')
-  return `${d}/${m}/${y}`
-}
-
-const dataParaInput = (val: string) => {
-  if (!val) return ''
-  const parts = val.split('/')
-  if (parts.length !== 3) return ''
-  return `${parts[2]}-${parts[1]}-${parts[0]}`
-}
-
-const formatarValorDisplay = (val: string) => {
-  if (!val) return ''
-  const num = parseFloat(val)
-  if (isNaN(num)) return ''
-  return `R$ ${num.toFixed(2).replace('.', ',')}`
+const clienteVazio: Omit<Cliente, 'id'> = {
+  nome: '', telefone: '', tipo: 'IPTV', servidor: '', usuario: '',
+  senha: '', vencimento: '', valor: '', status: 'ativo', obs: '',
 }
 
 export default function Clientes() {
   const [clientes, setClientes] = useState<Cliente[]>([])
-  const [servidores, setServidores] = useState<Servidor[]>([])
   const [busca, setBusca] = useState('')
   const [modalAberto, setModalAberto] = useState(false)
-  const [editando, setEditando] = useState<Cliente | null>(null)
+  const [clienteEditando, setClienteEditando] = useState<Omit<Cliente, 'id'> & { id?: string }>(clienteVazio)
   const [carregando, setCarregando] = useState(false)
-  const [importando, setImportando] = useState(false)
-  const [importResult, setImportResult] = useState<{ tipo: 'ok' | 'erro'; msg: string } | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-
-  // ---- WWPanel states ----
   const [renovandoId, setRenovandoId] = useState<string | null>(null)
-  const [testandoId, setTestandoId] = useState<string | null>(null)
-  const [painelMsg, setPainelMsg] = useState<{ tipo: 'ok' | 'erro'; msg: string } | null>(null)
-  const [sincronizando, setSincronizando] = useState(false)
+  const [msgPainel, setMsgPainel] = useState<{ tipo: 'ok' | 'erro'; msg: string } | null>(null)
+
+  // Warez
+  const [sincronizandoWarez, setSincronizandoWarez] = useState(false)
   const [syncResult, setSyncResult] = useState<{ tipo: 'ok' | 'erro'; msg: string } | null>(null)
 
-  const [form, setForm] = useState({
-    nome: '', telefone: '', tipo: 'IPTV', servidor: '',
-    usuario: '', senha: '', vencimento: '', status: 'ativo',
-    valor: '', observacao: ''
-  })
+  // Elite
+  const [sincronizandoElite, setSincronizandoElite] = useState(false)
+  const [syncEliteResult, setSyncEliteResult] = useState<{ tipo: 'ok' | 'erro'; msg: string } | null>(null)
 
   useEffect(() => {
-    const unsubClientes = onSnapshot(collection(db, 'clientes'), snapshot => {
-      setClientes(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Cliente)))
+    const unsub = onSnapshot(collection(db, 'clientes'), snap => {
+      setClientes(snap.docs.map(d => ({ id: d.id, ...d.data() } as Cliente)))
     })
-    const unsubServidores = onSnapshot(collection(db, 'servidores'), snapshot => {
-      setServidores(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Servidor)))
-    })
-    return () => { unsubClientes(); unsubServidores() }
+    return unsub
   }, [])
 
+  const clientesFiltrados = clientes.filter(c => {
+    const t = busca.toLowerCase()
+    return (
+      c.nome?.toLowerCase().includes(t) ||
+      c.telefone?.includes(t) ||
+      c.servidor?.toLowerCase().includes(t) ||
+      c.usuario?.toLowerCase().includes(t) ||
+      c.obs?.toLowerCase().includes(t)
+    )
+  })
+
   const mostrarMsgPainel = (tipo: 'ok' | 'erro', msg: string) => {
-    setPainelMsg({ tipo, msg })
-    setTimeout(() => setPainelMsg(null), 5000)
+    setMsgPainel({ tipo, msg })
+    setTimeout(() => setMsgPainel(null), 6000)
   }
 
-  const isWarez = (servidor: string) => servidor?.toUpperCase().includes('WAREZ')
+  const abrirModal = (cliente?: Cliente) => {
+    setClienteEditando(cliente ? { ...cliente } : { ...clienteVazio })
+    setModalAberto(true)
+  }
 
-  // ---- Renovar no WWPanel ----
-  const renovarCliente = async (cliente: Cliente) => {
-    setRenovandoId(cliente.id)
+  const fecharModal = () => { setModalAberto(false); setClienteEditando(clienteVazio) }
+
+  const salvarCliente = async () => {
+    setCarregando(true)
     try {
-      const username = cliente.usuario?.trim()
-      if (!username) throw new Error('Cliente sem usuário cadastrado. Clique em "Sincronizar Warez" primeiro.')
-
-      const buscaRes = await fetch(`${BACKEND_URL}/painel/buscar-username/${encodeURIComponent(username)}`)
-      const buscaData = await buscaRes.json()
-
-      const items = buscaData?.items ?? buscaData?.data ?? buscaData?.lines ?? (Array.isArray(buscaData) ? buscaData : [])
-
-      if (!items || items.length === 0) {
-        throw new Error(`Nenhum resultado retornado pelo Warez para o usuário "${username}".`)
+      const { id, ...dados } = clienteEditando as Cliente
+      if (id) {
+        await updateDoc(doc(db, 'clientes', id), dados as any)
+      } else {
+        await addDoc(collection(db, 'clientes'), dados)
       }
-
-      // Busca pelo username exato
-      const linha = items.find((item: any) => item.username === username)
-
-      if (!linha) {
-        throw new Error(`Usuário "${username}" não encontrado no Warez.`)
-      }
-
-      const lineId = linha.id ?? linha._id
-      if (!lineId) throw new Error('Linha encontrada mas sem ID válido.')
-
-      const renovarRes = await fetch(`${BACKEND_URL}/painel/renovar/${lineId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ exp_date: linha.exp_date })
-      })
-      const renovarData = await renovarRes.json()
-
-      if (!renovarRes.ok) throw new Error(renovarData?.message ?? renovarData?.error ?? 'Falha ao renovar no painel.')
-
-// Pega a data diretamente do retorno do WWPanel
-const expDate = renovarData?.exp_date
-if (!expDate) throw new Error('Renovação feita mas data não retornada pelo painel.')
-
-const d = new Date(expDate)
-const novaDataStr = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
-await updateDoc(doc(db, 'clientes', cliente.id), { vencimento: novaDataStr })
-
-mostrarMsgPainel('ok', `✅ ${cliente.nome} renovado com sucesso!\n👤 Usuário: ${username} | 📅 Novo vencimento: ${novaDataStr}`)
-    } catch (err: any) {
-      mostrarMsgPainel('erro', `❌ Erro ao renovar ${cliente.nome}:\n${err.message}`)
+      fecharModal()
     } finally {
-      setRenovandoId(null)
+      setCarregando(false)
     }
   }
 
-  // ---- Sincronizar usuário/senha com WWPanel ----
+  const excluirCliente = async (id: string) => {
+    if (!confirm('Excluir este cliente?')) return
+    await deleteDoc(doc(db, 'clientes', id))
+  }
+
+  const formatarData = (ts: any): string => {
+    if (!ts) return '—'
+    if (typeof ts === 'string') return ts
+    if (ts?.toDate) return ts.toDate().toLocaleDateString('pt-BR')
+    return '—'
+  }
+
+  const diffDias = (venc: string): number | null => {
+    if (!venc) return null
+    const [d, m, y] = venc.split('/').map(Number)
+    if (!d || !m || !y) return null
+    const hoje = new Date(); hoje.setHours(0, 0, 0, 0)
+    const data = new Date(y, m - 1, d)
+    return Math.round((data.getTime() - hoje.getTime()) / 86400000)
+  }
+
+  const corVencimento = (venc: string) => {
+    const diff = diffDias(venc)
+    if (diff === null) return 'rgba(255,255,255,0.5)'
+    if (diff < 0) return '#f87171'
+    if (diff <= 4) return '#fb923c'
+    if (diff <= 7) return '#fbbf24'
+    return '#4ade80'
+  }
+
+  // ---- Helpers de servidor ----
+  const isWarez = (servidor: string) => servidor?.toUpperCase().includes('WAREZ')
+  const isElite = (servidor: string) => servidor?.toUpperCase().includes('ELITE')
+
+  // ---- Sincronizar Warez ----
   const sincronizarWWPanel = async () => {
-    setSincronizando(true)
+    setSincronizandoWarez(true)
     setSyncResult(null)
     try {
       const res = await fetch(`${BACKEND_URL}/painel/sincronizar`)
       const data = await res.json()
+      if (data.error) throw new Error(data.error)
       const linhasWarez: any[] = data.linhas ?? []
-
-      let atualizados = 0
-      let pulados = 0
-      let naoEncontrados = 0
+      let atualizados = 0, pulados = 0, naoEncontrados = 0
 
       for (const cliente of clientes) {
-        // Pula quem já tem usuário preenchido
         if (cliente.usuario?.trim()) { pulados++; continue }
-        // Só sincroniza clientes WAREZ
         if (!isWarez(cliente.servidor)) continue
 
         const nomeLower = cliente.nome?.toLowerCase() ?? ''
         const palavras = nomeLower.split(' ').filter((p: string) => p.length > 2)
 
         const match = linhasWarez.find((l: any) => {
-          const notes = l.notes?.toLowerCase() ?? ''
+          const notes = (l.notes ?? '').toLowerCase()
           if (!notes) return false
-          const matches = palavras.filter((p: string) => notes.includes(p))
-          return matches.length >= 2
+          return palavras.filter((p: string) => notes.includes(p)).length >= 2
         })
 
         if (match) {
@@ -176,514 +154,481 @@ mostrarMsgPainel('ok', `✅ ${cliente.nome} renovado com sucesso!\n👤 Usuário
           naoEncontrados++
         }
       }
-
       setSyncResult({
         tipo: 'ok',
-        msg: `✅ Sincronização concluída!\n✔ ${atualizados} atualizados\n⏭ ${pulados} pulados (já tinham usuário)\n❌ ${naoEncontrados} não encontrados no Warez`
+        msg: `✅ Warez sincronizado!\n✔ ${atualizados} atualizados  ⏭ ${pulados} pulados  ❌ ${naoEncontrados} não encontrados`,
       })
     } catch (err: any) {
-      setSyncResult({ tipo: 'erro', msg: `❌ Erro na sincronização: ${err.message}` })
+      setSyncResult({ tipo: 'erro', msg: `❌ Erro Warez: ${err.message}` })
     } finally {
-      setSincronizando(false)
+      setSincronizandoWarez(false)
     }
   }
 
-  // ---- Gerar Teste no WWPanel ----
-  const gerarTeste = async (cliente: Cliente) => {
-    if (!cliente.usuario || !cliente.senha) return mostrarMsgPainel('erro', `❌ ${cliente.nome} não tem usuário/senha cadastrados.`)
-    setTestandoId(cliente.id)
+  // ---- Renovar Warez ----
+  const renovarClienteWarez = async (cliente: Cliente) => {
+    setRenovandoId(cliente.id)
     try {
-      const planosRes = await fetch(`${BACKEND_URL}/painel/planos`)
-      const planosData = await planosRes.json()
-      const planos = planosData?.products ?? planosData ?? []
-      const pacote = planos[0]
+      const username = cliente.usuario?.trim()
+      if (!username) throw new Error('Cliente sem usuário. Sincronize o Warez primeiro.')
 
-      if (!pacote) throw new Error('Nenhum plano disponível no painel.')
+      const syncRes = await fetch(`${BACKEND_URL}/painel/sincronizar`)
+      const syncData = await syncRes.json()
+      const linhas: any[] = syncData.linhas ?? []
+      const linha = linhas.find((l: any) => l.username === username)
+      if (!linha) throw new Error(`Usuário "${username}" não encontrado no painel Warez.`)
 
-      const testeRes = await fetch(`${BACKEND_URL}/painel/teste`, {
+      const renovarRes = await fetch(`${BACKEND_URL}/painel/renovar/${linha.id}`, { method: 'POST' })
+      const renovarData = await renovarRes.json()
+      if (!renovarRes.ok) throw new Error(renovarData?.error ?? 'Falha ao renovar no Warez.')
+
+      const expDate = renovarData?.exp_date ?? renovarData?.expiry_date
+      if (!expDate) throw new Error('Renovação feita mas data não retornada pelo painel.')
+
+      const d = new Date(expDate)
+      const novaDataStr = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
+      await updateDoc(doc(db, 'clientes', cliente.id), { vencimento: novaDataStr })
+      mostrarMsgPainel('ok', `✅ ${cliente.nome} renovado!\n👤 ${username} | 📅 ${novaDataStr}`)
+    } catch (err: any) {
+      mostrarMsgPainel('erro', `❌ Erro ao renovar ${cliente.nome}:\n${err.message}`)
+    } finally {
+      setRenovandoId(null)
+    }
+  }
+
+  // ---- Sincronizar Elite ----
+  const sincronizarElite = async () => {
+    setSincronizandoElite(true)
+    setSyncEliteResult(null)
+    try {
+      const res = await fetch(`${BACKEND_URL}/elite/sincronizar`)
+      const data = await res.json()
+      if (data.error) throw new Error(data.error)
+      const linhasElite: any[] = data.linhas ?? []
+      let atualizados = 0, pulados = 0, naoEncontrados = 0
+
+      for (const cliente of clientes) {
+        if (cliente.usuario?.trim()) { pulados++; continue }
+        if (!isElite(cliente.servidor)) continue
+
+        const nomeLower = cliente.nome?.toLowerCase() ?? ''
+        const palavras = nomeLower.split(' ').filter((p: string) => p.length > 2)
+
+        const match = linhasElite.find((l: any) => {
+          const name = (l.name ?? l.notes ?? '').toLowerCase()
+          if (!name) return false
+          return palavras.filter((p: string) => name.includes(p)).length >= 2
+        })
+
+        if (match) {
+          await updateDoc(doc(db, 'clientes', cliente.id), {
+            usuario: match.username,
+            senha: match.password,
+          })
+          atualizados++
+        } else {
+          naoEncontrados++
+        }
+      }
+      setSyncEliteResult({
+        tipo: 'ok',
+        msg: `✅ Elite sincronizado!\n✔ ${atualizados} atualizados  ⏭ ${pulados} pulados  ❌ ${naoEncontrados} não encontrados`,
+      })
+    } catch (err: any) {
+      setSyncEliteResult({ tipo: 'erro', msg: `❌ Erro Elite: ${err.message}` })
+    } finally {
+      setSincronizandoElite(false)
+    }
+  }
+
+  // ---- Renovar Elite ----
+  const renovarClienteElite = async (cliente: Cliente) => {
+    setRenovandoId(cliente.id)
+    try {
+      const username = cliente.usuario?.trim()
+      if (!username) throw new Error('Cliente sem usuário. Sincronize o Elite primeiro.')
+
+      const syncRes = await fetch(`${BACKEND_URL}/elite/sincronizar`)
+      const syncData = await syncRes.json()
+      const linhas: any[] = syncData.linhas ?? []
+      const linha = linhas.find((l: any) => l.username === username)
+      if (!linha) throw new Error(`Usuário "${username}" não encontrado no painel Elite.`)
+
+      const renovarRes = await fetch(`${BACKEND_URL}/elite/renovar`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username: cliente.usuario,
-          password: cliente.senha,
-          package_p2p: pacote._id ?? pacote.id,
-          krator_package: '1',
-          testDuration: 4,
-        })
+        body: JSON.stringify({ id: linha.id, tipo: cliente.tipo ?? 'IPTV' }),
       })
-      if (!testeRes.ok) throw new Error('Falha ao gerar teste no painel.')
+      const renovarData = await renovarRes.json()
+      if (!renovarRes.ok) throw new Error(renovarData?.error ?? 'Falha ao renovar no Elite.')
 
-      mostrarMsgPainel('ok', `✅ Teste gerado para ${cliente.nome}!\n👤 Usuário: ${cliente.usuario}\n🔑 Senha: ${cliente.senha}`)
+      const expDate = renovarData?.exp_date ?? renovarData?.expiry_date
+      if (!expDate) throw new Error('Renovação feita mas data não retornada pelo painel.')
+
+      const d = new Date(expDate)
+      const novaDataStr = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
+      await updateDoc(doc(db, 'clientes', cliente.id), { vencimento: novaDataStr })
+      mostrarMsgPainel('ok', `✅ ${cliente.nome} renovado!\n👤 ${username} | 📅 ${novaDataStr}`)
     } catch (err: any) {
-      mostrarMsgPainel('erro', `❌ Erro ao gerar teste para ${cliente.nome}: ${err.message}`)
+      mostrarMsgPainel('erro', `❌ Erro ao renovar ${cliente.nome}:\n${err.message}`)
     } finally {
-      setTestandoId(null)
+      setRenovandoId(null)
     }
   }
 
-  // ── EXPORTAR EXCEL ──
-  const exportarExcel = () => {
-    const dados = clientes.map(c => ({
-      'Nome': c.nome || '',
-      'Telefone': c.telefone || '',
-      'Tipo': c.tipo || '',
-      'Servidor': c.servidor || '',
-      'Usuário': c.usuario || '',
-      'Senha': c.senha || '',
-      'Vencimento': c.vencimento || '',
-      'Valor': c.valor ? `R$ ${parseFloat(c.valor).toFixed(2).replace('.', ',')}` : '',
-      'Status': c.status || '',
-      'Observação': c.observacao || '',
-    }))
-    const ws = XLSX.utils.json_to_sheet(dados)
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'Clientes')
-    const data = new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')
-    XLSX.writeFile(wb, `clientes_backup_${data}.xlsx`)
-  }
-
-  // ── IMPORTAR EXCEL ──
-  const parseExcelDate = (val: any): string => {
-    if (!val) return ''
-    if (typeof val === 'number') {
-      const date = new Date(Math.round((val - 25569) * 86400 * 1000))
-      return `${String(date.getUTCDate()).padStart(2, '0')}/${String(date.getUTCMonth() + 1).padStart(2, '0')}/${date.getUTCFullYear()}`
-    }
-    const s = val.toString()
-    const iso = s.match(/(\d{4})-(\d{2})-(\d{2})/)
-    if (iso) return `${iso[3]}/${iso[2]}/${iso[1]}`
-    const us = s.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/)
-    if (us) {
-      const year = us[3].length === 2 ? `20${us[3]}` : us[3]
-      return `${String(us[2]).padStart(2, '0')}/${String(us[1]).padStart(2, '0')}/${year}`
-    }
-    return ''
-  }
-
-  const importarExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setImportando(true)
-    setImportResult(null)
-    try {
-      const data = await file.arrayBuffer()
-      const workbook = XLSX.read(data, { cellDates: false })
-      const abas = ['ELITE', 'WAREZ', 'CENTRAL']
-      let total = 0
-      const ignorados: string[] = []
-      for (const aba of abas) {
-        const sheet = workbook.Sheets[aba]
-        if (!sheet) continue
-        const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' }) as any[]
-        let headerIdx = -1
-        for (let i = 0; i < rows.length; i++) {
-          if (rows[i].includes('NOME')) { headerIdx = i; break }
-        }
-        if (headerIdx === -1) continue
-        const headers = rows[headerIdx]
-        const nomeIdx      = headers.indexOf('NOME')
-        const servidorIdx  = headers.indexOf('SERVIDOR')
-        const telefoneIdx  = headers.indexOf('TELEFONE')
-        const validadeIdx  = headers.indexOf('VALIDADE')
-        const pagamentoIdx = headers.indexOf('PAGAMENTO')
-        for (let i = headerIdx + 1; i < rows.length; i++) {
-          const row = rows[i]
-          const nome = row[nomeIdx]?.toString().trim()
-          if (!nome) continue
-          const telefoneRaw = row[telefoneIdx]?.toString() || ''
-          const telefone = telefoneRaw.replace(/\D/g, '')
-          if (!telefone || telefone.length < 6) {
-            ignorados.push(`${nome} (${aba}) - tel "${telefoneRaw}"`)
-            continue
-          }
-          const servidorVal = row[servidorIdx]?.toString().trim() || ''
-          const tipo = servidorVal.toUpperCase().includes('IPTV') ? 'IPTV' : 'P2P'
-          const vencimento = parseExcelDate(row[validadeIdx])
-          const valorRaw = pagamentoIdx !== -1 ? row[pagamentoIdx] : ''
-          const valor = valorRaw !== '' && valorRaw !== undefined
-            ? parseFloat(valorRaw.toString().replace(',', '.')).toFixed(2)
-            : ''
-          await addDoc(collection(db, 'clientes'), {
-            nome, telefone, tipo, servidor: aba,
-            usuario: '', senha: '', vencimento, valor,
-            status: 'ativo', observacao: '',
-          })
-          total++
-        }
-      }
-      const msgIgnorados = ignorados.length > 0 ? `\nIgnorados: ${ignorados.length}\n${ignorados.join('\n')}` : ''
-      setImportResult({ tipo: 'ok', msg: `${total} clientes importados!${msgIgnorados}` })
-    } catch {
-      setImportResult({ tipo: 'erro', msg: 'Erro ao ler o arquivo Excel.' })
-    } finally {
-      setImportando(false)
-      e.target.value = ''
-      setTimeout(() => setImportResult(null), 15000)
-    }
-  }
-
-  const clientesFiltrados = clientes.filter(c =>
-    c.nome?.toLowerCase().includes(busca.toLowerCase()) ||
-    c.telefone?.includes(busca) ||
-    c.servidor?.toLowerCase().includes(busca.toLowerCase())
-  )
-
-  const abrirModal = (cliente?: Cliente) => {
-    if (cliente) {
-      setEditando(cliente)
-      setForm({
-        nome: cliente.nome || '',
-        telefone: cliente.telefone || '',
-        tipo: cliente.tipo || 'IPTV',
-        servidor: cliente.servidor || '',
-        usuario: cliente.usuario || '',
-        senha: cliente.senha || '',
-        vencimento: dataParaInput(cliente.vencimento || ''),
-        status: cliente.status || 'ativo',
-        valor: cliente.valor || '',
-        observacao: cliente.observacao || '',
-      })
-    } else {
-      setEditando(null)
-      setForm({ nome: '', telefone: '', tipo: 'IPTV', servidor: '', usuario: '', senha: '', vencimento: '', status: 'ativo', valor: '', observacao: '' })
-    }
-    setModalAberto(true)
-  }
-
-  const fecharModal = () => { setModalAberto(false); setEditando(null) }
-
-  const salvar = async () => {
-    if (!form.nome.trim()) return
-    setCarregando(true)
-    try {
-      const dados = { ...form, vencimento: inputParaData(form.vencimento) }
-      if (editando) {
-        await updateDoc(doc(db, 'clientes', editando.id), dados)
-      } else {
-        await addDoc(collection(db, 'clientes'), dados)
-      }
-      fecharModal()
-    } finally {
-      setCarregando(false)
-    }
-  }
-
-  const excluir = async (id: string) => {
-    if (confirm('Deseja excluir este cliente?')) await deleteDoc(doc(db, 'clientes', id))
-  }
-
-  const statusColor = (status: string) => status === 'ativo'
-    ? { bg: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.3)', text: '#4ade80' }
-    : { bg: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', text: '#f87171' }
-
-  const tipoColor = (tipo: string) => tipo === 'IPTV'
-    ? { bg: 'rgba(59,130,246,0.15)', border: '1px solid rgba(59,130,246,0.3)', text: '#60a5fa' }
-    : { bg: 'rgba(168,85,247,0.15)', border: '1px solid rgba(168,85,247,0.3)', text: '#c084fc' }
-
-  const inputStyle = {
-    width: '100%', padding: '10px 14px', borderRadius: '10px',
-    border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.05)',
-    color: 'white', fontSize: '14px', outline: 'none', boxSizing: 'border-box' as const,
-  }
-
-  const labelStyle = {
-    color: 'rgba(255,255,255,0.7)', fontSize: '13px',
-    display: 'block', marginBottom: '6px'
-  }
-
+  // ---- JSX ----
   return (
     <div>
       {/* Header */}
-      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', gap: '12px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px', flexWrap: 'wrap', gap: '12px' }}>
         <div>
-          <h1 className="page-title" style={{ color: 'white', fontSize: '28px', fontWeight: 'bold', margin: 0 }}>Clientes</h1>
+          <h1 style={{ color: 'white', fontSize: '28px', fontWeight: 'bold', margin: 0 }}>Clientes</h1>
           <p style={{ color: 'rgba(255,255,255,0.5)', marginTop: '4px', fontSize: '14px' }}>{clientes.length} clientes cadastrados</p>
         </div>
-        <div className="page-header-actions" style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-          <input ref={fileInputRef} type="file" accept=".xlsx,.xls" onChange={importarExcel} style={{ display: 'none' }} />
-          <button onClick={exportarExcel} style={{
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+
+          {/* Sincronizar Warez */}
+          <button onClick={sincronizarWWPanel} disabled={sincronizandoWarez} style={{
             display: 'flex', alignItems: 'center', gap: '8px',
-            background: 'rgba(251,191,36,0.15)', color: '#fbbf24',
-            border: '1px solid rgba(251,191,36,0.3)', borderRadius: '12px',
-            padding: '12px 20px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px'
-          }}>
-            <Download size={18} /> Exportar
-          </button>
-          <button onClick={() => fileInputRef.current?.click()} disabled={importando} style={{
-            display: 'flex', alignItems: 'center', gap: '8px',
-            background: importando ? 'rgba(255,255,255,0.08)' : 'rgba(34,197,94,0.15)',
-            color: importando ? 'rgba(255,255,255,0.3)' : '#4ade80',
-            border: '1px solid rgba(34,197,94,0.3)', borderRadius: '12px',
-            padding: '12px 20px', cursor: importando ? 'not-allowed' : 'pointer',
-            fontWeight: 'bold', fontSize: '14px'
-          }}>
-            <Upload size={18} /> {importando ? 'Importando...' : 'Importar'}
-          </button>
-          <button onClick={sincronizarWWPanel} disabled={sincronizando} style={{
-            display: 'flex', alignItems: 'center', gap: '8px',
-            background: sincronizando ? 'rgba(255,255,255,0.08)' : 'rgba(59,130,246,0.15)',
-            color: sincronizando ? 'rgba(255,255,255,0.3)' : '#60a5fa',
+            background: sincronizandoWarez ? 'rgba(255,255,255,0.05)' : 'rgba(59,130,246,0.15)',
+            color: sincronizandoWarez ? 'rgba(255,255,255,0.3)' : '#60a5fa',
             border: '1px solid rgba(59,130,246,0.3)', borderRadius: '12px',
-            padding: '12px 20px', cursor: sincronizando ? 'not-allowed' : 'pointer',
-            fontWeight: 'bold', fontSize: '14px'
+            padding: '12px 20px', cursor: sincronizandoWarez ? 'not-allowed' : 'pointer',
+            fontWeight: 'bold', fontSize: '14px',
           }}>
-            <RefreshCw size={18} style={{ animation: sincronizando ? 'spin 1s linear infinite' : 'none' }} />
-            {sincronizando ? 'Sincronizando...' : 'Sincronizar Warez'}
+            <RefreshCw size={18} style={{ animation: sincronizandoWarez ? 'spin 1s linear infinite' : 'none' }} />
+            {sincronizandoWarez ? 'Sincronizando...' : 'Sincronizar Warez'}
           </button>
+
+          {/* Sincronizar Elite */}
+          <button onClick={sincronizarElite} disabled={sincronizandoElite} style={{
+            display: 'flex', alignItems: 'center', gap: '8px',
+            background: sincronizandoElite ? 'rgba(255,255,255,0.05)' : 'rgba(168,85,247,0.15)',
+            color: sincronizandoElite ? 'rgba(255,255,255,0.3)' : '#c084fc',
+            border: '1px solid rgba(168,85,247,0.3)', borderRadius: '12px',
+            padding: '12px 20px', cursor: sincronizandoElite ? 'not-allowed' : 'pointer',
+            fontWeight: 'bold', fontSize: '14px',
+          }}>
+            <RefreshCw size={18} style={{ animation: sincronizandoElite ? 'spin 1s linear infinite' : 'none' }} />
+            {sincronizandoElite ? 'Sincronizando...' : 'Sincronizar Elite'}
+          </button>
+
+          {/* Novo Cliente */}
           <button onClick={() => abrirModal()} style={{
             display: 'flex', alignItems: 'center', gap: '8px',
             background: 'linear-gradient(135deg,#3b82f6,#6366f1)', color: 'white',
             border: 'none', borderRadius: '12px', padding: '12px 20px',
             cursor: 'pointer', fontWeight: 'bold', fontSize: '14px',
-            boxShadow: '0 4px 15px rgba(99,102,241,0.4)'
           }}>
             <Plus size={18} /> Novo Cliente
           </button>
         </div>
       </div>
 
-      {/* Mensagem WWPanel */}
-      {painelMsg && (
+      {/* Mensagem painel */}
+      {msgPainel && (
         <div style={{
           marginBottom: '16px', padding: '14px 18px', borderRadius: '12px',
-          background: painelMsg.tipo === 'ok' ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
-          border: painelMsg.tipo === 'ok' ? '1px solid rgba(34,197,94,0.3)' : '1px solid rgba(239,68,68,0.3)',
-          color: painelMsg.tipo === 'ok' ? '#4ade80' : '#f87171',
-          fontWeight: '600', fontSize: '13px', whiteSpace: 'pre-wrap'
+          background: msgPainel.tipo === 'ok' ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
+          border: msgPainel.tipo === 'ok' ? '1px solid rgba(34,197,94,0.3)' : '1px solid rgba(239,68,68,0.3)',
+          color: msgPainel.tipo === 'ok' ? '#4ade80' : '#f87171',
+          fontWeight: '600', fontSize: '13px', whiteSpace: 'pre-wrap',
         }}>
-          {painelMsg.msg}
+          {msgPainel.msg}
         </div>
       )}
 
-      {/* Resultado importação */}
-      {importResult && (
-        <div style={{
-          marginBottom: '16px', padding: '14px 18px', borderRadius: '12px',
-          background: importResult.tipo === 'ok' ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
-          border: importResult.tipo === 'ok' ? '1px solid rgba(34,197,94,0.3)' : '1px solid rgba(239,68,68,0.3)',
-          color: importResult.tipo === 'ok' ? '#4ade80' : '#f87171',
-          fontWeight: '600', fontSize: '13px', whiteSpace: 'pre-wrap', wordBreak: 'break-word'
-        }}>
-          {importResult.msg}
-        </div>
-      )}
-
-      {/* Resultado sincronização */}
+      {/* Resultado sync Warez */}
       {syncResult && (
         <div style={{
           marginBottom: '16px', padding: '14px 18px', borderRadius: '12px',
           background: syncResult.tipo === 'ok' ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
           border: syncResult.tipo === 'ok' ? '1px solid rgba(34,197,94,0.3)' : '1px solid rgba(239,68,68,0.3)',
           color: syncResult.tipo === 'ok' ? '#4ade80' : '#f87171',
-          fontWeight: '600', fontSize: '13px', whiteSpace: 'pre-wrap'
+          fontWeight: '600', fontSize: '13px', whiteSpace: 'pre-wrap',
         }}>
           {syncResult.msg}
         </div>
       )}
 
+      {/* Resultado sync Elite */}
+      {syncEliteResult && (
+        <div style={{
+          marginBottom: '16px', padding: '14px 18px', borderRadius: '12px',
+          background: syncEliteResult.tipo === 'ok' ? 'rgba(168,85,247,0.15)' : 'rgba(239,68,68,0.15)',
+          border: syncEliteResult.tipo === 'ok' ? '1px solid rgba(168,85,247,0.3)' : '1px solid rgba(239,68,68,0.3)',
+          color: syncEliteResult.tipo === 'ok' ? '#c084fc' : '#f87171',
+          fontWeight: '600', fontSize: '13px', whiteSpace: 'pre-wrap',
+        }}>
+          {syncEliteResult.msg}
+        </div>
+      )}
+
       {/* Busca */}
-      <div className="glass-card" style={{ padding: '14px 18px', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+      <div className="glass-card" style={{ padding: '16px 20px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
         <Search size={18} color="rgba(255,255,255,0.4)" />
         <input
           value={busca}
           onChange={e => setBusca(e.target.value)}
-          placeholder="Buscar por nome, telefone ou servidor..."
-          style={{ ...inputStyle, border: 'none', background: 'transparent', padding: '0' }}
+          placeholder="Buscar por nome, telefone, servidor, usuário..."
+          style={{
+            background: 'transparent', border: 'none', outline: 'none',
+            color: 'white', fontSize: '15px', flex: 1,
+          }}
         />
+        {busca && (
+          <button onClick={() => setBusca('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.4)' }}>
+            <X size={16} />
+          </button>
+        )}
       </div>
 
       {/* Tabela */}
-      <div className="glass-card" style={{ overflow: 'hidden' }}>
-        <div className="table-responsive">
-          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '1000px' }}>
-            <thead>
-              <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                {['Nome', 'Telefone', 'Tipo', 'Servidor', 'Usuário', 'Senha', 'Vencimento', 'Valor', 'Status', 'Obs.', 'Ações'].map(h => (
-                  <th key={h} style={{ padding: '10px 12px', textAlign: 'left', color: 'rgba(255,255,255,0.4)', fontSize: '11px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</th>
-                ))}
+      <div className="glass-card" style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+              {['NOME', 'TELEFONE', 'TIPO', 'SERVIDOR', 'USUÁRIO', 'SENHA', 'VENCIMENTO', 'VALOR', 'STATUS', 'OBS.', 'AÇÕES'].map(col => (
+                <th key={col} style={{
+                  padding: '14px 16px', textAlign: 'left',
+                  color: 'rgba(255,255,255,0.4)', fontSize: '11px',
+                  fontWeight: '600', letterSpacing: '0.05em', whiteSpace: 'nowrap',
+                }}>{col}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {clientesFiltrados.length === 0 ? (
+              <tr>
+                <td colSpan={11} style={{ padding: '40px', textAlign: 'center', color: 'rgba(255,255,255,0.3)', fontSize: '14px' }}>
+                  {busca ? 'Nenhum cliente encontrado.' : 'Nenhum cliente cadastrado.'}
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {clientesFiltrados.length === 0 ? (
-                <tr><td colSpan={11} style={{ padding: '40px', textAlign: 'center', color: 'rgba(255,255,255,0.3)' }}>Nenhum cliente encontrado.</td></tr>
-              ) : clientesFiltrados.map(cliente => {
-                const sc = statusColor(cliente.status)
-                const tc = tipoColor(cliente.tipo || 'IPTV')
-                const ehWarez = isWarez(cliente.servidor)
-                const renovando = renovandoId === cliente.id
-                const testando = testandoId === cliente.id
-                return (
-                  <tr key={cliente.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                    <td style={{ padding: '10px 12px', color: 'white', fontWeight: '500', fontSize: '12px' }}>{cliente.nome}</td>
-                    <td style={{ padding: '10px 12px', color: 'rgba(255,255,255,0.6)', fontSize: '11px' }}>{cliente.telefone}</td>
-                    <td style={{ padding: '10px 12px' }}>
-                      <span style={{ background: tc.bg, border: tc.border, color: tc.text, padding: '3px 8px', borderRadius: '20px', fontSize: '11px', fontWeight: '600' }}>
-                        {cliente.tipo || 'IPTV'}
-                      </span>
-                    </td>
-                    <td style={{ padding: '10px 12px', color: 'rgba(255,255,255,0.6)', fontSize: '11px' }}>{cliente.servidor}</td>
-                    <td style={{ padding: '10px 12px', color: 'rgba(255,255,255,0.6)', fontSize: '11px', fontFamily: 'monospace' }}>{cliente.usuario || '—'}</td>
-                    <td style={{ padding: '10px 12px', color: 'rgba(255,255,255,0.6)', fontSize: '11px', fontFamily: 'monospace' }}>{cliente.senha || '—'}</td>
-                    <td style={{ padding: '10px 12px', color: '#fbbf24', fontSize: '12px', fontWeight: '500' }}>{cliente.vencimento}</td>
-                    <td style={{ padding: '10px 12px', color: '#4ade80', fontWeight: '600', fontSize: '12px' }}>
-                      {cliente.valor ? `R$ ${parseFloat(cliente.valor).toFixed(2).replace('.', ',')}` : '-'}
-                    </td>
-                    <td style={{ padding: '10px 12px' }}>
-                      <span style={{ background: sc.bg, border: sc.border, color: sc.text, padding: '3px 8px', borderRadius: '20px', fontSize: '11px', fontWeight: '600' }}>
-                        {cliente.status === 'ativo' ? 'Ativo' : 'Inativo'}
-                      </span>
-                    </td>
-                    <td style={{ padding: '10px 12px', color: 'rgba(255,255,255,0.45)', fontSize: '11px', maxWidth: '120px' }}>
-                      <span title={cliente.observacao || ''} style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '110px' }}>
-                        {cliente.observacao || '—'}
-                      </span>
-                    </td>
-                    <td style={{ padding: '14px 16px' }}>
-                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+            ) : clientesFiltrados.map(c => (
+              <tr key={c.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', transition: 'background 0.15s' }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.03)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+              >
+                {/* Nome */}
+                <td style={{ padding: '14px 16px', color: 'white', fontWeight: '600', fontSize: '14px', whiteSpace: 'nowrap' }}>{c.nome || '—'}</td>
 
-                        {/* Botão Renovar — só Warez */}
-                        {ehWarez && (
-                          <button
-                            onClick={() => renovarCliente(cliente)}
-                            disabled={renovando}
-                            title="Renovar no Warez"
-                            style={{
-                              display: 'flex', alignItems: 'center', gap: '4px',
-                              background: renovando ? 'rgba(255,255,255,0.05)' : 'rgba(34,197,94,0.15)',
-                              border: '1px solid rgba(34,197,94,0.3)', borderRadius: '8px',
-                              padding: '6px 10px', cursor: renovando ? 'not-allowed' : 'pointer',
-                              color: renovando ? 'rgba(255,255,255,0.3)' : '#4ade80',
-                              fontSize: '12px', fontWeight: '600'
-                            }}
-                          >
-                            <RefreshCw size={13} style={{ animation: renovando ? 'spin 1s linear infinite' : 'none' }} />
-                            {renovando ? '...' : 'Renovar'}
-                          </button>
-                        )}
+                {/* Telefone */}
+                <td style={{ padding: '14px 16px', color: 'rgba(255,255,255,0.6)', fontSize: '13px', whiteSpace: 'nowrap' }}>{c.telefone || '—'}</td>
 
-                        {/* Botão Gerar Teste — só Warez */}
-                        {ehWarez && (
-                          <button
-                            onClick={() => gerarTeste(cliente)}
-                            disabled={testando}
-                            title="Gerar Teste no Warez"
-                            style={{
-                              display: 'flex', alignItems: 'center', gap: '4px',
-                              background: testando ? 'rgba(255,255,255,0.05)' : 'rgba(168,85,247,0.15)',
-                              border: '1px solid rgba(168,85,247,0.3)', borderRadius: '8px',
-                              padding: '6px 10px', cursor: testando ? 'not-allowed' : 'pointer',
-                              color: testando ? 'rgba(255,255,255,0.3)' : '#c084fc',
-                              fontSize: '12px', fontWeight: '600'
-                            }}
-                          >
-                            <FlaskConical size={13} />
-                            {testando ? '...' : 'Teste'}
-                          </button>
-                        )}
+                {/* Tipo */}
+                <td style={{ padding: '14px 16px' }}>
+                  {c.tipo ? (
+                    <span style={{
+                      padding: '4px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '700',
+                      background: c.tipo === 'P2P' ? 'rgba(168,85,247,0.2)' : 'rgba(59,130,246,0.2)',
+                      color: c.tipo === 'P2P' ? '#c084fc' : '#60a5fa',
+                      border: c.tipo === 'P2P' ? '1px solid rgba(168,85,247,0.4)' : '1px solid rgba(59,130,246,0.4)',
+                    }}>{c.tipo}</span>
+                  ) : '—'}
+                </td>
 
-                        <button onClick={() => abrirModal(cliente)} style={{ background: 'rgba(99,102,241,0.2)', border: '1px solid rgba(99,102,241,0.3)', borderRadius: '8px', padding: '7px', cursor: 'pointer', color: '#818cf8' }}><Pencil size={14} /></button>
-                        <button onClick={() => excluir(cliente.id)} style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '8px', padding: '7px', cursor: 'pointer', color: '#f87171' }}><Trash2 size={14} /></button>
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+                {/* Servidor */}
+                <td style={{ padding: '14px 16px', color: 'rgba(255,255,255,0.7)', fontSize: '13px', whiteSpace: 'nowrap' }}>{c.servidor || '—'}</td>
+
+                {/* Usuário */}
+                <td style={{ padding: '14px 16px', color: 'rgba(255,255,255,0.5)', fontSize: '12px', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{c.usuario || '—'}</td>
+
+                {/* Senha */}
+                <td style={{ padding: '14px 16px', color: 'rgba(255,255,255,0.5)', fontSize: '12px', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{c.senha || '—'}</td>
+
+                {/* Vencimento */}
+                <td style={{ padding: '14px 16px', whiteSpace: 'nowrap' }}>
+                  <span style={{ color: corVencimento(c.vencimento), fontWeight: '600', fontSize: '13px' }}>
+                    {formatarData(c.vencimento)}
+                  </span>
+                </td>
+
+                {/* Valor */}
+                <td style={{ padding: '14px 16px', color: '#4ade80', fontWeight: '600', fontSize: '13px', whiteSpace: 'nowrap' }}>
+                  {c.valor ? `R$ ${parseFloat(c.valor).toFixed(2).replace('.', ',')}` : '—'}
+                </td>
+
+                {/* Status */}
+                <td style={{ padding: '14px 16px' }}>
+                  <span style={{
+                    padding: '4px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: '600',
+                    background: c.status === 'ativo' ? 'rgba(34,197,94,0.15)' : c.status === 'suspenso' ? 'rgba(245,158,11,0.15)' : 'rgba(239,68,68,0.15)',
+                    color: c.status === 'ativo' ? '#4ade80' : c.status === 'suspenso' ? '#fbbf24' : '#f87171',
+                    border: c.status === 'ativo' ? '1px solid rgba(34,197,94,0.3)' : c.status === 'suspenso' ? '1px solid rgba(245,158,11,0.3)' : '1px solid rgba(239,68,68,0.3)',
+                  }}>
+                    {c.status ? c.status.charAt(0).toUpperCase() + c.status.slice(1) : '—'}
+                  </span>
+                </td>
+
+                {/* Obs */}
+                <td style={{ padding: '14px 16px', color: 'rgba(255,255,255,0.4)', fontSize: '12px', maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {c.obs || '—'}
+                </td>
+
+                {/* Ações */}
+                <td style={{ padding: '14px 16px', whiteSpace: 'nowrap' }}>
+                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+
+                    {/* Renovar Warez */}
+                    {isWarez(c.servidor) && (
+                      <button
+                        onClick={() => renovarClienteWarez(c)}
+                        disabled={renovandoId === c.id}
+                        title="Renovar no Warez"
+                        style={{
+                          padding: '6px 10px', borderRadius: '8px', border: 'none', cursor: renovandoId === c.id ? 'not-allowed' : 'pointer',
+                          background: renovandoId === c.id ? 'rgba(255,255,255,0.05)' : 'rgba(59,130,246,0.15)',
+                          color: renovandoId === c.id ? 'rgba(255,255,255,0.3)' : '#60a5fa',
+                          fontSize: '12px', fontWeight: 'bold',
+                        }}
+                      >
+                        {renovandoId === c.id ? '...' : '↻'}
+                      </button>
+                    )}
+
+                    {/* Renovar Elite */}
+                    {isElite(c.servidor) && (
+                      <button
+                        onClick={() => renovarClienteElite(c)}
+                        disabled={renovandoId === c.id}
+                        title="Renovar no Elite"
+                        style={{
+                          padding: '6px 10px', borderRadius: '8px', border: 'none', cursor: renovandoId === c.id ? 'not-allowed' : 'pointer',
+                          background: renovandoId === c.id ? 'rgba(255,255,255,0.05)' : 'rgba(168,85,247,0.15)',
+                          color: renovandoId === c.id ? 'rgba(255,255,255,0.3)' : '#c084fc',
+                          fontSize: '12px', fontWeight: 'bold',
+                        }}
+                      >
+                        {renovandoId === c.id ? '...' : '↻'}
+                      </button>
+                    )}
+
+                    {/* Editar */}
+                    <button
+                      onClick={() => abrirModal(c)}
+                      title="Editar"
+                      style={{
+                        padding: '8px', borderRadius: '8px', border: 'none', cursor: 'pointer',
+                        background: 'rgba(99,102,241,0.15)', color: '#818cf8',
+                      }}
+                    >
+                      <Pencil size={14} />
+                    </button>
+
+                    {/* Excluir */}
+                    <button
+                      onClick={() => excluirCliente(c.id)}
+                      title="Excluir"
+                      style={{
+                        padding: '8px', borderRadius: '8px', border: 'none', cursor: 'pointer',
+                        background: 'rgba(239,68,68,0.15)', color: '#f87171',
+                      }}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
 
-      {/* Modal */}
+      {/* Modal Cadastro/Edição */}
       {modalAberto && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: '16px' }}>
-          <div className="glass-card" style={{ padding: '32px', width: '100%', maxWidth: '500px', maxHeight: '92vh', overflowY: 'auto' }}>
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 1000, padding: '20px',
+        }} onClick={e => { if (e.target === e.currentTarget) fecharModal() }}>
+          <div className="glass-card" style={{ width: '100%', maxWidth: '560px', padding: '32px', maxHeight: '90vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-              <h2 style={{ color: 'white', margin: 0, fontSize: '20px' }}>{editando ? 'Editar Cliente' : 'Novo Cliente'}</h2>
-              <button onClick={fecharModal} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.5)' }}><X size={20} /></button>
+              <h2 style={{ color: 'white', fontWeight: 'bold', fontSize: '20px', margin: 0 }}>
+                {(clienteEditando as any).id ? 'Editar Cliente' : 'Novo Cliente'}
+              </h2>
+              <button onClick={fecharModal} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.5)' }}>
+                <X size={20} />
+              </button>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <div>
-                <label style={labelStyle}>Nome *</label>
-                <input value={form.nome} onChange={e => setForm({ ...form, nome: e.target.value })} className="input-glass" placeholder="Nome completo" />
-              </div>
-              <div>
-                <label style={labelStyle}>Telefone</label>
-                <input value={form.telefone} onChange={e => setForm({ ...form, telefone: e.target.value.replace(/\D/g, '') })} className="input-glass" placeholder="Ex: 13999999999" maxLength={15} />
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                <div>
-                  <label style={labelStyle}>Usuário</label>
-                  <input value={form.usuario} onChange={e => setForm({ ...form, usuario: e.target.value })} className="input-glass" placeholder="Usuário IPTV" />
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              {([
+                { label: 'Nome', key: 'nome', type: 'text', full: true },
+                { label: 'Telefone', key: 'telefone', type: 'text' },
+                { label: 'Servidor', key: 'servidor', type: 'text' },
+                { label: 'Usuário', key: 'usuario', type: 'text' },
+                { label: 'Senha', key: 'senha', type: 'text' },
+                { label: 'Vencimento (DD/MM/AAAA)', key: 'vencimento', type: 'text' },
+                { label: 'Valor (R$)', key: 'valor', type: 'text' },
+                { label: 'Observação', key: 'obs', type: 'text' },
+              ] as { label: string; key: keyof Omit<Cliente, 'id'>; type: string; full?: boolean }[]).map(({ label, key, type, full }) => (
+                <div key={key} style={{ gridColumn: full ? '1 / -1' : undefined }}>
+                  <label style={{ color: 'rgba(255,255,255,0.6)', fontSize: '12px', fontWeight: '600', display: 'block', marginBottom: '6px' }}>{label}</label>
+                  <input
+                    type={type}
+                    value={(clienteEditando as any)[key] ?? ''}
+                    onChange={e => setClienteEditando(prev => ({ ...prev, [key]: e.target.value }))}
+                    style={{
+                      width: '100%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)',
+                      borderRadius: '10px', padding: '10px 14px', color: 'white', fontSize: '14px',
+                      outline: 'none', boxSizing: 'border-box',
+                    }}
+                  />
                 </div>
-                <div>
-                  <label style={labelStyle}>Senha</label>
-                  <input value={form.senha} onChange={e => setForm({ ...form, senha: e.target.value })} className="input-glass" placeholder="Senha IPTV" />
-                </div>
-              </div>
+              ))}
+
+              {/* Tipo */}
               <div>
-                <label style={labelStyle}>Vencimento</label>
-                <input type="date" value={form.vencimento} onChange={e => setForm({ ...form, vencimento: e.target.value })} style={{ ...inputStyle, colorScheme: 'dark' }} />
+                <label style={{ color: 'rgba(255,255,255,0.6)', fontSize: '12px', fontWeight: '600', display: 'block', marginBottom: '6px' }}>Tipo</label>
+                <select
+                  value={clienteEditando.tipo}
+                  onChange={e => setClienteEditando(prev => ({ ...prev, tipo: e.target.value }))}
+                  style={{
+                    width: '100%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)',
+                    borderRadius: '10px', padding: '10px 14px', color: 'white', fontSize: '14px', outline: 'none',
+                  }}
+                >
+                  <option value="IPTV" style={{ background: '#1e1e2e' }}>IPTV</option>
+                  <option value="P2P" style={{ background: '#1e1e2e' }}>P2P</option>
+                </select>
               </div>
+
+              {/* Status */}
               <div>
-                <label style={labelStyle}>Valor R$</label>
-                <div style={{ position: 'relative' }}>
-                  <span style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,0.4)', fontSize: '14px', pointerEvents: 'none' }}>R$</span>
-                  <input type="number" min="0" step="0.01" value={form.valor} onChange={e => setForm({ ...form, valor: e.target.value })} className="input-glass" placeholder="0,00" style={{ ...inputStyle, paddingLeft: '38px' }} />
-                </div>
-                {form.valor && <p style={{ color: '#4ade80', fontSize: '12px', margin: '4px 0 0 4px' }}>= {formatarValorDisplay(form.valor)}</p>}
+                <label style={{ color: 'rgba(255,255,255,0.6)', fontSize: '12px', fontWeight: '600', display: 'block', marginBottom: '6px' }}>Status</label>
+                <select
+                  value={clienteEditando.status}
+                  onChange={e => setClienteEditando(prev => ({ ...prev, status: e.target.value }))}
+                  style={{
+                    width: '100%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)',
+                    borderRadius: '10px', padding: '10px 14px', color: 'white', fontSize: '14px', outline: 'none',
+                  }}
+                >
+                  <option value="ativo" style={{ background: '#1e1e2e' }}>Ativo</option>
+                  <option value="inativo" style={{ background: '#1e1e2e' }}>Inativo</option>
+                  <option value="suspenso" style={{ background: '#1e1e2e' }}>Suspenso</option>
+                </select>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                <div>
-                  <label style={labelStyle}>Tipo</label>
-                  <select value={form.tipo} onChange={e => setForm({ ...form, tipo: e.target.value })} style={{ ...inputStyle, cursor: 'pointer' }}>
-                    <option value="IPTV" style={{ background: '#1e1e2e' }}>IPTV</option>
-                    <option value="P2P" style={{ background: '#1e1e2e' }}>P2P</option>
-                  </select>
-                </div>
-                <div>
-                  <label style={labelStyle}>Servidor</label>
-                  <select value={form.servidor} onChange={e => setForm({ ...form, servidor: e.target.value })} style={{ ...inputStyle, cursor: 'pointer' }}>
-                    <option value="" style={{ background: '#1e1e2e' }}>Selecione</option>
-                    {servidores.map(s => (
-                      <option key={s.id} value={s.nome} style={{ background: '#1e1e2e' }}>{s.nome}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label style={labelStyle}>Status</label>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  {[{ val: 'ativo', label: 'Ativo', cor: '34,197,94' }, { val: 'inativo', label: 'Inativo', cor: '239,68,68' }].map(s => (
-                    <button key={s.val} onClick={() => setForm({ ...form, status: s.val })} style={{
-                      flex: 1, padding: '10px', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px',
-                      background: form.status === s.val ? `rgba(${s.cor},0.25)` : 'rgba(255,255,255,0.05)',
-                      border: form.status === s.val ? `1px solid rgba(${s.cor},0.5)` : '1px solid rgba(255,255,255,0.1)',
-                      color: form.status === s.val ? `rgb(${s.cor})` : 'rgba(255,255,255,0.4)',
-                    }}>
-                      {s.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label style={labelStyle}>Observação</label>
-                <textarea value={form.observacao} onChange={e => setForm({ ...form, observacao: e.target.value })} className="input-glass" placeholder="Anotações sobre o cliente..." rows={3} style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit', lineHeight: '1.5' }} />
-              </div>
-              <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
-                <button onClick={fecharModal} style={{ flex: 1, padding: '12px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.15)', background: 'transparent', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', fontSize: '14px' }}>
-                  Cancelar
-                </button>
-                <button onClick={salvar} disabled={carregando || !form.nome.trim()} style={{
-                  flex: 1, padding: '12px', borderRadius: '12px', border: 'none',
-                  background: 'linear-gradient(135deg,#3b82f6,#6366f1)', color: 'white',
-                  cursor: carregando || !form.nome.trim() ? 'not-allowed' : 'pointer',
-                  fontWeight: 'bold', fontSize: '14px',
-                  opacity: carregando || !form.nome.trim() ? 0.6 : 1,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
-                }}>
-                  <Check size={16} /> {carregando ? 'Salvando...' : 'Salvar'}
-                </button>
-              </div>
+            </div>
+
+            {/* Botões do modal */}
+            <div style={{ display: 'flex', gap: '12px', marginTop: '24px', justifyContent: 'flex-end' }}>
+              <button onClick={fecharModal} style={{
+                padding: '12px 24px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.15)',
+                background: 'transparent', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', fontSize: '14px',
+              }}>
+                Cancelar
+              </button>
+              <button onClick={salvarCliente} disabled={carregando} style={{
+                padding: '12px 24px', borderRadius: '10px', border: 'none',
+                background: carregando ? 'rgba(255,255,255,0.08)' : 'linear-gradient(135deg,#3b82f6,#6366f1)',
+                color: carregando ? 'rgba(255,255,255,0.3)' : 'white',
+                cursor: carregando ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '14px',
+                display: 'flex', alignItems: 'center', gap: '8px',
+              }}>
+                <Check size={16} /> {carregando ? 'Salvando...' : 'Salvar'}
+              </button>
             </div>
           </div>
         </div>
