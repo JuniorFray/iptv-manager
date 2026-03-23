@@ -513,31 +513,15 @@ app.get('/painel/sincronizar', async (req, res) => {
 app.post('/painel/renovar/:lineId', async (req, res) => {
   try {
     const lineId = req.params.lineId
-    const { exp_date } = req.body
-
-    if (!exp_date) return res.status(400).json({ error: 'exp_date não informada.' })
-
-    // WWPanel calcula exp_date = lastExtendDate + lastExtendPeriod
-    // Então enviamos lastExtendDate = hoje para renovar a partir de hoje
-    const hoje = new Date()
-    const payload = {
-      lastExtendDate: hoje.toISOString(),
-      lastExtendPeriod: 30
-    }
-
-    console.log(`[RENOVAR] lineId=${lineId} payload=`, JSON.stringify(payload))
-    const data = await wpFetch(`/lines/${lineId}`, 'PATCH', payload)
+    const data = await wpFetch(`/lines/extend/${lineId}`, 'PATCH', { credits: 1 })
     console.log(`[RENOVAR] resposta=`, JSON.stringify(data))
-
-    if (data?.error || data?.message?.toLowerCase?.().includes('cannot')) {
-      return res.status(400).json(data)
-    }
-
     res.json(data)
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-app.get('/painel/planos', async (req, res) => {
+    // WWPanel calcula exp_date = lastExtendDate + lastExtendPeriod
+    // Então enviamos lastExtendDate = hoje para renovar a partir de hoje
+    app.get('/painel/planos', async (req, res) => {
   try {
     const data = await wpFetch('/products')
     res.json(data)
@@ -550,5 +534,7 @@ app.post('/painel/teste', async (req, res) => {
     res.json(data)
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
+
+app.listen(3001, () => console.log('Servidor rodando na porta 3001'))
 
 app.listen(3001, () => console.log('Servidor rodando na porta 3001'))
