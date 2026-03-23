@@ -90,31 +90,23 @@ export default function Clientes() {
   const renovarCliente = async (cliente: Cliente) => {
     setRenovandoId(cliente.id)
     try {
-      const nomeBusca = cliente.nome?.trim()
-      if (!nomeBusca) throw new Error('Cliente sem nome cadastrado.')
+      const username = cliente.usuario?.trim()
+      if (!username) throw new Error('Cliente sem usuário cadastrado. Clique em "Sincronizar Warez" primeiro.')
 
-      const buscaRes = await fetch(`${BACKEND_URL}/painel/buscar/${encodeURIComponent(nomeBusca)}`)
+      const buscaRes = await fetch(`${BACKEND_URL}/painel/buscar/${encodeURIComponent(username)}`)
       const buscaData = await buscaRes.json()
 
       const items = buscaData?.items ?? buscaData?.data ?? buscaData?.lines ?? (Array.isArray(buscaData) ? buscaData : [])
 
       if (!items || items.length === 0) {
-        throw new Error(`Nenhum resultado retornado pelo Warez para "${nomeBusca}".`)
+        throw new Error(`Nenhum resultado retornado pelo Warez para o usuário "${username}".`)
       }
 
-      const nomeLower = nomeBusca.toLowerCase()
-      const palavrasNome = nomeLower.split(' ').filter((p: string) => p.length > 2)
-
-      const linha = items.find((item: any) => {
-        const notes = item.notes?.toLowerCase()?.trim() ?? ''
-        if (!notes) return false
-        const matches = palavrasNome.filter((p: string) => notes.includes(p))
-        return matches.length >= 2
-      })
+      // Busca pelo username exato
+      const linha = items.find((item: any) => item.username === username)
 
       if (!linha) {
-        const exemplos = items.slice(0, 5).map((i: any) => `"${i.notes}"`).join(', ')
-        throw new Error(`"${nomeBusca}" não encontrado no campo Observação do Warez.\n\nPrimeiros resultados: ${exemplos}`)
+        throw new Error(`Usuário "${username}" não encontrado no Warez.`)
       }
 
       const lineId = linha.id ?? linha._id
@@ -135,7 +127,7 @@ export default function Clientes() {
       const novaDataStr = `${String(novaData.getDate()).padStart(2, '0')}/${String(novaData.getMonth() + 1).padStart(2, '0')}/${novaData.getFullYear()}`
       await updateDoc(doc(db, 'clientes', cliente.id), { vencimento: novaDataStr })
 
-      mostrarMsgPainel('ok', `✅ ${cliente.nome} renovado com sucesso!\n📅 Novo vencimento: ${novaDataStr} | ID: ${lineId}`)
+      mostrarMsgPainel('ok', `✅ ${cliente.nome} renovado com sucesso!\n👤 Usuário: ${username} | 📅 Novo vencimento: ${novaDataStr}`)
     } catch (err: any) {
       mostrarMsgPainel('erro', `❌ Erro ao renovar ${cliente.nome}:\n${err.message}`)
     } finally {
