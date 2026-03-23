@@ -517,17 +517,21 @@ app.post('/painel/renovar/:lineId', async (req, res) => {
 
     if (!exp_date) return res.status(400).json({ error: 'exp_date não informada.' })
 
-    const expAtual = new Date(exp_date)
+    // WWPanel calcula exp_date = lastExtendDate + lastExtendPeriod
+    // Então enviamos lastExtendDate = hoje para renovar a partir de hoje
     const hoje = new Date()
-    const base = expAtual > hoje ? expAtual : hoje
-    const novaExp = new Date(base)
-    novaExp.setDate(novaExp.getDate() + 30)
+    const payload = {
+      lastExtendDate: hoje.toISOString(),
+      lastExtendPeriod: 30
+    }
 
-    const payload = { exp_date: novaExp.toISOString() }
     console.log(`[RENOVAR] lineId=${lineId} payload=`, JSON.stringify(payload))
-
     const data = await wpFetch(`/lines/${lineId}`, 'PATCH', payload)
     console.log(`[RENOVAR] resposta=`, JSON.stringify(data))
+
+    if (data?.error || data?.message?.toLowerCase?.().includes('cannot')) {
+      return res.status(400).json(data)
+    }
 
     res.json(data)
   } catch (err) { res.status(500).json({ error: err.message }) }
