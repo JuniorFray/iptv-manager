@@ -621,4 +621,14 @@ app.get('/elite/debug', async (req, res) => {
   }
 })
 
+app.get('/meu-ip', async (req, res) => {
+  try {
+    const r = await fetch('https://api.ipify.org?format=json')
+    const data = await r.json()
+    res.json({ ip: data.ip })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
 app.listen(3001, () => console.log('Servidor rodando na porta 3001'))
