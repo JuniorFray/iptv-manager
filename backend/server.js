@@ -9,6 +9,7 @@ import qrcode from 'qrcode'
 import cron from 'node-cron'
 import admin from 'firebase-admin'
 import { createRequire } from 'module'
+import { HttpsProxyAgent } from 'https-proxy-agent'
 
 const require = createRequire(import.meta.url)
 const serviceAccount = JSON.parse(process.env.SERVICEACCOUNTKEY)
@@ -19,6 +20,11 @@ const db = admin.firestore()
 const app = express()
 app.use(cors())
 app.use(express.json())
+
+// Proxy residencial para chamadas Elite (bypassa Cloudflare ASN ban)
+const eliteProxy = process.env.PROXY_URL
+  ? new HttpsProxyAgent(process.env.PROXY_URL)
+  : undefined
 
 // ---- WhatsApp ----
 
@@ -120,7 +126,8 @@ let eliteCookies = null
 
 const eliteLogin = async () => {
   const loginPage = await fetch('https://adminx.offo.dad/login', {
-    headers: { 'User-Agent': 'Mozilla/5.0' }
+    headers: { 'User-Agent': 'Mozilla/5.0' },
+    agent: eliteProxy,
   })
   const setCookieHeader = loginPage.headers.get('set-cookie') || ''
   const xsrfMatch = setCookieHeader.match(/XSRF-TOKEN=([^;]+)/)
@@ -139,10 +146,11 @@ const eliteLogin = async () => {
     },
     body: new URLSearchParams({
       _token: xsrf,
-      email: process.env.ELITE_USER,
-      password: process.env.ELITE_PASS,
+      email: process.env.ELITEUSER,
+      password: process.env.ELITEPASS,
     }).toString(),
-    redirect: 'manual'
+    redirect: 'manual',
+    agent: eliteProxy,
   })
 
   const newCookies = res.headers.get('set-cookie') || ''
@@ -171,9 +179,11 @@ const eliteFetch = async (path, method = 'GET', body = null, contentType = 'appl
       ? (contentType.includes('json')
           ? JSON.stringify(body)
           : new URLSearchParams(body).toString())
-      : null
+      : null,
+    agent: eliteProxy,
   })
   if (res.status === 401 || res.status === 419) {
+    eliteToken = null
     await eliteLogin()
     return eliteFetch(path, method, body, contentType)
   }
@@ -454,12 +464,25 @@ app.post('/fila/limpar', async (req, res) => {
 
 app.post('/logout', async (req, res) => {
   try {
-    if (!sock) return res.status(503).json({ error: 'WhatsApp não iniciado' })
-    await sock.logout()
+    if (sock) {
+      await sock.logout()
+      sock = null
+    }
     clientReady = false
     qrCodeBase64 = null
-    res.json({ success: true })
-  } catch (err) { res.status(500).json({ error: err.message }) }
+    const fs2 = await import('fs/promises')
+    const arquivos = await fs2.readdir('authinfo').catch(() => [])
+    for (const arq of arquivos) {
+      await fs2.unlink(`authinfo/${arq}`).catch(() => {})
+    }
+    setTimeout(conectarWhatsApp, 2000)
+    res.json({ success: true, msg: 'Sessão limpa. Novo QR sendo gerado...' })
+  } catch (err) {
+    clientReady = false
+    qrCodeBase64 = null
+    setTimeout(conectarWhatsApp, 2000)
+    res.json({ success: true, msg: 'Sessão resetada.' })
+  }
 })
 
 // ---- Rotas WWPanel ----
@@ -587,10 +610,7 @@ app.post('/painel/teste', async (req, res) => {
 
 app.get('/elite/debug', async (req, res) => {
   try {
-    // Força novo login
     await eliteLogin()
-
-    // Testa a URL raw sem parsear JSON
     const resIptv = await fetch('https://adminx.offo.dad/dashboard/iptv/data?per_page=5', {
       headers: {
         'Accept': 'application/json, text/plain, */*',
@@ -598,27 +618,41 @@ app.get('/elite/debug', async (req, res) => {
         'X-CSRF-TOKEN': eliteToken,
         'Referer': 'https://adminx.offo.dad/dashboard/iptv',
         'User-Agent': 'Mozilla/5.0',
-      }
+      },
+      agent: eliteProxy,
     })
-
     const rawText = await resIptv.text()
     const status = resIptv.status
     const contentType = resIptv.headers.get('content-type') ?? 'unknown'
-
-    // Tenta parsear, se não conseguir retorna texto cru
     let parsed = null
     try { parsed = JSON.parse(rawText) } catch { parsed = null }
-
-    res.json({
-      status,
-      contentType,
-      isJson: parsed !== null,
-      preview: rawText.substring(0, 500),
-      data: parsed,
-    })
+    res.json({ status, contentType, isJson: parsed !== null, preview: rawText.substring(0, 500), data: parsed })
   } catch (err) {
     res.status(500).json({ error: err.message })
   }
+})
+
+app.get('/elite/sincronizar', async (req, res) => {
+  try {
+    const [iptv, p2p] = await Promise.all([
+      eliteFetch('dashboard/iptv/data?per_page=1000'),
+      eliteFetch('dashboard/p2p/data?per_page=1000'),
+    ])
+    const linhasIptv = (iptv?.data ?? []).map((l) => ({ ...l, tipo: 'IPTV' }))
+    const linhasP2p = (p2p?.data ?? []).map((l) => ({ ...l, tipo: 'P2P' }))
+    const linhas = [...linhasIptv, ...linhasP2p]
+    res.json({ total: linhas.length, linhas })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+app.post('/elite/renovar', async (req, res) => {
+  try {
+    const { id, tipo } = req.body
+    if (!id || !tipo) return res.status(400).json({ error: 'id e tipo são obrigatórios' })
+    const endpoint = tipo === 'P2P' ? `dashboard/p2p/renew/${id}` : `dashboard/iptv/renew/${id}`
+    const data = await eliteFetch(endpoint, 'POST')
+    res.json(data)
+  } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
 app.get('/meu-ip', async (req, res) => {
@@ -628,33 +662,6 @@ app.get('/meu-ip', async (req, res) => {
     res.json({ ip: data.ip })
   } catch (err) {
     res.status(500).json({ error: err.message })
-  }
-})
-
-app.post('/logout', async (req, res) => {
-  try {
-    if (sock) {
-      await sock.logout()
-      sock = null
-    }
-    clientReady = false
-    qrCodeBase64 = null
-
-    // Remove arquivos de sessão corrompidos
-    const fs2 = await import('fs/promises')
-    const arquivos = await fs2.readdir('authinfo').catch(() => [])
-    for (const arq of arquivos) {
-      await fs2.unlink(`authinfo/${arq}`).catch(() => {})
-    }
-
-    setTimeout(conectarWhatsApp, 2000)
-    res.json({ success: true, msg: 'Sessão limpa. Novo QR sendo gerado...' })
-  } catch (err) {
-    // Mesmo com erro, tenta limpar e reconectar
-    clientReady = false
-    qrCodeBase64 = null
-    setTimeout(conectarWhatsApp, 2000)
-    res.json({ success: true, msg: 'Sessão resetada.' })
   }
 })
 
