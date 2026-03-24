@@ -626,39 +626,37 @@ app.get('/elite/debug', async (req, res) => {
     eliteToken = null
     await eliteLogin()
 
-    const testar = async (path, params = '') => {
-      try {
-        const r = await fetch(`https://adminx.offo.dad/${path}${params}`, {
-          headers: {
-            'Accept': 'application/json, */*',
-            'Cookie': eliteCookies,
-            'X-CSRF-TOKEN': eliteToken,
-            'Referer': 'https://adminx.offo.dad/dashboard/iptv',
-            'User-Agent': 'Mozilla/5.0',
-            'X-Requested-With': 'XMLHttpRequest',
-          },
-          dispatcher: eliteProxy,
-        })
-        const txt = await r.text()
-        let parsed = null
-        try { parsed = JSON.parse(txt) } catch {}
-        return { status: r.status, preview: txt.substring(0, 300), parsed }
-      } catch (e) { return { erro: e.message } }
+    const r = await fetch('https://adminx.offo.dad/dashboard/iptv', {
+      headers: {
+        'Accept': 'text/html',
+        'Cookie': eliteCookies,
+        'User-Agent': 'Mozilla/5.0',
+        'Referer': 'https://adminx.offo.dad/dashboard',
+      },
+      dispatcher: eliteProxy,
+    })
+
+    const html = await r.text()
+
+    // Extrai trechos ao redor de "data" e "ajax" no JS
+    const trechos = []
+    const patterns = [/dashboard\/iptv\/data[^'"]{0,200}/g, /ajax[^}]{0,300}/g, /datatable[^}]{0,300}/gi, /DataTable[^}]{0,300}/g]
+    for (const p of patterns) {
+      const matches = [...html.matchAll(p)]
+      matches.forEach(m => trechos.push(m[0].substring(0, 200)))
     }
 
-    // DataTables usa draw/start/length
-    const dtParams = '?draw=1&start=0&length=10&search%5Bvalue%5D=&order%5B0%5D%5Bcolumn%5D=0&order%5B0%5D%5Bdir%5D=asc'
+    // Extrai todos os scripts inline
+    const scripts = [...html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/gi)]
+      .map(m => m[1])
+      .filter(s => s.includes('iptv') || s.includes('ajax') || s.includes('data'))
+      .map(s => s.substring(0, 800))
 
-    const resultados = await Promise.all([
-      testar('dashboard/iptv/data', dtParams).then(r => ({ endpoint: 'iptv/data + datatable params', ...r })),
-      testar('dashboard/p2p/data', dtParams).then(r => ({ endpoint: 'p2p/data + datatable params', ...r })),
-      testar('dashboard/iptv/data', '?per_page=5&page=1').then(r => ({ endpoint: 'iptv/data per_page', ...r })),
-      testar('api/iptv').then(r => ({ endpoint: 'api/iptv', ...r })),
-      testar('api/p2p').then(r => ({ endpoint: 'api/p2p', ...r })),
-      testar('api/iptv/list').then(r => ({ endpoint: 'api/iptv/list', ...r })),
-    ])
-
-    res.json({ login: 'OK', resultados })
+    res.json({
+      login: 'OK',
+      trechos_encontrados: trechos.slice(0, 10),
+      scripts_relevantes: scripts.slice(0, 3),
+    })
   } catch (err) {
     res.status(500).json({ error: err.message })
   }
