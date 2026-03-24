@@ -623,31 +623,39 @@ app.post('/painel/teste', async (req, res) => {
 
 app.get('/elite/debug', async (req, res) => {
   try {
-    eliteToken = null // força novo login
+    eliteToken = null
     await eliteLogin()
 
-    const resIptv = await fetch('https://adminx.offo.dad/dashboard/iptv/data?per_page=5', {
-      headers: {
-        'Accept': 'application/json, */*',
-        'Cookie': eliteCookies,
-        'X-CSRF-TOKEN': eliteToken,
-        'Referer': 'https://adminx.offo.dad/dashboard/iptv',
-        'User-Agent': 'Mozilla/5.0',
-      },
-      dispatcher: eliteProxy,
-    })
+    const testar = async (path) => {
+      try {
+        const r = await fetch(`https://adminx.offo.dad/${path}`, {
+          headers: {
+            'Accept': 'application/json, */*',
+            'Cookie': eliteCookies,
+            'X-CSRF-TOKEN': eliteToken,
+            'Referer': 'https://adminx.offo.dad/dashboard/iptv',
+            'User-Agent': 'Mozilla/5.0',
+          },
+          dispatcher: eliteProxy,
+        })
+        const txt = await r.text()
+        let parsed = null
+        try { parsed = JSON.parse(txt) } catch {}
+        return { status: r.status, preview: txt.substring(0, 200), parsed }
+      } catch (e) {
+        return { erro: e.message }
+      }
+    }
 
-    const rawText = await resIptv.text()
-    let parsed = null
-    try { parsed = JSON.parse(rawText) } catch { parsed = null }
+    const resultados = await Promise.all([
+      testar('dashboard/iptv/data?per_page=5').then(r => ({ endpoint: 'dashboard/iptv/data?per_page=5', ...r })),
+      testar('dashboard/iptv/data').then(r => ({ endpoint: 'dashboard/iptv/data', ...r })),
+      testar('api/iptv/clients').then(r => ({ endpoint: 'api/iptv/clients', ...r })),
+      testar('api/clients').then(r => ({ endpoint: 'api/clients', ...r })),
+      testar('dashboard/iptv').then(r => ({ endpoint: 'dashboard/iptv', ...r })),
+    ])
 
-    res.json({
-      status: resIptv.status,
-      contentType: resIptv.headers.get('content-type'),
-      isJson: parsed !== null,
-      preview: rawText.substring(0, 500),
-      data: parsed,
-    })
+    res.json({ login: 'OK', resultados })
   } catch (err) {
     res.status(500).json({ error: err.message })
   }
