@@ -638,25 +638,29 @@ app.get('/elite/debug', async (req, res) => {
 
     const html = await r.text()
 
-    // Extrai trechos ao redor de "data" e "ajax" no JS
-    const trechos = []
-    const patterns = [/dashboard\/iptv\/data[^'"]{0,200}/g, /ajax[^}]{0,300}/g, /datatable[^}]{0,300}/gi, /DataTable[^}]{0,300}/g]
-    for (const p of patterns) {
-      const matches = [...html.matchAll(p)]
-      matches.forEach(m => trechos.push(m[0].substring(0, 200)))
+    // Extrai todos os src de scripts carregados na página
+    const scriptSrcs = [...html.matchAll(/src="(https:\/\/adminx\.offo\.dad\/build\/assets\/[^"]+\.js)"/g)]
+      .map(m => m[1])
+
+    // Busca o conteúdo dos scripts que parecem ser da página (não vendors)
+    const resultadosJs = []
+    for (const src of scriptSrcs) {
+      try {
+        const rJs = await fetch(src, {
+          headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://adminx.offo.dad/dashboard/iptv' },
+          dispatcher: eliteProxy,
+        })
+        const js = await rJs.text()
+        // Só nos interessa o que menciona "data" ou "ajax" ou "iptv"
+        if (js.includes('/data') || js.includes('ajax') || js.includes('iptv')) {
+          const idx = js.indexOf('/data')
+          const trecho = idx >= 0 ? js.substring(Math.max(0, idx - 100), idx + 300) : js.substring(0, 400)
+          resultadosJs.push({ src: src.split('/').pop(), trecho })
+        }
+      } catch {}
     }
 
-    // Extrai todos os scripts inline
-    const scripts = [...html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/gi)]
-      .map(m => m[1])
-      .filter(s => s.includes('iptv') || s.includes('ajax') || s.includes('data'))
-      .map(s => s.substring(0, 800))
-
-    res.json({
-      login: 'OK',
-      trechos_encontrados: trechos.slice(0, 10),
-      scripts_relevantes: scripts.slice(0, 3),
-    })
+    res.json({ login: 'OK', scripts_carregados: scriptSrcs.map(s => s.split('/').pop()), scripts_com_data: resultadosJs })
   } catch (err) {
     res.status(500).json({ error: err.message })
   }
