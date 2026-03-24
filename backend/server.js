@@ -9,6 +9,7 @@ import qrcode from 'qrcode'
 import cron from 'node-cron'
 import admin from 'firebase-admin'
 import { createRequire } from 'module'
+import { ProxyAgent, fetch as undiciFetch } from 'undici'
 
 const require = createRequire(import.meta.url)
 const serviceAccount = JSON.parse(process.env.SERVICEACCOUNTKEY)
@@ -16,9 +17,16 @@ const serviceAccount = JSON.parse(process.env.SERVICEACCOUNTKEY)
 admin.initializeApp({ credential: admin.credential.cert(serviceAccount) })
 const db = admin.firestore()
 
-const app = express()
-app.use(cors())
-app.use(express.json())
+// ---- Proxy Webshare (Elite) ----
+
+const eliteProxy = (process.env.WEBSHARE_USER && process.env.WEBSHARE_PASS)
+  ? new ProxyAgent(`http://${process.env.WEBSHARE_USER}:${process.env.WEBSHARE_PASS}@proxy.webshare.io:80`)
+  : null
+
+const eliteReq = (url, opts = {}) => {
+  if (eliteProxy) return undiciFetch(url, { ...opts, dispatcher: eliteProxy })
+  return fetch(url, opts)
+}
 
 // ---- WhatsApp ----
 
@@ -119,7 +127,7 @@ let eliteToken = null
 let eliteCookies = null
 
 const eliteLogin = async () => {
-  const loginPage = await fetch('https://adminx.offo.dad/login', {
+  const loginPage = await eliteReq('https://adminx.offo.dad/login', {
     headers: { 'User-Agent': 'Mozilla/5.0' }
   })
   const setCookieHeader = loginPage.headers.get('set-cookie') || ''
@@ -128,7 +136,7 @@ const eliteLogin = async () => {
   const xsrf = xsrfMatch ? decodeURIComponent(xsrfMatch[1]) : ''
   const cookieStr = `XSRF-TOKEN=${xsrfMatch?.[1] || ''}; office_session=${sessionMatch?.[1] || ''}`
 
-  const res = await fetch('https://adminx.offo.dad/login', {
+  const res = await eliteReq('https://adminx.offo.dad/login', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
@@ -165,7 +173,7 @@ const eliteFetch = async (path, method = 'GET', body = null, contentType = 'appl
     'X-CSRF-TOKEN': eliteToken,
     'User-Agent': 'Mozilla/5.0',
   }
-  const res = await fetch(`https://adminx.offo.dad/${path}`, {
+  const res = await eliteReq(`https://adminx.offo.dad/${path}`, {
     method, headers,
     body: body
       ? (contentType.includes('json')
@@ -575,7 +583,6 @@ app.get('/painel/sincronizar', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-// ← MODIFICADO: aceita credits do body (1=30d, 2=60d, 3=90d, 6=180d). Padrão = 1.
 app.post('/painel/renovar/:lineId', async (req, res) => {
   try {
     const lineId = req.params.lineId
@@ -605,7 +612,7 @@ app.post('/painel/teste', async (req, res) => {
 app.get('/elite/debug', async (req, res) => {
   try {
     await eliteLogin()
-    const resIptv = await fetch('https://adminx.offo.dad/dashboard/iptv/data?per_page=5', {
+    const resIptv = await eliteReq('https://adminx.offo.dad/dashboard/iptv/data?per_page=5', {
       headers: {
         'Accept': 'application/json, text/plain, */*',
         'Cookie': eliteCookies,
@@ -646,7 +653,6 @@ app.get('/elite/sincronizar', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-// ← MODIFICADO: suporte a meses. meses=1 → renewone, meses>1 → renewmulti
 app.post('/elite/renovar', async (req, res) => {
   try {
     const { id, tipo, meses = 1 } = req.body
