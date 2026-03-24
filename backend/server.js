@@ -129,11 +129,19 @@ const eliteLogin = async () => {
     headers: { 'User-Agent': 'Mozilla/5.0' },
     dispatcher: eliteProxy,
   })
-  const setCookieHeader = loginPage.headers.get('set-cookie') || ''
-  const xsrfMatch = setCookieHeader.match(/XSRF-TOKEN=([^;]+)/)
-  const sessionMatch = setCookieHeader.match(/office_session=([^;]+)/)
-  const xsrf = xsrfMatch ? decodeURIComponent(xsrfMatch[1]) : ''
+
+  // Extrai cookies da etapa 1
+  const setCookies1 = loginPage.headers.getSetCookie?.() ?? [loginPage.headers.get('set-cookie')]
+  const cookieStr1 = setCookies1.join(' ')
+  const xsrfMatch = cookieStr1.match(/XSRF-TOKEN=([^;,\s]+)/)
+  const sessionMatch = cookieStr1.match(/office_session=([^;,\s]+)/)
   const cookieStr = `XSRF-TOKEN=${xsrfMatch?.[1] || ''}; office_session=${sessionMatch?.[1] || ''}`
+
+  // Extrai _token do HTML do formulário (mais confiável que o cookie)
+  const html = await loginPage.text()
+  const tokenMatch = html.match(/name="_token"\s+value="([^"]+)"/) 
+                  ?? html.match(/value="([^"]+)"\s+name="_token"/)
+  const csrfToken = tokenMatch ? tokenMatch[1] : decodeURIComponent(xsrfMatch?.[1] || '')
 
   const res = await fetch('https://adminx.offo.dad/login', {
     method: 'POST',
@@ -145,7 +153,7 @@ const eliteLogin = async () => {
       'Referer': 'https://adminx.offo.dad/login',
     },
     body: new URLSearchParams({
-      _token: xsrf,
+      _token: csrfToken,
       email: process.env.ELITEUSER,
       password: process.env.ELITEPASS,
     }).toString(),
@@ -153,41 +161,14 @@ const eliteLogin = async () => {
     dispatcher: eliteProxy,
   })
 
-  const newCookies = res.headers.get('set-cookie') || ''
-  const newXsrf = newCookies.match(/XSRF-TOKEN=([^;]+)/)
-  const newSession = newCookies.match(/office_session=([^;]+)/)
+  const setCookies2 = res.headers.getSetCookie?.() ?? [res.headers.get('set-cookie')]
+  const cookieStr2 = setCookies2.join(' ')
+  const newXsrf = cookieStr2.match(/XSRF-TOKEN=([^;,\s]+)/)
+  const newSession = cookieStr2.match(/office_session=([^;,\s]+)/)
 
   eliteToken = newXsrf ? decodeURIComponent(newXsrf[1]) : ''
   eliteCookies = `XSRF-TOKEN=${newXsrf?.[1] || ''}; office_session=${newSession?.[1] || ''}`
-  console.log('🔑 Elite login OK')
-}
-
-const eliteFetch = async (path, method = 'GET', body = null, contentType = 'application/json') => {
-  if (!eliteToken) await eliteLogin()
-  const headers = {
-    'Accept': '*/*',
-    'Content-Type': contentType,
-    'Cookie': eliteCookies,
-    'Origin': 'https://adminx.offo.dad',
-    'Referer': 'https://adminx.offo.dad/dashboard/iptv',
-    'X-CSRF-TOKEN': eliteToken,
-    'User-Agent': 'Mozilla/5.0',
-  }
-  const res = await fetch(`https://adminx.offo.dad/${path}`, {
-    method, headers,
-    body: body
-      ? (contentType.includes('json')
-          ? JSON.stringify(body)
-          : new URLSearchParams(body).toString())
-      : null,
-    dispatcher: eliteProxy,
-  })
-  if (res.status === 401 || res.status === 419) {
-    eliteToken = null
-    await eliteLogin()
-    return eliteFetch(path, method, body, contentType)
-  }
-  return res.json()
+  console.log('🔑 Elite login OK — status:', res.status)
 }
 
 // ---- Helpers WhatsApp ----
