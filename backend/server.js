@@ -718,33 +718,34 @@ app.get('/elite/debug', async (req, res) => {
   try {
     await eliteLogin()
 
-    // Mostra o estado do login
-    console.log('eliteToken:', eliteToken?.substring(0, 30))
-    console.log('eliteCookies:', eliteCookies?.substring(0, 80))
+    const urls = [
+      'api/iptv/list',
+      'api/iptv/users',
+      'api/lines',
+      'dashboard/iptv/data',
+      'api/iptv/data',
+    ]
 
-    const resIptv = await eliteReq('https://adminx.offo.dad/dashboard/iptv/data?per_page=5', {
-      headers: {
-        'Accept': 'application/json, text/plain, */*',
-        'Cookie': eliteCookies,
-        'X-CSRF-TOKEN': eliteToken,
-        'Referer': 'https://adminx.offo.dad/dashboard/iptv',
-        'User-Agent': 'Mozilla/5.0',
+    const resultados = {}
+    for (const url of urls) {
+      try {
+        const r = await eliteReq(`https://adminx.offo.dad/${url}?per_page=5`, {
+          headers: {
+            'Accept': 'application/json, text/plain, */*',
+            'Cookie': eliteCookies,
+            'X-CSRF-TOKEN': eliteToken,
+            'Referer': 'https://adminx.offo.dad/dashboard/iptv',
+            'User-Agent': 'Mozilla/5.0',
+          }
+        })
+        const text = await r.text()
+        resultados[url] = { status: r.status, preview: text.substring(0, 150) }
+      } catch (e) {
+        resultados[url] = { erro: e.message }
       }
-    })
-    const rawText     = await resIptv.text()
-    const status      = resIptv.status
-    const contentType = resIptv.headers.get('content-type') ?? 'unknown'
-    let parsed = null
-    try { parsed = JSON.parse(rawText) } catch { parsed = null }
+    }
 
-    res.json({
-      loginToken: eliteToken?.substring(0, 30) + '...',
-      loginCookies: eliteCookies?.substring(0, 80) + '...',
-      status, contentType,
-      isJson: parsed !== null,
-      preview: rawText.substring(0, 800),  // ← aumentado para ver o erro completo
-      data: parsed
-    })
+    res.json(resultados)
   } catch (err) {
     res.status(500).json({ error: err.message })
   }
