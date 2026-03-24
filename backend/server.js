@@ -24,7 +24,7 @@ app.use(express.json())
 // ---- Proxy Webshare (Elite) ----
 
 const eliteProxy = (process.env.WEBSHARE_USER && process.env.WEBSHARE_PASS)
-  ? new ProxyAgent(`http://${process.env.WEBSHARE_USER}:${process.env.WEBSHARE_PASS}@proxy.webshare.io:80`)
+  ? new ProxyAgent(`http://${process.env.WEBSHARE_USER}:${process.env.WEBSHARE_PASS}@p.webshare.io:80`)
   : null
 
 const eliteReq = (url, opts = {}) => {
