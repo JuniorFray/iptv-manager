@@ -9,7 +9,7 @@ import qrcode from 'qrcode'
 import cron from 'node-cron'
 import admin from 'firebase-admin'
 import { createRequire } from 'module'
-import { HttpsProxyAgent } from 'https-proxy-agent'
+import { ProxyAgent } from 'undici'
 
 const require = createRequire(import.meta.url)
 const serviceAccount = JSON.parse(process.env.SERVICEACCOUNTKEY)
@@ -23,7 +23,7 @@ app.use(express.json())
 
 // Proxy residencial para chamadas Elite (bypassa Cloudflare ASN ban)
 const eliteProxy = process.env.PROXY_URL
-  ? new HttpsProxyAgent(process.env.PROXY_URL)
+  ? new ProxyAgent(process.env.PROXY_URL)
   : undefined
 
 // ---- WhatsApp ----
@@ -127,7 +127,7 @@ let eliteCookies = null
 const eliteLogin = async () => {
   const loginPage = await fetch('https://adminx.offo.dad/login', {
     headers: { 'User-Agent': 'Mozilla/5.0' },
-    agent: eliteProxy,
+    dispatcher: eliteProxy,
   })
   const setCookieHeader = loginPage.headers.get('set-cookie') || ''
   const xsrfMatch = setCookieHeader.match(/XSRF-TOKEN=([^;]+)/)
@@ -150,7 +150,7 @@ const eliteLogin = async () => {
       password: process.env.ELITEPASS,
     }).toString(),
     redirect: 'manual',
-    agent: eliteProxy,
+    dispatcher: eliteProxy,
   })
 
   const newCookies = res.headers.get('set-cookie') || ''
@@ -180,7 +180,7 @@ const eliteFetch = async (path, method = 'GET', body = null, contentType = 'appl
           ? JSON.stringify(body)
           : new URLSearchParams(body).toString())
       : null,
-    agent: eliteProxy,
+    dispatcher: eliteProxy,
   })
   if (res.status === 401 || res.status === 419) {
     eliteToken = null
@@ -619,7 +619,7 @@ app.get('/elite/debug', async (req, res) => {
         'Referer': 'https://adminx.offo.dad/dashboard/iptv',
         'User-Agent': 'Mozilla/5.0',
       },
-      agent: eliteProxy,
+      dispatcher: eliteProxy,
     })
     const rawText = await resIptv.text()
     const status = resIptv.status
