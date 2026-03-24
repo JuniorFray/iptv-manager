@@ -17,6 +17,10 @@ const serviceAccount = JSON.parse(process.env.SERVICEACCOUNTKEY)
 admin.initializeApp({ credential: admin.credential.cert(serviceAccount) })
 const db = admin.firestore()
 
+const app = express()        
+app.use(cors())              
+app.use(express.json())      
+
 // ---- Proxy Webshare (Elite) ----
 
 const eliteProxy = (process.env.WEBSHARE_USER && process.env.WEBSHARE_PASS)
