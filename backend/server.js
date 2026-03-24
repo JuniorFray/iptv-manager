@@ -610,56 +610,49 @@ app.post('/painel/teste', async (req, res) => {
 
 app.get('/elite/debug', async (req, res) => {
   try {
-    await eliteLogin()
-    const resIptv = await fetch('https://adminx.offo.dad/dashboard/iptv/data?per_page=5', {
-      headers: {
-        'Accept': 'application/json, text/plain, */*',
-        'Cookie': eliteCookies,
-        'X-CSRF-TOKEN': eliteToken,
-        'Referer': 'https://adminx.offo.dad/dashboard/iptv',
-        'User-Agent': 'Mozilla/5.0',
-      },
+    // Etapa 1 — GET login page
+    const loginPage = await fetch('https://adminx.offo.dad/login', {
+      headers: { 'User-Agent': 'Mozilla/5.0' },
       dispatcher: eliteProxy,
     })
-    const rawText = await resIptv.text()
-    const status = resIptv.status
-    const contentType = resIptv.headers.get('content-type') ?? 'unknown'
-    let parsed = null
-    try { parsed = JSON.parse(rawText) } catch { parsed = null }
-    res.json({ status, contentType, isJson: parsed !== null, preview: rawText.substring(0, 500), data: parsed })
-  } catch (err) {
-    res.status(500).json({ error: err.message })
-  }
-})
+    const setCookies1 = loginPage.headers.getSetCookie?.() ?? [loginPage.headers.get('set-cookie')]
+    const cookieStr1 = setCookies1.join(' ')
+    const xsrfMatch = cookieStr1.match(/XSRF-TOKEN=([^;,\s]+)/)
+    const sessionMatch = cookieStr1.match(/office_session=([^;,\s]+)/)
+    const xsrf = xsrfMatch ? decodeURIComponent(xsrfMatch[1]) : ''
+    const cookieStr = `XSRF-TOKEN=${xsrfMatch?.[1] || ''}; office_session=${sessionMatch?.[1] || ''}`
 
-app.get('/elite/sincronizar', async (req, res) => {
-  try {
-    const [iptv, p2p] = await Promise.all([
-      eliteFetch('dashboard/iptv/data?per_page=1000'),
-      eliteFetch('dashboard/p2p/data?per_page=1000'),
-    ])
-    const linhasIptv = (iptv?.data ?? []).map((l) => ({ ...l, tipo: 'IPTV' }))
-    const linhasP2p = (p2p?.data ?? []).map((l) => ({ ...l, tipo: 'P2P' }))
-    const linhas = [...linhasIptv, ...linhasP2p]
-    res.json({ total: linhas.length, linhas })
-  } catch (err) { res.status(500).json({ error: err.message }) }
-})
+    // Etapa 2 — POST login
+    const loginRes = await fetch('https://adminx.offo.dad/login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Cookie': cookieStr,
+        'User-Agent': 'Mozilla/5.0',
+        'Origin': 'https://adminx.offo.dad',
+        'Referer': 'https://adminx.offo.dad/login',
+      },
+      body: new URLSearchParams({
+        _token: xsrf,
+        email: process.env.ELITEUSER,
+        password: process.env.ELITEPASS,
+      }).toString(),
+      redirect: 'manual',
+      dispatcher: eliteProxy,
+    })
+    const setCookies2 = loginRes.headers.getSetCookie?.() ?? [loginRes.headers.get('set-cookie')]
 
-app.post('/elite/renovar', async (req, res) => {
-  try {
-    const { id, tipo } = req.body
-    if (!id || !tipo) return res.status(400).json({ error: 'id e tipo são obrigatórios' })
-    const endpoint = tipo === 'P2P' ? `dashboard/p2p/renew/${id}` : `dashboard/iptv/renew/${id}`
-    const data = await eliteFetch(endpoint, 'POST')
-    res.json(data)
-  } catch (err) { res.status(500).json({ error: err.message }) }
-})
-
-app.get('/meu-ip', async (req, res) => {
-  try {
-    const r = await fetch('https://api.ipify.org?format=json')
-    const data = await r.json()
-    res.json({ ip: data.ip })
+    res.json({
+      etapa1_status: loginPage.status,
+      etapa1_cookies: setCookies1,
+      xsrf_encontrado: !!xsrfMatch,
+      session_encontrado: !!sessionMatch,
+      etapa2_status: loginRes.status,
+      etapa2_location: loginRes.headers.get('location'),
+      etapa2_cookies: setCookies2,
+      credenciais_user_definido: !!process.env.ELITEUSER,
+      credenciais_pass_definido: !!process.env.ELITEPASS,
+    })
   } catch (err) {
     res.status(500).json({ error: err.message })
   }
