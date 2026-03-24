@@ -626,63 +626,56 @@ app.get('/elite/debug', async (req, res) => {
     eliteToken = null
     await eliteLogin()
 
-    const testar = async (path) => {
-      try {
-        const r = await fetch(`https://adminx.offo.dad/${path}`, {
-          headers: {
-            'Accept': 'application/json, */*',
-            'Cookie': eliteCookies,
-            'X-CSRF-TOKEN': eliteToken,
-            'Referer': 'https://adminx.offo.dad/dashboard/iptv',
-            'User-Agent': 'Mozilla/5.0',
-          },
-          dispatcher: eliteProxy,
-        })
-        const txt = await r.text()
-        let parsed = null
-        try { parsed = JSON.parse(txt) } catch {}
-        return { status: r.status, preview: txt.substring(0, 200), parsed }
-      } catch (e) {
-        return { erro: e.message }
-      }
-    }
+    // Busca o HTML do dashboard para encontrar endpoints AJAX
+    const r = await fetch('https://adminx.offo.dad/dashboard/iptv', {
+      headers: {
+        'Accept': 'text/html',
+        'Cookie': eliteCookies,
+        'User-Agent': 'Mozilla/5.0',
+        'Referer': 'https://adminx.offo.dad/dashboard',
+      },
+      dispatcher: eliteProxy,
+    })
 
-    const resultados = await Promise.all([
-      testar('dashboard/iptv/data?per_page=5').then(r => ({ endpoint: 'dashboard/iptv/data?per_page=5', ...r })),
-      testar('dashboard/iptv/data').then(r => ({ endpoint: 'dashboard/iptv/data', ...r })),
-      testar('api/iptv/clients').then(r => ({ endpoint: 'api/iptv/clients', ...r })),
-      testar('api/clients').then(r => ({ endpoint: 'api/clients', ...r })),
-      testar('dashboard/iptv').then(r => ({ endpoint: 'dashboard/iptv', ...r })),
-    ])
+    const html = await r.text()
 
-    res.json({ login: 'OK', resultados })
+    // Extrai todas as URLs de API mencionadas no HTML/JS inline
+    const apiMatches = [...new Set([
+      ...(html.match(/(['"`])\/api\/[^'"`\s]+\1/g) ?? []),
+      ...(html.match(/(['"`])\/dashboard\/[^'"`\s]+\1/g) ?? []),
+      ...(html.match(/url\s*:\s*(['"`])([^'"`]+)\1/g) ?? []),
+      ...(html.match(/route\('[^']+'\)/g) ?? []),
+      ...(html.match(/axios\.[a-z]+\(['"`]([^'"`]+)['"`]/g) ?? []),
+      ...(html.match(/fetch\(['"`]([^'"`]+)['"`]/g) ?? []),
+    ])]
+
+    // Testa também o endpoint com POST
+    const rPost = await fetch('https://adminx.offo.dad/dashboard/iptv/data', {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'Cookie': eliteCookies,
+        'X-CSRF-TOKEN': eliteToken,
+        'Referer': 'https://adminx.offo.dad/dashboard/iptv',
+        'User-Agent': 'Mozilla/5.0',
+      },
+      body: JSON.stringify({ per_page: 5, page: 1 }),
+      dispatcher: eliteProxy,
+    })
+    const postTxt = await rPost.text()
+
+    res.json({
+      login: 'OK',
+      html_size: html.length,
+      api_refs_encontradas: apiMatches.slice(0, 30),
+      post_status: rPost.status,
+      post_preview: postTxt.substring(0, 300),
+      html_snippet_meio: html.substring(Math.floor(html.length / 2), Math.floor(html.length / 2) + 500),
+    })
   } catch (err) {
     res.status(500).json({ error: err.message })
   }
-})
-
-app.get('/elite/sincronizar', async (req, res) => {
-  try {
-    const [iptv, p2p] = await Promise.all([
-      eliteFetch('dashboard/iptv/data?per_page=1000'),
-      eliteFetch('dashboard/p2p/data?per_page=1000'),
-    ])
-    const linhas = [
-      ...(iptv?.data ?? []).map(l => ({ ...l, tipo: 'IPTV' })),
-      ...(p2p?.data ?? []).map(l => ({ ...l, tipo: 'P2P' })),
-    ]
-    res.json({ total: linhas.length, linhas })
-  } catch (err) { res.status(500).json({ error: err.message }) }
-})
-
-app.post('/elite/renovar', async (req, res) => {
-  try {
-    const { id, tipo } = req.body
-    if (!id || !tipo) return res.status(400).json({ error: 'id e tipo são obrigatórios' })
-    const endpoint = tipo === 'P2P' ? `dashboard/p2p/renew/${id}` : `dashboard/iptv/renew/${id}`
-    const data = await eliteFetch(endpoint, 'POST')
-    res.json(data)
-  } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
 app.listen(3001, () => console.log('Servidor rodando na porta 3001'))
