@@ -9,7 +9,6 @@ import qrcode from 'qrcode'
 import cron from 'node-cron'
 import admin from 'firebase-admin'
 import { createRequire } from 'module'
-import { ProxyAgent } from 'undici'
 
 const require = createRequire(import.meta.url)
 const serviceAccount = JSON.parse(process.env.SERVICEACCOUNTKEY)
@@ -20,10 +19,6 @@ const db = admin.firestore()
 const app = express()
 app.use(cors())
 app.use(express.json())
-
-const eliteProxy = process.env.PROXY_URL
-  ? new ProxyAgent(process.env.PROXY_URL)
-  : undefined
 
 // ---- WhatsApp ----
 
@@ -51,10 +46,12 @@ const conectarWhatsApp = async () => {
 
   sock.ev.on('connection.update', async (update) => {
     const { connection, lastDisconnect, qr } = update
+
     if (qr) {
       qrCodeBase64 = await qrcode.toDataURL(qr)
       clientReady = false
     }
+
     if (connection === 'close') {
       clientReady = false
       const statusCode = lastDisconnect?.error?.output?.statusCode
@@ -120,22 +117,16 @@ const wpFetch = async (path, method = 'GET', body = null) => {
 
 let eliteToken = null
 let eliteCookies = null
-let eliteLoginPromise = null
 
 const eliteLogin = async () => {
   const loginPage = await fetch('https://adminx.offo.dad/login', {
-    headers: { 'User-Agent': 'Mozilla/5.0' },
-    dispatcher: eliteProxy,
+    headers: { 'User-Agent': 'Mozilla/5.0' }
   })
-  const html = await loginPage.text()
-  const tokenMatch = html.match(/name="_token"\s+value="([^"]+)"/)
-                  ?? html.match(/value="([^"]+)"\s+name="_token"/)
-  const csrfToken = tokenMatch?.[1] ?? ''
-  const setCookies1 = loginPage.headers.getSetCookie?.() ?? []
-  const rawCookies1 = setCookies1.join(' ')
-  const xsrfMatch1 = rawCookies1.match(/XSRF-TOKEN=([^;,\s]+)/)
-  const sessionMatch1 = rawCookies1.match(/office_session=([^;,\s]+)/)
-  const cookieStr = `XSRF-TOKEN=${xsrfMatch1?.[1] || ''}; office_session=${sessionMatch1?.[1] || ''}`
+  const setCookieHeader = loginPage.headers.get('set-cookie') || ''
+  const xsrfMatch = setCookieHeader.match(/XSRF-TOKEN=([^;]+)/)
+  const sessionMatch = setCookieHeader.match(/office_session=([^;]+)/)
+  const xsrf = xsrfMatch ? decodeURIComponent(xsrfMatch[1]) : ''
+  const cookieStr = `XSRF-TOKEN=${xsrfMatch?.[1] || ''}; office_session=${sessionMatch?.[1] || ''}`
 
   const res = await fetch('https://adminx.offo.dad/login', {
     method: 'POST',
@@ -145,71 +136,46 @@ const eliteLogin = async () => {
       'User-Agent': 'Mozilla/5.0',
       'Origin': 'https://adminx.offo.dad',
       'Referer': 'https://adminx.offo.dad/login',
-      'Accept': 'text/html,application/xhtml+xml',
     },
     body: new URLSearchParams({
-      _token: csrfToken,
-      email: process.env.ELITEUSER,
-      password: process.env.ELITEPASS,
+      _token: xsrf,
+      email: process.env.ELITE_USER,
+      password: process.env.ELITE_PASS,
     }).toString(),
-    redirect: 'manual',
-    dispatcher: eliteProxy,
+    redirect: 'manual'
   })
 
-  if (res.status === 429) throw new Error('Elite rate limit (429) — aguarde antes de tentar novamente')
+  const newCookies = res.headers.get('set-cookie') || ''
+  const newXsrf = newCookies.match(/XSRF-TOKEN=([^;]+)/)
+  const newSession = newCookies.match(/office_session=([^;]+)/)
 
-  const setCookies2 = res.headers.getSetCookie?.() ?? []
-  const rawCookies2 = setCookies2.join(' ')
-  const xsrfMatch2 = rawCookies2.match(/XSRF-TOKEN=([^;,\s]+)/)
-  const sessionMatch2 = rawCookies2.match(/office_session=([^;,\s]+)/)
-
-  if (!xsrfMatch2 && !sessionMatch2) throw new Error(`Login Elite falhou — status ${res.status}`)
-
-  eliteCookies = `XSRF-TOKEN=${xsrfMatch2?.[1] || ''}; office_session=${sessionMatch2?.[1] || ''}`
-
-  const dashboard = await fetch('https://adminx.offo.dad/dashboard/iptv', {
-    headers: { 'Cookie': eliteCookies, 'User-Agent': 'Mozilla/5.0' },
-    dispatcher: eliteProxy,
-  })
-  const dashHtml = await dashboard.text()
-  const metaMatch = dashHtml.match(/<meta name="csrf-token" content="([^"]+)"/)
-  eliteToken = metaMatch ? metaMatch[1] : ''
-
-  console.log('🔑 Elite login OK — csrf da meta tag:', !!eliteToken)
+  eliteToken = newXsrf ? decodeURIComponent(newXsrf[1]) : ''
+  eliteCookies = `XSRF-TOKEN=${newXsrf?.[1] || ''}; office_session=${newSession?.[1] || ''}`
+  console.log('🔑 Elite login OK')
 }
 
-const eliteEnsureLogin = () => {
-  if (!eliteToken) {
-    if (!eliteLoginPromise) {
-      eliteLoginPromise = eliteLogin().finally(() => { eliteLoginPromise = null })
-    }
-    return eliteLoginPromise
-  }
-  return Promise.resolve()
-}
-
-const eliteFetch = async (path, method = 'GET', body = null, extraHeaders = {}, _retry = false) => {
-  await eliteEnsureLogin()
+const eliteFetch = async (path, method = 'GET', body = null, contentType = 'application/json') => {
+  if (!eliteToken) await eliteLogin()
   const headers = {
-    'Accept': 'application/json, */*',
-    'Content-Type': 'application/json',
+    'Accept': '*/*',
+    'Content-Type': contentType,
     'Cookie': eliteCookies,
     'Origin': 'https://adminx.offo.dad',
     'Referer': 'https://adminx.offo.dad/dashboard/iptv',
     'X-CSRF-TOKEN': eliteToken,
-    'X-Requested-With': 'XMLHttpRequest',
     'User-Agent': 'Mozilla/5.0',
-    ...extraHeaders,
   }
   const res = await fetch(`https://adminx.offo.dad/${path}`, {
     method, headers,
-    body: body ? JSON.stringify(body) : null,
-    dispatcher: eliteProxy,
+    body: body
+      ? (contentType.includes('json')
+          ? JSON.stringify(body)
+          : new URLSearchParams(body).toString())
+      : null
   })
-  if ((res.status === 401 || res.status === 419) && !_retry) {
-    eliteToken = null
+  if (res.status === 401 || res.status === 419) {
     await eliteLogin()
-    return eliteFetch(path, method, body, extraHeaders, true)
+    return eliteFetch(path, method, body, contentType)
   }
   return res.json()
 }
@@ -494,11 +460,13 @@ app.post('/logout', async (req, res) => {
     }
     clientReady = false
     qrCodeBase64 = null
+
     const fs2 = await import('fs/promises')
     const arquivos = await fs2.readdir('authinfo').catch(() => [])
     for (const arq of arquivos) {
       await fs2.unlink(`authinfo/${arq}`).catch(() => {})
     }
+
     setTimeout(conectarWhatsApp, 2000)
     res.json({ success: true, msg: 'Sessão limpa. Novo QR sendo gerado...' })
   } catch (err) {
@@ -562,7 +530,10 @@ app.get('/painel/debug/:termo', async (req, res) => {
       fetch(`https://mcapi.knewcms.com:2087/lines?search=${encodeURIComponent(termo)}&limit=5`, { headers }),
       fetch(`https://mcapi.knewcms.com:2087/lines?username=${encodeURIComponent(termo)}&limit=5`, { headers }),
     ])
-    res.json({ search_param: await r1.json(), username_param: await r2.json() })
+    res.json({
+      search_param: await r1.json(),
+      username_param: await r2.json(),
+    })
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
@@ -604,11 +575,13 @@ app.get('/painel/sincronizar', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
+// ← MODIFICADO: aceita credits do body (1=30d, 2=60d, 3=90d, 6=180d). Padrão = 1.
 app.post('/painel/renovar/:lineId', async (req, res) => {
   try {
     const lineId = req.params.lineId
-    const data = await wpFetch(`/lines/extend/${lineId}`, 'PATCH', { credits: 1 })
-    console.log(`[RENOVAR] resposta=`, JSON.stringify(data))
+    const credits = req.body?.credits ?? 1
+    const data = await wpFetch(`/lines/extend/${lineId}`, 'PATCH', { credits })
+    console.log(`[RENOVAR WAREZ] lineId=${lineId} credits=${credits} resposta=`, JSON.stringify(data))
     res.json(data)
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
@@ -631,23 +604,22 @@ app.post('/painel/teste', async (req, res) => {
 
 app.get('/elite/debug', async (req, res) => {
   try {
-    eliteToken = null
     await eliteLogin()
-    const r = await fetch('https://adminx.offo.dad/dashboard/iptv?draw=1&start=0&length=5', {
+    const resIptv = await fetch('https://adminx.offo.dad/dashboard/iptv/data?per_page=5', {
       headers: {
-        'Accept': 'application/json, */*',
+        'Accept': 'application/json, text/plain, */*',
         'Cookie': eliteCookies,
         'X-CSRF-TOKEN': eliteToken,
-        'X-Requested-With': 'XMLHttpRequest',
         'Referer': 'https://adminx.offo.dad/dashboard/iptv',
         'User-Agent': 'Mozilla/5.0',
-      },
-      dispatcher: eliteProxy,
+      }
     })
-    const txt = await r.text()
+    const rawText = await resIptv.text()
+    const status = resIptv.status
+    const contentType = resIptv.headers.get('content-type') ?? 'unknown'
     let parsed = null
-    try { parsed = JSON.parse(txt) } catch {}
-    res.json({ login: 'OK', status: r.status, preview: txt.substring(0, 800), data: parsed })
+    try { parsed = JSON.parse(rawText) } catch { parsed = null }
+    res.json({ status, contentType, isJson: parsed !== null, preview: rawText.substring(0, 500), data: parsed })
   } catch (err) {
     res.status(500).json({ error: err.message })
   }
@@ -655,27 +627,40 @@ app.get('/elite/debug', async (req, res) => {
 
 app.get('/elite/sincronizar', async (req, res) => {
   try {
-    const data = await eliteFetch('dashboard/iptv?draw=1&start=0&length=10000')
-    const linhas = (data?.data ?? []).map(l => ({
-      id: l.id,
+    const [resIptv, resP2p] = await Promise.all([
+      eliteFetch('dashboard/iptv/data?per_page=1000'),
+      eliteFetch('dashboard/p2p/data?per_page=1000'),
+    ])
+    const iptv = (resIptv?.data ?? resIptv?.items ?? []).map(l => ({ ...l, _tipo: 'IPTV' }))
+    const p2p  = (resP2p?.data  ?? resP2p?.items  ?? []).map(l => ({ ...l, _tipo: 'P2P'  }))
+    const todas = [...iptv, ...p2p]
+    const linhas = todas.map(l => ({
+      id:       l.id,
       username: l.username,
       password: l.password,
-      notes: l.reseller_notes ?? '',
-      exp_date: l.formatted_exp_date ?? '',
-      exp_timestamp: l.exp_date,
-      tipo: 'IPTV',
+      name:     l.name ?? l.member_name ?? l.notes ?? '',
+      tipo:     l._tipo,
+      exp_date: l.exp_date ?? l.expiry_date ?? null,
     }))
     res.json({ total: linhas.length, linhas })
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
+// ← MODIFICADO: suporte a meses. meses=1 → renewone, meses>1 → renewmulti
 app.post('/elite/renovar', async (req, res) => {
   try {
-    const { id } = req.body
-    if (!id) return res.status(400).json({ error: 'id é obrigatório' })
-    const data = await eliteFetch(`api/iptv/renewone/${id}`, 'POST', null, {
-      'Timezone': 'America/Sao_Paulo',
-    })
+    const { id, tipo, meses = 1 } = req.body
+    const tipoPath = tipo?.toLowerCase() === 'p2p' ? 'p2p' : 'iptv'
+    let data
+    if (Number(meses) <= 1) {
+      data = await eliteFetch(`api/${tipoPath}/renewone/${id}`, 'POST')
+    } else {
+      data = await eliteFetch(`api/${tipoPath}/renewmulti/${id}`, 'POST', {
+        user_id: id,
+        months: Number(meses),
+      })
+    }
+    console.log(`[RENOVAR ELITE] id=${id} tipo=${tipoPath} meses=${meses} resposta=`, JSON.stringify(data))
     res.json(data)
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
@@ -685,7 +670,9 @@ app.get('/meu-ip', async (req, res) => {
     const r = await fetch('https://api.ipify.org?format=json')
     const data = await r.json()
     res.json({ ip: data.ip })
-  } catch (err) { res.status(500).json({ error: err.message }) }
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
 })
 
 app.listen(3001, () => console.log('Servidor rodando na porta 3001'))
