@@ -626,41 +626,22 @@ app.get('/elite/debug', async (req, res) => {
     eliteToken = null
     await eliteLogin()
 
-    const r = await fetch('https://adminx.offo.dad/dashboard/iptv', {
+    const rJs = await fetch('https://adminx.offo.dad/build/assets/iptv-D-UuBvHC.js', {
       headers: {
-        'Accept': 'text/html',
-        'Cookie': eliteCookies,
         'User-Agent': 'Mozilla/5.0',
-        'Referer': 'https://adminx.offo.dad/dashboard',
+        'Referer': 'https://adminx.offo.dad/dashboard/iptv',
+        'Cookie': eliteCookies,
       },
       dispatcher: eliteProxy,
     })
 
-    const html = await r.text()
+    const js = await rJs.text()
 
-    // Extrai todos os src de scripts carregados na página
-    const scriptSrcs = [...html.matchAll(/src="(https:\/\/adminx\.offo\.dad\/build\/assets\/[^"]+\.js)"/g)]
-      .map(m => m[1])
-
-    // Busca o conteúdo dos scripts que parecem ser da página (não vendors)
-    const resultadosJs = []
-    for (const src of scriptSrcs) {
-      try {
-        const rJs = await fetch(src, {
-          headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://adminx.offo.dad/dashboard/iptv' },
-          dispatcher: eliteProxy,
-        })
-        const js = await rJs.text()
-        // Só nos interessa o que menciona "data" ou "ajax" ou "iptv"
-        if (js.includes('/data') || js.includes('ajax') || js.includes('iptv')) {
-          const idx = js.indexOf('/data')
-          const trecho = idx >= 0 ? js.substring(Math.max(0, idx - 100), idx + 300) : js.substring(0, 400)
-          resultadosJs.push({ src: src.split('/').pop(), trecho })
-        }
-      } catch {}
-    }
-
-    res.json({ login: 'OK', scripts_carregados: scriptSrcs.map(s => s.split('/').pop()), scripts_com_data: resultadosJs })
+    res.json({
+      login: 'OK',
+      js_size: js.length,
+      js_completo: js,
+    })
   } catch (err) {
     res.status(500).json({ error: err.message })
   }
