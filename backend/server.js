@@ -167,26 +167,22 @@ let eliteToken = null
 let eliteCookies = null
 
 const eliteLogin = async () => {
-  const loginPage = await fetch('https://adminx.offo.dad/login', {
+  const loginPage = await eliteReq('https://adminx.offo.dad/login', {
     headers: { 'User-Agent': 'Mozilla/5.0' }
   })
-
   const html = await loginPage.text()
 
-  // Pega o _token real do formulário HTML
+  // Token real do formulário HTML
   const tokenMatch = html.match(/<input[^>]+name="_token"[^>]+value="([^"]+)"/)
-    ?? html.match(/content="csrf-token"[^>]+>[\s\S]*?content="([^"]+)"/)
     ?? html.match(/<meta name="csrf-token" content="([^"]+)"/)
   const csrfToken = tokenMatch?.[1] ?? ''
 
   const setCookieHeader = loginPage.headers.get('set-cookie') || ''
   const xsrfMatch   = setCookieHeader.match(/XSRF-TOKEN=([^;]+)/)
   const sessionMatch = setCookieHeader.match(/office_session=([^;]+)/)
-  const cookieStr = `XSRF-TOKEN=${xsrfMatch?.[1] || ''}; office_session=${sessionMatch?.[1] || ''}`
+  const cookieStr   = `XSRF-TOKEN=${xsrfMatch?.[1] || ''}; office_session=${sessionMatch?.[1] || ''}`
 
-  console.log('🔍 CSRF token encontrado:', !!csrfToken, csrfToken.substring(0, 20))
-
-  const res = await fetch('https://adminx.offo.dad/login', {
+  const res = await eliteReq('https://adminx.offo.dad/login', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
@@ -196,7 +192,7 @@ const eliteLogin = async () => {
       'Referer': 'https://adminx.offo.dad/login',
     },
     body: new URLSearchParams({
-      _token: csrfToken,   // ← token plain do HTML, não o cookie
+      _token: csrfToken,
       email: process.env.ELITE_USER,
       password: process.env.ELITE_PASS,
     }).toString(),
