@@ -541,6 +541,7 @@ app.post('/painel/teste', async (req, res) => {
 
 let eliteToken = null
 let eliteCookies = null
+let eliteLoginPromise = null  // lock para evitar logins simultâneos
 
 const eliteLogin = async () => {
   const loginPage = await fetch('https://adminx.offo.dad/login', {
@@ -576,22 +577,32 @@ const eliteLogin = async () => {
     dispatcher: eliteProxy,
   })
 
+  if (res.status === 429) throw new Error('Elite rate limit (429) — aguarde antes de tentar novamente')
+
   const setCookies2 = res.headers.getSetCookie?.() ?? []
   const rawCookies2 = setCookies2.join(' ')
   const xsrfMatch2 = rawCookies2.match(/XSRF-TOKEN=([^;,\s]+)/)
   const sessionMatch2 = rawCookies2.match(/office_session=([^;,\s]+)/)
 
-  if (!xsrfMatch2 && !sessionMatch2) {
-    throw new Error(`Login Elite falhou — status ${res.status}`)
-  }
+  if (!xsrfMatch2 && !sessionMatch2) throw new Error(`Login Elite falhou — status ${res.status}`)
 
   eliteToken = xsrfMatch2 ? decodeURIComponent(xsrfMatch2[1]) : ''
   eliteCookies = `XSRF-TOKEN=${xsrfMatch2?.[1] || ''}; office_session=${sessionMatch2?.[1] || ''}`
   console.log('🔑 Elite login OK — status:', res.status)
 }
 
-const eliteFetch = async (path, method = 'GET', body = null, extraHeaders = {}) => {
-  if (!eliteToken) await eliteLogin()
+const eliteEnsureLogin = () => {
+  if (!eliteToken) {
+    if (!eliteLoginPromise) {
+      eliteLoginPromise = eliteLogin().finally(() => { eliteLoginPromise = null })
+    }
+    return eliteLoginPromise
+  }
+  return Promise.resolve()
+}
+
+const eliteFetch = async (path, method = 'GET', body = null, extraHeaders = {}, _retry = false) => {
+  await eliteEnsureLogin()
   const headers = {
     'Accept': 'application/json, */*',
     'Content-Type': 'application/json',
@@ -607,10 +618,10 @@ const eliteFetch = async (path, method = 'GET', body = null, extraHeaders = {}) 
     body: body ? JSON.stringify(body) : null,
     dispatcher: eliteProxy,
   })
-  if (res.status === 401 || res.status === 419) {
+  if ((res.status === 401 || res.status === 419) && !_retry) {
     eliteToken = null
     await eliteLogin()
-    return eliteFetch(path, method, body, extraHeaders)
+    return eliteFetch(path, method, body, extraHeaders, true) // só 1 retry
   }
   return res.json()
 }
