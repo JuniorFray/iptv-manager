@@ -586,44 +586,21 @@ const eliteLogin = async () => {
 
   if (!xsrfMatch2 && !sessionMatch2) throw new Error(`Login Elite falhou — status ${res.status}`)
 
-  eliteToken = xsrfMatch2 ? decodeURIComponent(xsrfMatch2[1]) : ''
   eliteCookies = `XSRF-TOKEN=${xsrfMatch2?.[1] || ''}; office_session=${sessionMatch2?.[1] || ''}`
-  console.log('🔑 Elite login OK — status:', res.status)
-}
 
-const eliteEnsureLogin = () => {
-  if (!eliteToken) {
-    if (!eliteLoginPromise) {
-      eliteLoginPromise = eliteLogin().finally(() => { eliteLoginPromise = null })
-    }
-    return eliteLoginPromise
-  }
-  return Promise.resolve()
-}
-
-const eliteFetch = async (path, method = 'GET', body = null, extraHeaders = {}, _retry = false) => {
-  await eliteEnsureLogin()
-  const headers = {
-    'Accept': 'application/json, */*',
-    'Content-Type': 'application/json',
-    'Cookie': eliteCookies,
-    'Origin': 'https://adminx.offo.dad',
-    'Referer': 'https://adminx.offo.dad/dashboard/iptv',
-    'X-CSRF-TOKEN': eliteToken,
-    'User-Agent': 'Mozilla/5.0',
-    ...extraHeaders,
-  }
-  const res = await fetch(`https://adminx.offo.dad/${path}`, {
-    method, headers,
-    body: body ? JSON.stringify(body) : null,
+  // Busca o token correto da meta tag do dashboard
+  const dashboard = await fetch('https://adminx.offo.dad/dashboard/iptv', {
+    headers: {
+      'Cookie': eliteCookies,
+      'User-Agent': 'Mozilla/5.0',
+    },
     dispatcher: eliteProxy,
   })
-  if ((res.status === 401 || res.status === 419) && !_retry) {
-    eliteToken = null
-    await eliteLogin()
-    return eliteFetch(path, method, body, extraHeaders, true) // só 1 retry
-  }
-  return res.json()
+  const dashHtml = await dashboard.text()
+  const metaMatch = dashHtml.match(/<meta name="csrf-token" content="([^"]+)"/)
+  eliteToken = metaMatch ? metaMatch[1] : ''
+
+  console.log('🔑 Elite login OK — csrf da meta tag:', !!eliteToken)
 }
 
 // ---- Rotas Elite ----
