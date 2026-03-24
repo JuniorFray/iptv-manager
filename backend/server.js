@@ -170,6 +170,8 @@ const eliteLogin = async () => {
   const loginPage = await eliteReq('https://adminx.offo.dad/login', {
     headers: { 'User-Agent': 'Mozilla/5.0' }
   })
+  await loginPage.text()  // ← ESSENCIAL: consome o body no undici
+
   const setCookieHeader = loginPage.headers.get('set-cookie') || ''
   const xsrfMatch = setCookieHeader.match(/XSRF-TOKEN=([^;]+)/)
   const sessionMatch = setCookieHeader.match(/office_session=([^;]+)/)
@@ -192,6 +194,7 @@ const eliteLogin = async () => {
     }).toString(),
     redirect: 'manual'
   })
+  await res.text()  // ← ESSENCIAL: consome o body no undici
 
   const newCookies = res.headers.get('set-cookie') || ''
   const newXsrf = newCookies.match(/XSRF-TOKEN=([^;]+)/)
