@@ -654,7 +654,6 @@ app.post('/painel/teste', async (req, res) => {
 
 app.get('/elite/debug-login', async (req, res) => {
   try {
-    // Etapa 1 — GET /login
     const loginPage = await eliteReq('https://adminx.offo.dad/login', {
       headers: { 'User-Agent': 'Mozilla/5.0' }
     })
@@ -665,7 +664,6 @@ app.get('/elite/debug-login', async (req, res) => {
     const xsrf = xsrfMatch ? decodeURIComponent(xsrfMatch[1]) : ''
     const cookieStr = `XSRF-TOKEN=${xsrfMatch?.[1] || ''}; office_session=${sessionMatch?.[1] || ''}`
 
-    // Etapa 2 — POST /login
     const res2 = await eliteReq('https://adminx.offo.dad/login', {
       method: 'POST',
       headers: {
@@ -700,6 +698,78 @@ app.get('/elite/debug-login', async (req, res) => {
         bodyPreview: body2.substring(0, 300),
       }
     })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+app.get('/elite/debug', async (req, res) => {
+  try {
+    await eliteLogin()
+    const resIptv = await eliteReq('https://adminx.offo.dad/dashboard/iptv/data?per_page=5', {
+      headers: {
+        'Accept': 'application/json, text/plain, */*',
+        'Cookie': eliteCookies,
+        'X-CSRF-TOKEN': eliteToken,
+        'Referer': 'https://adminx.offo.dad/dashboard/iptv',
+        'User-Agent': 'Mozilla/5.0',
+      }
+    })
+    const rawText = await resIptv.text()
+    const status = resIptv.status
+    const contentType = resIptv.headers.get('content-type') ?? 'unknown'
+    let parsed = null
+    try { parsed = JSON.parse(rawText) } catch { parsed = null }
+    res.json({ status, contentType, isJson: parsed !== null, preview: rawText.substring(0, 500), data: parsed })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+app.get('/elite/sincronizar', async (req, res) => {
+  try {
+    const [resIptv, resP2p] = await Promise.all([
+      eliteFetch('dashboard/iptv/data?per_page=1000'),
+      eliteFetch('dashboard/p2p/data?per_page=1000'),
+    ])
+    const iptv = (resIptv?.data ?? resIptv?.items ?? []).map(l => ({ ...l, _tipo: 'IPTV' }))
+    const p2p  = (resP2p?.data  ?? resP2p?.items  ?? []).map(l => ({ ...l, _tipo: 'P2P'  }))
+    const todas = [...iptv, ...p2p]
+    const linhas = todas.map(l => ({
+      id:       l.id,
+      username: l.username,
+      password: l.password,
+      name:     l.name ?? l.member_name ?? l.notes ?? '',
+      tipo:     l._tipo,
+      exp_date: l.exp_date ?? l.expiry_date ?? null,
+    }))
+    res.json({ total: linhas.length, linhas })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+app.post('/elite/renovar', async (req, res) => {
+  try {
+    const { id, tipo, meses = 1 } = req.body
+    const tipoPath = tipo?.toLowerCase() === 'p2p' ? 'p2p' : 'iptv'
+    let data
+    if (Number(meses) <= 1) {
+      data = await eliteFetch(`api/${tipoPath}/renewone/${id}`, 'POST')
+    } else {
+      data = await eliteFetch(`api/${tipoPath}/renewmulti/${id}`, 'POST', {
+        user_id: id,
+        months: Number(meses),
+      })
+    }
+    console.log(`[RENOVAR ELITE] id=${id} tipo=${tipoPath} meses=${meses} resposta=`, JSON.stringify(data))
+    res.json(data)
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+app.get('/meu-ip', async (req, res) => {
+  try {
+    const r = await fetch('https://api.ipify.org?format=json')
+    const data = await r.json()
+    res.json({ ip: data.ip })
   } catch (err) {
     res.status(500).json({ error: err.message })
   }
