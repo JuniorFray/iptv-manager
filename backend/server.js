@@ -119,89 +119,7 @@ const wpFetch = async (path, method = 'GET', body = null) => {
   return res.json()
 }
 
-// ---- Elite (adminx.offo.dad) ----
 
-let eliteToken = null
-let eliteCookies = null
-
-const eliteLogin = async () => {
-  const loginPage = await fetch('https://adminx.offo.dad/login', {
-    headers: { 'User-Agent': 'Mozilla/5.0' },
-    dispatcher: eliteProxy,
-  })
-
-  const html = await loginPage.text()
-
-  // Extrai _token do HTML do formulário
-  const tokenMatch = html.match(/name="_token"\s+value="([^"]+)"/)
-                  ?? html.match(/value="([^"]+)"\s+name="_token"/)
-  const csrfToken = tokenMatch?.[1] ?? ''
-
-  // Extrai cookies da etapa 1
-  const setCookies1 = loginPage.headers.getSetCookie?.() ?? []
-  const rawCookies1 = setCookies1.join(' ')
-  const xsrfMatch1 = rawCookies1.match(/XSRF-TOKEN=([^;,\s]+)/)
-  const sessionMatch1 = rawCookies1.match(/office_session=([^;,\s]+)/)
-  const cookieStr = `XSRF-TOKEN=${xsrfMatch1?.[1] || ''}; office_session=${sessionMatch1?.[1] || ''}`
-
-  const res = await fetch('https://adminx.offo.dad/login', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'Cookie': cookieStr,
-      'User-Agent': 'Mozilla/5.0',
-      'Origin': 'https://adminx.offo.dad',
-      'Referer': 'https://adminx.offo.dad/login',
-      'Accept': 'text/html,application/xhtml+xml',
-    },
-    body: new URLSearchParams({
-      _token: csrfToken,
-      email: process.env.ELITEUSER,
-      password: process.env.ELITEPASS,
-    }).toString(),
-    redirect: 'manual',
-    dispatcher: eliteProxy,
-  })
-
-  const setCookies2 = res.headers.getSetCookie?.() ?? []
-  const rawCookies2 = setCookies2.join(' ')
-  const xsrfMatch2 = rawCookies2.match(/XSRF-TOKEN=([^;,\s]+)/)
-  const sessionMatch2 = rawCookies2.match(/office_session=([^;,\s]+)/)
-
-  if (!xsrfMatch2 && !sessionMatch2) {
-    throw new Error(`Login Elite falhou — status ${res.status}, token_html=${!!csrfToken}, html_snippet=${html.substring(0, 200)}`)
-  }
-
-  eliteToken = xsrfMatch2 ? decodeURIComponent(xsrfMatch2[1]) : ''
-  eliteCookies = `XSRF-TOKEN=${xsrfMatch2?.[1] || ''}; office_session=${sessionMatch2?.[1] || ''}`
-  console.log('🔑 Elite login OK — status:', res.status)
-}
-
-const eliteFetch = async (path, method = 'GET', body = null, contentType = 'application/json') => {
-  if (!eliteToken) await eliteLogin()
-  const headers = {
-    'Accept': '*/*',
-    'Content-Type': contentType,
-    'Cookie': eliteCookies,
-    'Origin': 'https://adminx.offo.dad',
-    'Referer': 'https://adminx.offo.dad/dashboard/iptv',
-    'X-CSRF-TOKEN': eliteToken,
-    'User-Agent': 'Mozilla/5.0',
-  }
-  const res = await fetch(`https://adminx.offo.dad/${path}`, {
-    method, headers,
-    body: body
-      ? (contentType.includes('json') ? JSON.stringify(body) : new URLSearchParams(body).toString())
-      : null,
-    dispatcher: eliteProxy,
-  })
-  if (res.status === 401 || res.status === 419) {
-    eliteToken = null
-    await eliteLogin()
-    return eliteFetch(path, method, body, contentType)
-  }
-  return res.json()
-}
 
 // ---- Helpers WhatsApp ----
 
@@ -619,6 +537,84 @@ app.post('/painel/teste', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
+// ---- Elite (adminx.offo.dad) ----
+
+let eliteToken = null
+let eliteCookies = null
+
+const eliteLogin = async () => {
+  const loginPage = await fetch('https://adminx.offo.dad/login', {
+    headers: { 'User-Agent': 'Mozilla/5.0' },
+    dispatcher: eliteProxy,
+  })
+  const html = await loginPage.text()
+  const tokenMatch = html.match(/name="_token"\s+value="([^"]+)"/)
+                  ?? html.match(/value="([^"]+)"\s+name="_token"/)
+  const csrfToken = tokenMatch?.[1] ?? ''
+  const setCookies1 = loginPage.headers.getSetCookie?.() ?? []
+  const rawCookies1 = setCookies1.join(' ')
+  const xsrfMatch1 = rawCookies1.match(/XSRF-TOKEN=([^;,\s]+)/)
+  const sessionMatch1 = rawCookies1.match(/office_session=([^;,\s]+)/)
+  const cookieStr = `XSRF-TOKEN=${xsrfMatch1?.[1] || ''}; office_session=${sessionMatch1?.[1] || ''}`
+
+  const res = await fetch('https://adminx.offo.dad/login', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'Cookie': cookieStr,
+      'User-Agent': 'Mozilla/5.0',
+      'Origin': 'https://adminx.offo.dad',
+      'Referer': 'https://adminx.offo.dad/login',
+      'Accept': 'text/html,application/xhtml+xml',
+    },
+    body: new URLSearchParams({
+      _token: csrfToken,
+      email: process.env.ELITEUSER,
+      password: process.env.ELITEPASS,
+    }).toString(),
+    redirect: 'manual',
+    dispatcher: eliteProxy,
+  })
+
+  const setCookies2 = res.headers.getSetCookie?.() ?? []
+  const rawCookies2 = setCookies2.join(' ')
+  const xsrfMatch2 = rawCookies2.match(/XSRF-TOKEN=([^;,\s]+)/)
+  const sessionMatch2 = rawCookies2.match(/office_session=([^;,\s]+)/)
+
+  if (!xsrfMatch2 && !sessionMatch2) {
+    throw new Error(`Login Elite falhou — status ${res.status}`)
+  }
+
+  eliteToken = xsrfMatch2 ? decodeURIComponent(xsrfMatch2[1]) : ''
+  eliteCookies = `XSRF-TOKEN=${xsrfMatch2?.[1] || ''}; office_session=${sessionMatch2?.[1] || ''}`
+  console.log('🔑 Elite login OK — status:', res.status)
+}
+
+const eliteFetch = async (path, method = 'GET', body = null, extraHeaders = {}) => {
+  if (!eliteToken) await eliteLogin()
+  const headers = {
+    'Accept': 'application/json, */*',
+    'Content-Type': 'application/json',
+    'Cookie': eliteCookies,
+    'Origin': 'https://adminx.offo.dad',
+    'Referer': 'https://adminx.offo.dad/dashboard/iptv',
+    'X-CSRF-TOKEN': eliteToken,
+    'User-Agent': 'Mozilla/5.0',
+    ...extraHeaders,
+  }
+  const res = await fetch(`https://adminx.offo.dad/${path}`, {
+    method, headers,
+    body: body ? JSON.stringify(body) : null,
+    dispatcher: eliteProxy,
+  })
+  if (res.status === 401 || res.status === 419) {
+    eliteToken = null
+    await eliteLogin()
+    return eliteFetch(path, method, body, extraHeaders)
+  }
+  return res.json()
+}
+
 // ---- Rotas Elite ----
 
 app.get('/elite/debug', async (req, res) => {
@@ -626,25 +622,72 @@ app.get('/elite/debug', async (req, res) => {
     eliteToken = null
     await eliteLogin()
 
-    const rJs = await fetch('https://adminx.offo.dad/build/assets/iptv-D-UuBvHC.js', {
+    // Testa listar clientes com params DataTables
+    const r = await fetch('https://adminx.offo.dad/dashboard/iptv?draw=1&start=0&length=5', {
       headers: {
-        'User-Agent': 'Mozilla/5.0',
-        'Referer': 'https://adminx.offo.dad/dashboard/iptv',
+        'Accept': 'application/json, */*',
         'Cookie': eliteCookies,
+        'X-CSRF-TOKEN': eliteToken,
+        'X-Requested-With': 'XMLHttpRequest',
+        'Referer': 'https://adminx.offo.dad/dashboard/iptv',
+        'User-Agent': 'Mozilla/5.0',
       },
       dispatcher: eliteProxy,
     })
+    const txt = await r.text()
+    let parsed = null
+    try { parsed = JSON.parse(txt) } catch {}
 
-    const js = await rJs.text()
-
-    res.json({
-      login: 'OK',
-      js_size: js.length,
-      js_completo: js,
-    })
+    res.json({ login: 'OK', status: r.status, preview: txt.substring(0, 800), data: parsed })
   } catch (err) {
     res.status(500).json({ error: err.message })
   }
+})
+
+app.get('/elite/sincronizar', async (req, res) => {
+  try {
+    const r = await fetch('https://adminx.offo.dad/dashboard/iptv?draw=1&start=0&length=10000', {
+      headers: {
+        'Accept': 'application/json, */*',
+        'Cookie': eliteCookies,
+        'X-CSRF-TOKEN': eliteToken,
+        'X-Requested-With': 'XMLHttpRequest',
+        'Referer': 'https://adminx.offo.dad/dashboard/iptv',
+        'User-Agent': 'Mozilla/5.0',
+      },
+      dispatcher: eliteProxy,
+    })
+    const data = await r.json()
+    const linhas = (data?.data ?? []).map(l => ({
+      id: l.id,
+      username: l.username,
+      password: l.password,
+      notes: l.reseller_notes ?? '',
+      exp_date: l.formatted_exp_date ?? '',
+      exp_timestamp: l.exp_date,
+      tipo: 'IPTV',
+    }))
+    res.json({ total: linhas.length, linhas })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+app.post('/elite/renovar', async (req, res) => {
+  try {
+    const { id } = req.body
+    if (!id) return res.status(400).json({ error: 'id é obrigatório' })
+    const data = await eliteFetch(`api/iptv/renewone/${id}`, 'POST', null, {
+      'Timezone': 'America/Sao_Paulo',
+    })
+    res.json(data)
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+app.get('/meu-ip', async (req, res) => {
+  try {
+    const r = await fetch('https://api.ipify.org?format=json')
+    const data = await r.json()
+    res.json({ ip: data.ip })
+  } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
 app.listen(3001, () => console.log('Servidor rodando na porta 3001'))
