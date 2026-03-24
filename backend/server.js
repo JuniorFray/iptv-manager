@@ -9,7 +9,7 @@ import qrcode from 'qrcode'
 import cron from 'node-cron'
 import admin from 'firebase-admin'
 import { createRequire } from 'module'
-import { ProxyAgent, fetch as undiciFetch } from 'undici'
+import { ProxyAgent, request as undiciRequest } from 'undici'
 
 const require = createRequire(import.meta.url)
 const serviceAccount = JSON.parse(process.env.SERVICEACCOUNTKEY)
@@ -17,20 +17,56 @@ const serviceAccount = JSON.parse(process.env.SERVICEACCOUNTKEY)
 admin.initializeApp({ credential: admin.credential.cert(serviceAccount) })
 const db = admin.firestore()
 
-const app = express()        
-app.use(cors())              
-app.use(express.json())      
+const app = express()
+app.use(cors())
+app.use(express.json())
 
 // ---- Proxy Webshare (Elite) ----
 
-const eliteProxy = (process.env.WEBSHARE_USER && process.env.WEBSHARE_PASS)
-  ? new ProxyAgent(`http://${process.env.WEBSHARE_USER}:${process.env.WEBSHARE_PASS}@p.webshare.io:80`)
+const eliteProxy = process.env.PROXY_URL
+  ? new ProxyAgent(process.env.PROXY_URL)
   : null
 
-const eliteReq = (url, opts = {}) => {
-  if (eliteProxy) return undiciFetch(url, { ...opts, dispatcher: eliteProxy })
-  return fetch(url, opts)
-}
+const eliteReq = async (url, opts = {}) => {
+  if (!eliteProxy) return fetch(url, opts)
+
+  const { method = 'GET', headers = {}, body, redirect } = opts
+
+  const resp = await undiciRequest(url, {
+    method,
+    headers,
+    body: body || null,
+    dispatcher: eliteProxy,
+    maxRedirections: redirect === 'manual' ? 0 : 20,
+    throwOnError: false,
+  })
+
+  const rawSetCookie = resp.headers['set-cookie']
+  const setCookieStr = Array.isArray(rawSetCookie)
+    ? rawSetCookie.join('\n')
+    : (rawSetCookie || '')
+
+  const headersMap = { ...resp.headers, 'set-cookie': setCookieStr }
+
+  return {
+    status: resp.statusCode,
+    headers: {
+      get: (name) => headersMap[name.toLowerCase()] ?? null
+    },
+    text: async () => {
+      const chunks = []
+      for await (const chunk of resp.body) chunks.push(chunk)
+      return Buffer.concat(chunks).toString('utf-8')
+    },
+    json: async () => {
+      const chunks = []
+      for await (const chunk of resp.body) chunks.push(chunk)
+      return JSON.parse(Buffer.concat(chunks).toString('utf-8'))
+    }
+  }
+}      
+
+
 
 // ---- WhatsApp ----
 
