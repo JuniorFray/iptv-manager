@@ -167,18 +167,18 @@ let eliteToken = null
 let eliteCookies = null
 
 const eliteLogin = async () => {
-  const loginPage = await eliteReq('https://adminx.offo.dad/login', {
+  // Login usa fetch direto (sem proxy) para manter a mesma sessão/IP
+  const loginPage = await fetch('https://adminx.offo.dad/login', {
     headers: { 'User-Agent': 'Mozilla/5.0' }
   })
-  await loginPage.text()  // ← ESSENCIAL: consome o body no undici
 
   const setCookieHeader = loginPage.headers.get('set-cookie') || ''
-  const xsrfMatch = setCookieHeader.match(/XSRF-TOKEN=([^;]+)/)
+  const xsrfMatch   = setCookieHeader.match(/XSRF-TOKEN=([^;]+)/)
   const sessionMatch = setCookieHeader.match(/office_session=([^;]+)/)
-  const xsrf = xsrfMatch ? decodeURIComponent(xsrfMatch[1]) : ''
+  const xsrf      = xsrfMatch ? decodeURIComponent(xsrfMatch[1]) : ''
   const cookieStr = `XSRF-TOKEN=${xsrfMatch?.[1] || ''}; office_session=${sessionMatch?.[1] || ''}`
 
-  const res = await eliteReq('https://adminx.offo.dad/login', {
+  const res = await fetch('https://adminx.offo.dad/login', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
@@ -194,13 +194,13 @@ const eliteLogin = async () => {
     }).toString(),
     redirect: 'manual'
   })
-  await res.text()  // ← ESSENCIAL: consome o body no undici
+  await res.text()
 
-  const newCookies = res.headers.get('set-cookie') || ''
-  const newXsrf = newCookies.match(/XSRF-TOKEN=([^;]+)/)
-  const newSession = newCookies.match(/office_session=([^;]+)/)
+  const newCookies  = res.headers.get('set-cookie') || ''
+  const newXsrf     = newCookies.match(/XSRF-TOKEN=([^;]+)/)
+  const newSession  = newCookies.match(/office_session=([^;]+)/)
 
-  eliteToken = newXsrf ? decodeURIComponent(newXsrf[1]) : ''
+  eliteToken   = newXsrf ? decodeURIComponent(newXsrf[1]) : ''
   eliteCookies = `XSRF-TOKEN=${newXsrf?.[1] || ''}; office_session=${newSession?.[1] || ''}`
   console.log('🔑 Elite login OK')
 }
