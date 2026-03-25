@@ -167,14 +167,11 @@ let eliteToken = null
 let eliteCookies = null
 
 const eliteLogin = async () => {
-  // fetch direto — era assim quando funcionava
-  const loginPage = await fetch('https://adminx.offo.dad/login', {
+  const loginPage = await eliteReq('https://adminx.offo.dad/login', {
     headers: { 'User-Agent': 'Mozilla/5.0' }
   })
-
   const html = await loginPage.text()
 
-  // _token real do HTML (correção que fizemos hoje)
   const tokenMatch = html.match(/<input[^>]+name="_token"[^>]+value="([^"]+)"/)
     ?? html.match(/<meta name="csrf-token" content="([^"]+)"/)
   const csrfToken = tokenMatch?.[1] ?? ''
@@ -184,7 +181,7 @@ const eliteLogin = async () => {
   const sessionMatch = setCookieHeader.match(/office_session=([^;]+)/)
   const cookieStr    = `XSRF-TOKEN=${xsrfMatch?.[1] || ''}; office_session=${sessionMatch?.[1] || ''}`
 
-  const res = await fetch('https://adminx.offo.dad/login', {
+  const res = await eliteReq('https://adminx.offo.dad/login', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
@@ -220,10 +217,10 @@ const eliteFetch = async (path, method = 'GET', body = null, contentType = 'appl
     'Origin': 'https://adminx.offo.dad',
     'Referer': 'https://adminx.offo.dad/dashboard/iptv',
     'X-CSRF-TOKEN': eliteToken,
-    'X-Requested-With': 'XMLHttpRequest',   // ← adiciona isso
+    'X-Requested-With': 'XMLHttpRequest',
     'User-Agent': 'Mozilla/5.0',
   }
-  const res = await fetch(`https://adminx.offo.dad/${path}`, {
+  const res = await eliteReq(`https://adminx.offo.dad/${path}`, {
     method, headers,
     body: body
       ? (contentType.includes('json') ? JSON.stringify(body) : new URLSearchParams(body).toString())
@@ -718,7 +715,7 @@ app.get('/elite/debug-login', async (req, res) => {
 app.get('/elite/debug', async (req, res) => {
   try {
     await eliteLogin()
-    const resIptv = await fetch('https://adminx.offo.dad/dashboard/iptv/data?per_page=5', {
+    const resIptv = await eliteReq('https://adminx.offo.dad/dashboard/iptv/data?per_page=5', {
       headers: {
         'Accept': 'application/json, text/plain, */*',
         'Cookie': eliteCookies,
