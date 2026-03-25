@@ -9,6 +9,7 @@ import qrcode from 'qrcode'
 import cron from 'node-cron'
 import admin from 'firebase-admin'
 import { createRequire } from 'module'
+import { ProxyAgent } from 'undici'          // ← NOVO
 
 const require = createRequire(import.meta.url)
 const serviceAccount = JSON.parse(process.env.SERVICEACCOUNTKEY)
@@ -115,12 +116,18 @@ const wpFetch = async (path, method = 'GET', body = null) => {
 
 // ---- Elite (adminx.offo.dad) ----
 
+// ← NOVO: proxy Webshare para contornar bloqueio Cloudflare
+const eliteProxy = process.env.PROXY_URL
+  ? new ProxyAgent(process.env.PROXY_URL)
+  : undefined
+
 let eliteToken = null
 let eliteCookies = null
 
 const eliteLogin = async () => {
   const loginPage = await fetch('https://adminx.offo.dad/login', {
-    headers: { 'User-Agent': 'Mozilla/5.0' }
+    headers: { 'User-Agent': 'Mozilla/5.0' },
+    dispatcher: eliteProxy,          // ← NOVO
   })
   const setCookieHeader = loginPage.headers.get('set-cookie') || ''
   const xsrfMatch = setCookieHeader.match(/XSRF-TOKEN=([^;]+)/)
@@ -142,7 +149,8 @@ const eliteLogin = async () => {
       email: process.env.ELITE_USER,
       password: process.env.ELITE_PASS,
     }).toString(),
-    redirect: 'manual'
+    redirect: 'manual',
+    dispatcher: eliteProxy,          // ← NOVO
   })
 
   const newCookies = res.headers.get('set-cookie') || ''
@@ -171,7 +179,8 @@ const eliteFetch = async (path, method = 'GET', body = null, contentType = 'appl
       ? (contentType.includes('json')
           ? JSON.stringify(body)
           : new URLSearchParams(body).toString())
-      : null
+      : null,
+    dispatcher: eliteProxy,          // ← NOVO
   })
   if (res.status === 401 || res.status === 419) {
     await eliteLogin()
@@ -575,7 +584,6 @@ app.get('/painel/sincronizar', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-// ← MODIFICADO: aceita credits do body (1=30d, 2=60d, 3=90d, 6=180d). Padrão = 1.
 app.post('/painel/renovar/:lineId', async (req, res) => {
   try {
     const lineId = req.params.lineId
@@ -612,7 +620,8 @@ app.get('/elite/debug', async (req, res) => {
         'X-CSRF-TOKEN': eliteToken,
         'Referer': 'https://adminx.offo.dad/dashboard/iptv',
         'User-Agent': 'Mozilla/5.0',
-      }
+      },
+      dispatcher: eliteProxy,        // ← NOVO
     })
     const rawText = await resIptv.text()
     const status = resIptv.status
@@ -646,7 +655,6 @@ app.get('/elite/sincronizar', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-// ← MODIFICADO: suporte a meses. meses=1 → renewone, meses>1 → renewmulti
 app.post('/elite/renovar', async (req, res) => {
   try {
     const { id, tipo, meses = 1 } = req.body
