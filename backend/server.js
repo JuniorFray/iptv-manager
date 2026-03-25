@@ -179,7 +179,15 @@ const eliteLogin = async () => {
   const newXsrfRaw = arr2.find(c => c.startsWith('XSRF-TOKEN='))?.match(/XSRF-TOKEN=([^;]+)/)?.[1] ?? ''
 
   eliteToken   = decodeURIComponent(newXsrfRaw)
-  eliteCookies = arr2.map(c => c.split(';')[0]).join('; ')
+  eliteCookies = arr2
+  .map(c => c.split(';')[0])
+  .map(pair => {
+    const eqIdx = pair.indexOf('=')
+    const name  = pair.substring(0, eqIdx)
+    const val   = decodeURIComponent(pair.substring(eqIdx + 1))
+    return `${name}=${val}`
+  })
+  .join('; ')
   console.log('🔑 Elite login OK — status:', step2.statusCode)
   console.log('🔍 eliteCookies final:', eliteCookies.substring(0, 80) + '...')
 }
