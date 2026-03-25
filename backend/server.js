@@ -146,8 +146,8 @@ const eliteLogin = async () => {
     },
     body: new URLSearchParams({
       _token: xsrf,
-      email: process.env.ELITE_USER,
-      password: process.env.ELITE_PASS,
+      email: process.env.ELITEUSER,
+      password: process.env.ELITEPASS,
     }).toString(),
     redirect: 'manual',
     dispatcher: eliteProxy,          // ← NOVO
