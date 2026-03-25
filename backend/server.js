@@ -715,18 +715,34 @@ app.get('/elite/debug-login', async (req, res) => {
 app.get('/elite/debug', async (req, res) => {
   try {
     await eliteLogin()
-    const resIptv = await eliteReq('https://adminx.offo.dad/dashboard/iptv/data?per_page=5', {
-      headers: {
-        'Accept': 'application/json, text/plain, */*',
-        'Cookie': eliteCookies,
-        'X-CSRF-TOKEN': eliteToken,
-        'X-Requested-With': 'XMLHttpRequest',
-        'Referer': 'https://adminx.offo.dad/dashboard/iptv',
-        'User-Agent': 'Mozilla/5.0',
-      }
-    })
-    const rawText = await resIptv.text()
-    res.json({ status: resIptv.status, preview: rawText.substring(0, 800) })
+
+    const tentativas = [
+      'dashboard/iptv/data?per_page=5',
+      'dashboard/iptv/data',
+      'api/iptv/all',
+      'api/iptv/list?per_page=5',
+      'api/iptv/index',
+      'api/iptv?per_page=5',
+      'api/users/iptv',
+    ]
+
+    const resultados = {}
+    for (const path of tentativas) {
+      const r = await eliteReq(`https://adminx.offo.dad/${path}`, {
+        headers: {
+          'Accept': 'application/json, text/plain, */*',
+          'Cookie': eliteCookies,
+          'X-CSRF-TOKEN': eliteToken,
+          'X-Requested-With': 'XMLHttpRequest',
+          'Referer': 'https://adminx.offo.dad/dashboard/iptv',
+          'User-Agent': 'Mozilla/5.0',
+        }
+      })
+      const text = await r.text()
+      resultados[path] = { status: r.status, preview: text.substring(0, 120) }
+    }
+
+    res.json(resultados)
   } catch (err) {
     res.status(500).json({ error: err.message })
   }
