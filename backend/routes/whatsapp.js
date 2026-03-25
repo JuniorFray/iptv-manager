@@ -1,6 +1,7 @@
 import express from 'express'
 import makeWASocket, {
-  useMultiFileAuthState,
+  initAuthCreds,
+  BufferJSON,
   fetchLatestBaileysVersion
 } from '@whiskeysockets/baileys'
 import qrcode from 'qrcode'
@@ -21,11 +22,59 @@ export default function createWhatsAppRouter(db, admin) {
   let qrCodeBase64  = null
   let clientReady   = false
 
+  // ---- Auth State no Firestore (persiste entre deploys) ----
+
+  const useFirestoreAuthState = async () => {
+    const col = db.collection('whatsapp_auth')
+
+    const writeData = async (id, data) => {
+      await col.doc(id).set({ data: JSON.stringify(data, BufferJSON.replacer) })
+    }
+
+    const readData = async (id) => {
+      const snap = await col.doc(id).get()
+      if (!snap.exists) return null
+      return JSON.parse(snap.data().data, BufferJSON.reviver)
+    }
+
+    const removeData = async (id) => {
+      await col.doc(id).delete()
+    }
+
+    const creds = (await readData('creds')) || initAuthCreds()
+
+    return {
+      state: {
+        creds,
+        keys: {
+          get: async (type, ids) => {
+            const data = {}
+            await Promise.all(ids.map(async (id) => {
+              const val = await readData(`${type}-${id}`)
+              data[id]  = val
+            }))
+            return data
+          },
+          set: async (data) => {
+            const tasks = []
+            for (const [type, ids] of Object.entries(data)) {
+              for (const [id, val] of Object.entries(ids)) {
+                tasks.push(val ? writeData(`${type}-${id}`, val) : removeData(`${type}-${id}`))
+              }
+            }
+            await Promise.all(tasks)
+          }
+        }
+      },
+      saveCreds: () => writeData('creds', creds)
+    }
+  }
+
   // ---- Conexão Baileys ----
 
   const conectarWhatsApp = async () => {
     try {
-      const { state, saveCreds } = await useMultiFileAuthState('authinfo')
+      const { state, saveCreds } = await useFirestoreAuthState()
       const { version }          = await fetchLatestBaileysVersion()
 
       sock = makeWASocket({
@@ -375,11 +424,13 @@ export default function createWhatsAppRouter(db, admin) {
       }
       clientReady  = false
       qrCodeBase64 = null
-      const fs2    = await import('fs/promises')
-      const arquivos = await fs2.readdir('authinfo').catch(() => [])
-      for (const arq of arquivos) {
-        await fs2.unlink(`authinfo/${arq}`).catch(() => {})
-      }
+
+      // Apagar sessão do Firestore
+      const snap  = await db.collection('whatsapp_auth').get()
+      const batch = db.batch()
+      snap.docs.forEach(d => batch.delete(d.ref))
+      await batch.commit()
+
       setTimeout(conectarWhatsApp, 2000)
       res.json({ success: true, msg: 'Sessão limpa. Novo QR sendo gerado...' })
     } catch (err) {
