@@ -9,7 +9,6 @@ import qrcode from 'qrcode'
 import cron from 'node-cron'
 import admin from 'firebase-admin'
 import { createRequire } from 'module'
-import { ProxyAgent, request as undiciRequest } from 'undici'
 
 const require = createRequire(import.meta.url)
 const serviceAccount = JSON.parse(process.env.SERVICEACCOUNTKEY)
@@ -20,53 +19,6 @@ const db = admin.firestore()
 const app = express()
 app.use(cors())
 app.use(express.json())
-
-// ---- Proxy Webshare (Elite) ----
-
-const eliteProxy = process.env.PROXY_URL
-  ? new ProxyAgent(process.env.PROXY_URL)
-  : null
-
-const eliteReq = async (url, opts = {}) => {
-  if (!eliteProxy) return fetch(url, opts)
-
-  const { method = 'GET', headers = {}, body, redirect } = opts
-
-  const resp = await undiciRequest(url, {
-    method,
-    headers,
-    body: body || null,
-    dispatcher: eliteProxy,
-    maxRedirections: redirect === 'manual' ? 0 : 20,
-    throwOnError: false,
-  })
-
-  const rawSetCookie = resp.headers['set-cookie']
-  const setCookieStr = Array.isArray(rawSetCookie)
-    ? rawSetCookie.join('\n')
-    : (rawSetCookie || '')
-
-  const headersMap = { ...resp.headers, 'set-cookie': setCookieStr }
-
-  return {
-    status: resp.statusCode,
-    headers: {
-      get: (name) => headersMap[name.toLowerCase()] ?? null
-    },
-    text: async () => {
-      const chunks = []
-      for await (const chunk of resp.body) chunks.push(chunk)
-      return Buffer.concat(chunks).toString('utf-8')
-    },
-    json: async () => {
-      const chunks = []
-      for await (const chunk of resp.body) chunks.push(chunk)
-      return JSON.parse(Buffer.concat(chunks).toString('utf-8'))
-    }
-  }
-}      
-
-
 
 // ---- WhatsApp ----
 
@@ -167,21 +119,16 @@ let eliteToken = null
 let eliteCookies = null
 
 const eliteLogin = async () => {
-  const loginPage = await eliteReq('https://adminx.offo.dad/login', {
+  const loginPage = await fetch('https://adminx.offo.dad/login', {
     headers: { 'User-Agent': 'Mozilla/5.0' }
   })
-  const html = await loginPage.text()
-
-  const tokenMatch = html.match(/<input[^>]+name="_token"[^>]+value="([^"]+)"/)
-    ?? html.match(/<meta name="csrf-token" content="([^"]+)"/)
-  const csrfToken = tokenMatch?.[1] ?? ''
-
   const setCookieHeader = loginPage.headers.get('set-cookie') || ''
-  const xsrfMatch    = setCookieHeader.match(/XSRF-TOKEN=([^;]+)/)
+  const xsrfMatch = setCookieHeader.match(/XSRF-TOKEN=([^;]+)/)
   const sessionMatch = setCookieHeader.match(/office_session=([^;]+)/)
-  const cookieStr    = `XSRF-TOKEN=${xsrfMatch?.[1] || ''}; office_session=${sessionMatch?.[1] || ''}`
+  const xsrf = xsrfMatch ? decodeURIComponent(xsrfMatch[1]) : ''
+  const cookieStr = `XSRF-TOKEN=${xsrfMatch?.[1] || ''}; office_session=${sessionMatch?.[1] || ''}`
 
-  const res = await eliteReq('https://adminx.offo.dad/login', {
+  const res = await fetch('https://adminx.offo.dad/login', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
@@ -191,19 +138,18 @@ const eliteLogin = async () => {
       'Referer': 'https://adminx.offo.dad/login',
     },
     body: new URLSearchParams({
-      _token: csrfToken,
+      _token: xsrf,
       email: process.env.ELITE_USER,
       password: process.env.ELITE_PASS,
     }).toString(),
     redirect: 'manual'
   })
-  await res.text()
 
   const newCookies = res.headers.get('set-cookie') || ''
-  const newXsrf    = newCookies.match(/XSRF-TOKEN=([^;]+)/)
+  const newXsrf = newCookies.match(/XSRF-TOKEN=([^;]+)/)
   const newSession = newCookies.match(/office_session=([^;]+)/)
 
-  eliteToken   = newXsrf ? decodeURIComponent(newXsrf[1]) : ''
+  eliteToken = newXsrf ? decodeURIComponent(newXsrf[1]) : ''
   eliteCookies = `XSRF-TOKEN=${newXsrf?.[1] || ''}; office_session=${newSession?.[1] || ''}`
   console.log('🔑 Elite login OK')
 }
@@ -211,19 +157,20 @@ const eliteLogin = async () => {
 const eliteFetch = async (path, method = 'GET', body = null, contentType = 'application/json') => {
   if (!eliteToken) await eliteLogin()
   const headers = {
-    'Accept': 'application/json, text/plain, */*',
+    'Accept': '*/*',
     'Content-Type': contentType,
     'Cookie': eliteCookies,
     'Origin': 'https://adminx.offo.dad',
     'Referer': 'https://adminx.offo.dad/dashboard/iptv',
     'X-CSRF-TOKEN': eliteToken,
-    'X-Requested-With': 'XMLHttpRequest',
     'User-Agent': 'Mozilla/5.0',
   }
-  const res = await eliteReq(`https://adminx.offo.dad/${path}`, {
+  const res = await fetch(`https://adminx.offo.dad/${path}`, {
     method, headers,
     body: body
-      ? (contentType.includes('json') ? JSON.stringify(body) : new URLSearchParams(body).toString())
+      ? (contentType.includes('json')
+          ? JSON.stringify(body)
+          : new URLSearchParams(body).toString())
       : null
   })
   if (res.status === 401 || res.status === 419) {
@@ -628,6 +575,7 @@ app.get('/painel/sincronizar', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
+// ← MODIFICADO: aceita credits do body (1=30d, 2=60d, 3=90d, 6=180d). Padrão = 1.
 app.post('/painel/renovar/:lineId', async (req, res) => {
   try {
     const lineId = req.params.lineId
@@ -654,95 +602,74 @@ app.post('/painel/teste', async (req, res) => {
 
 // ---- Rotas Elite ----
 
-app.get('/elite/debug-login', async (req, res) => {
+app.get('/elite/debug', async (req, res) => {
   try {
-    const loginPage = await fetch('https://adminx.offo.dad/login', {
-      headers: { 'User-Agent': 'Mozilla/5.0' }
-    })
-    const html = await loginPage.text()
-
-    // Pega o _token real do formulário HTML
-    const tokenMatch = html.match(/<input[^>]+name="_token"[^>]+value="([^"]+)"/)
-      ?? html.match(/<meta name="csrf-token" content="([^"]+)"/)
-    const csrfToken = tokenMatch?.[1] ?? ''
-
-    const setCookie1   = loginPage.headers.get('set-cookie') || ''
-    const xsrfMatch    = setCookie1.match(/XSRF-TOKEN=([^;]+)/)
-    const sessionMatch = setCookie1.match(/office_session=([^;]+)/)
-    const cookieStr    = `XSRF-TOKEN=${xsrfMatch?.[1] || ''}; office_session=${sessionMatch?.[1] || ''}`
-
-    const res2 = await fetch('https://adminx.offo.dad/login', {
-      method: 'POST',
+    await eliteLogin()
+    const resIptv = await fetch('https://adminx.offo.dad/dashboard/iptv/data?per_page=5', {
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Cookie': cookieStr,
+        'Accept': 'application/json, text/plain, */*',
+        'Cookie': eliteCookies,
+        'X-CSRF-TOKEN': eliteToken,
+        'Referer': 'https://adminx.offo.dad/dashboard/iptv',
         'User-Agent': 'Mozilla/5.0',
-        'Origin': 'https://adminx.offo.dad',
-        'Referer': 'https://adminx.offo.dad/login',
-      },
-      body: new URLSearchParams({
-        _token: csrfToken,
-        email: process.env.ELITE_USER,
-        password: process.env.ELITE_PASS,
-      }).toString(),
-      redirect: 'manual'
-    })
-    const body2    = await res2.text()
-    const setCookie2 = res2.headers.get('set-cookie') || ''
-
-    res.json({
-      etapa1: {
-        status: loginPage.status,
-        setCookie: setCookie1,
-        xsrfEncontrado: !!xsrfMatch,
-        sessionEncontrado: !!sessionMatch,
-        csrfTokenEncontrado: !!csrfToken,
-        csrfTokenPreview: csrfToken.substring(0, 30),
-        cookieStr,
-      },
-      etapa2: {
-        status: res2.status,
-        setCookie: setCookie2,
-        location: res2.headers.get('location'),
-        bodyPreview: body2.substring(0, 300),
       }
     })
+    const rawText = await resIptv.text()
+    const status = resIptv.status
+    const contentType = resIptv.headers.get('content-type') ?? 'unknown'
+    let parsed = null
+    try { parsed = JSON.parse(rawText) } catch { parsed = null }
+    res.json({ status, contentType, isJson: parsed !== null, preview: rawText.substring(0, 500), data: parsed })
   } catch (err) {
     res.status(500).json({ error: err.message })
   }
 })
 
-app.get('/elite/debug', async (req, res) => {
+app.get('/elite/sincronizar', async (req, res) => {
   try {
-    await eliteLogin()
+    const [resIptv, resP2p] = await Promise.all([
+      eliteFetch('dashboard/iptv/data?per_page=1000'),
+      eliteFetch('dashboard/p2p/data?per_page=1000'),
+    ])
+    const iptv = (resIptv?.data ?? resIptv?.items ?? []).map(l => ({ ...l, _tipo: 'IPTV' }))
+    const p2p  = (resP2p?.data  ?? resP2p?.items  ?? []).map(l => ({ ...l, _tipo: 'P2P'  }))
+    const todas = [...iptv, ...p2p]
+    const linhas = todas.map(l => ({
+      id:       l.id,
+      username: l.username,
+      password: l.password,
+      name:     l.name ?? l.member_name ?? l.notes ?? '',
+      tipo:     l._tipo,
+      exp_date: l.exp_date ?? l.expiry_date ?? null,
+    }))
+    res.json({ total: linhas.length, linhas })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
 
-    const tentativas = [
-      'dashboard/iptv/data?per_page=5',
-      'dashboard/iptv/data',
-      'api/iptv/all',
-      'api/iptv/list?per_page=5',
-      'api/iptv/index',
-      'api/iptv?per_page=5',
-      'api/users/iptv',
-    ]
-
-    const resultados = {}
-    for (const path of tentativas) {
-      const r = await eliteReq(`https://adminx.offo.dad/${path}`, {
-        headers: {
-          'Accept': 'application/json, text/plain, */*',
-          'Cookie': eliteCookies,
-          'X-CSRF-TOKEN': eliteToken,
-          'X-Requested-With': 'XMLHttpRequest',
-          'Referer': 'https://adminx.offo.dad/dashboard/iptv',
-          'User-Agent': 'Mozilla/5.0',
-        }
+// ← MODIFICADO: suporte a meses. meses=1 → renewone, meses>1 → renewmulti
+app.post('/elite/renovar', async (req, res) => {
+  try {
+    const { id, tipo, meses = 1 } = req.body
+    const tipoPath = tipo?.toLowerCase() === 'p2p' ? 'p2p' : 'iptv'
+    let data
+    if (Number(meses) <= 1) {
+      data = await eliteFetch(`api/${tipoPath}/renewone/${id}`, 'POST')
+    } else {
+      data = await eliteFetch(`api/${tipoPath}/renewmulti/${id}`, 'POST', {
+        user_id: id,
+        months: Number(meses),
       })
-      const text = await r.text()
-      resultados[path] = { status: r.status, preview: text.substring(0, 120) }
     }
+    console.log(`[RENOVAR ELITE] id=${id} tipo=${tipoPath} meses=${meses} resposta=`, JSON.stringify(data))
+    res.json(data)
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
 
-    res.json(resultados)
+app.get('/meu-ip', async (req, res) => {
+  try {
+    const r = await fetch('https://api.ipify.org?format=json')
+    const data = await r.json()
+    res.json({ ip: data.ip })
   } catch (err) {
     res.status(500).json({ error: err.message })
   }
