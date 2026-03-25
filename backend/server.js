@@ -718,34 +718,29 @@ app.get('/elite/debug', async (req, res) => {
   try {
     await eliteLogin()
 
-    const tentativas = [
-      { label: 'GET sem per_page',        url: 'dashboard/iptv/data' },
-      { label: 'GET com per_page',        url: 'dashboard/iptv/data?per_page=5' },
-      { label: 'GET p2p',                 url: 'dashboard/p2p/data?per_page=5' },
-      { label: 'GET iptv page=1',         url: 'dashboard/iptv/data?page=1&per_page=5' },
-    ]
-
-    const resultados = {}
-    for (const { label, url } of tentativas) {
-      try {
-        const r = await eliteReq(`https://adminx.offo.dad/${url}`, {
-          headers: {
-            'Accept': 'application/json, text/plain, */*',
-            'Cookie': eliteCookies,
-            'X-CSRF-TOKEN': eliteToken,
-            'X-Requested-With': 'XMLHttpRequest',
-            'Referer': 'https://adminx.offo.dad/dashboard/iptv',
-            'User-Agent': 'Mozilla/5.0',
-          }
-        })
-        const text = await r.text()
-        resultados[label] = { status: r.status, preview: text.substring(0, 200) }
-      } catch (e) {
-        resultados[label] = { erro: e.message }
+    const r = await eliteReq('https://adminx.offo.dad/dashboard/iptv', {
+      headers: {
+        'Accept': 'text/html',
+        'Cookie': eliteCookies,
+        'Referer': 'https://adminx.offo.dad/dashboard',
+        'User-Agent': 'Mozilla/5.0',
       }
-    }
+    })
+    const html = await r.text()
 
-    res.json(resultados)
+    // Extrai todas as URLs de API mencionadas no HTML/JS
+    const urls = [...html.matchAll(/["'`](\/[a-z0-9/_-]+data[a-z0-9/_-]*)["'`]/gi)]
+      .map(m => m[1])
+    const ajaxUrls = [...html.matchAll(/axios\.(get|post)\(['"`]([^'"`]+)['"`]/gi)]
+      .map(m => m[2])
+    const fetchUrls = [...html.matchAll(/fetch\(['"`]([^'"`]+)['"`]/gi)]
+      .map(m => m[1])
+
+    res.json({
+      status: r.status,
+      urlsEncontradas: [...new Set([...urls, ...ajaxUrls, ...fetchUrls])],
+      htmlPreview: html.substring(0, 500)
+    })
   } catch (err) {
     res.status(500).json({ error: err.message })
   }
