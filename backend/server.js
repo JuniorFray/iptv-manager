@@ -174,12 +174,12 @@ const eliteLogin = async () => {
   console.log('🔍 Elite status login:', step2.statusCode)
   console.log('🔍 Elite cookies pós-login:', arr2)
 
-  const newXsrfRaw    = arr2.find(c => c.startsWith('XSRF-TOKEN='))?.match(/XSRF-TOKEN=([^;]+)/)?.[1] ?? ''
-  const newSessionRaw = arr2.find(c => c.startsWith('office_session='))?.match(/office_session=([^;]+)/)?.[1] ?? ''
+  const newXsrfRaw = arr2.find(c => c.startsWith('XSRF-TOKEN='))?.match(/XSRF-TOKEN=([^;]+)/)?.[1] ?? ''
 
   eliteToken   = decodeURIComponent(newXsrfRaw)
-  eliteCookies = `XSRF-TOKEN=${newXsrfRaw}; office_session=${newSessionRaw}`
+  eliteCookies = arr2.map(c => c.split(';')[0]).join('; ')
   console.log('🔑 Elite login OK — status:', step2.statusCode)
+  console.log('🔍 eliteCookies final:', eliteCookies.substring(0, 80) + '...')
 }
 
 const eliteFetch = async (path, method = 'GET', body = null, contentType = 'application/json') => {
