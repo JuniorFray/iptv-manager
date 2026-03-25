@@ -9,7 +9,7 @@ import qrcode from 'qrcode'
 import cron from 'node-cron'
 import admin from 'firebase-admin'
 import { createRequire } from 'module'
-import { ProxyAgent, request as undiciRequest } from 'undici'          // ← NOVO
+import { ProxyAgent, request as undiciRequest, fetch as undiciFetch } from 'undici'          // ← NOVO
 
 const require = createRequire(import.meta.url)
 const serviceAccount = JSON.parse(process.env.SERVICEACCOUNTKEY)
@@ -186,12 +186,13 @@ const eliteFetch = async (path, method = 'GET', body = null, contentType = 'appl
   if (!eliteToken) await eliteLogin()
 
   const headers = {
-    'Accept': '*/*',
+    'Accept': 'application/json, text/plain, */*',
     'Content-Type': contentType,
     'Cookie': eliteCookies,
     'Origin': 'https://adminx.offo.dad',
     'Referer': 'https://adminx.offo.dad/dashboard/iptv',
     'X-CSRF-TOKEN': eliteToken,
+    'X-Requested-With': 'XMLHttpRequest',   // ← NOVO
     'User-Agent': 'Mozilla/5.0',
   }
 
@@ -206,7 +207,7 @@ const eliteFetch = async (path, method = 'GET', body = null, contentType = 'appl
   console.log('📤 Cookie:', eliteCookies?.substring(0, 80))
   if (bodyStr) console.log('📤 Body:', bodyStr.substring(0, 200))
 
-  const res = await fetch(`https://adminx.offo.dad/${path}`, {
+  const res = await undiciFetch(`https://adminx.offo.dad/${path}`, {  // ← undiciFetch
     method,
     headers,
     body: bodyStr,
@@ -655,15 +656,16 @@ app.post('/painel/teste', async (req, res) => {
 app.get('/elite/debug', async (req, res) => {
   try {
     await eliteLogin()
-    const resIptv = await fetch('https://adminx.offo.dad/dashboard/iptv/data?per_page=5', {
+    const resIptv = await undiciFetch('https://adminx.offo.dad/dashboard/iptv/data?per_page=5', {  // ← undiciFetch
       headers: {
         'Accept': 'application/json, text/plain, */*',
         'Cookie': eliteCookies,
         'X-CSRF-TOKEN': eliteToken,
+        'X-Requested-With': 'XMLHttpRequest',   // ← NOVO
         'Referer': 'https://adminx.offo.dad/dashboard/iptv',
         'User-Agent': 'Mozilla/5.0',
       },
-      dispatcher: eliteProxy,        // ← NOVO
+      dispatcher: eliteProxy,
     })
     const rawText = await resIptv.text()
     const status = resIptv.status
