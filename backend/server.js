@@ -214,12 +214,13 @@ const eliteLogin = async () => {
 const eliteFetch = async (path, method = 'GET', body = null, contentType = 'application/json') => {
   if (!eliteToken) await eliteLogin()
   const headers = {
-    'Accept': '*/*',
+    'Accept': 'application/json, text/plain, */*',
     'Content-Type': contentType,
     'Cookie': eliteCookies,
     'Origin': 'https://adminx.offo.dad',
     'Referer': 'https://adminx.offo.dad/dashboard/iptv',
     'X-CSRF-TOKEN': eliteToken,
+    'X-Requested-With': 'XMLHttpRequest',   // ← adiciona isso
     'User-Agent': 'Mozilla/5.0',
   }
   const res = await fetch(`https://adminx.offo.dad/${path}`, {
@@ -717,30 +718,18 @@ app.get('/elite/debug-login', async (req, res) => {
 app.get('/elite/debug', async (req, res) => {
   try {
     await eliteLogin()
-
-    const r = await eliteReq('https://adminx.offo.dad/dashboard/iptv', {
+    const resIptv = await eliteReq('https://adminx.offo.dad/dashboard/iptv/data?per_page=5', {
       headers: {
-        'Accept': 'text/html',
+        'Accept': 'application/json, text/plain, */*',
         'Cookie': eliteCookies,
-        'Referer': 'https://adminx.offo.dad/dashboard',
+        'X-CSRF-TOKEN': eliteToken,
+        'X-Requested-With': 'XMLHttpRequest',
+        'Referer': 'https://adminx.offo.dad/dashboard/iptv',
         'User-Agent': 'Mozilla/5.0',
       }
     })
-    const html = await r.text()
-
-    // Extrai todas as URLs de API mencionadas no HTML/JS
-    const urls = [...html.matchAll(/["'`](\/[a-z0-9/_-]+data[a-z0-9/_-]*)["'`]/gi)]
-      .map(m => m[1])
-    const ajaxUrls = [...html.matchAll(/axios\.(get|post)\(['"`]([^'"`]+)['"`]/gi)]
-      .map(m => m[2])
-    const fetchUrls = [...html.matchAll(/fetch\(['"`]([^'"`]+)['"`]/gi)]
-      .map(m => m[1])
-
-    res.json({
-      status: r.status,
-      urlsEncontradas: [...new Set([...urls, ...ajaxUrls, ...fetchUrls])],
-      htmlPreview: html.substring(0, 500)
-    })
+    const rawText = await resIptv.text()
+    res.json({ status: resIptv.status, preview: rawText.substring(0, 800) })
   } catch (err) {
     res.status(500).json({ error: err.message })
   }
