@@ -145,6 +145,7 @@ const eliteLogin = async () => {
   const xsrfRaw    = arr1.find(c => c.startsWith('XSRF-TOKEN='))?.match(/XSRF-TOKEN=([^;]+)/)?.[1] ?? ''
   const sessionRaw = arr1.find(c => c.startsWith('office_session='))?.match(/office_session=([^;]+)/)?.[1] ?? ''
   const cookieStr  = `XSRF-TOKEN=${xsrfRaw}; office_session=${sessionRaw}`
+  console.log('🔍 step1 cookieStr:', cookieStr)   // ← NOVO
 
   // Etapa 2 — POST com _token correto + timezone + remember
   const step2 = await undiciRequest('https://adminx.offo.dad/login', {
@@ -172,6 +173,7 @@ const eliteLogin = async () => {
   const raw2 = step2.headers['set-cookie'] ?? []
   const arr2 = Array.isArray(raw2) ? raw2 : [raw2]
   console.log('🔍 Elite status login:', step2.statusCode)
+  console.log('🔍 step2 Location:', step2.headers['location'])  // ← NOVO
   console.log('🔍 Elite cookies pós-login:', arr2)
 
   const newXsrfRaw = arr2.find(c => c.startsWith('XSRF-TOKEN='))?.match(/XSRF-TOKEN=([^;]+)/)?.[1] ?? ''
