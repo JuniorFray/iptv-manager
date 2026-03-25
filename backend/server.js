@@ -127,13 +127,14 @@ let eliteCookies = null
 const eliteLogin = async () => {
   const loginPage = await fetch('https://adminx.offo.dad/login', {
     headers: { 'User-Agent': 'Mozilla/5.0' },
-    dispatcher: eliteProxy,          // ← NOVO
+    dispatcher: eliteProxy,
   })
-  const setCookieHeader = loginPage.headers.get('set-cookie') || ''
-  const xsrfMatch = setCookieHeader.match(/XSRF-TOKEN=([^;]+)/)
-  const sessionMatch = setCookieHeader.match(/office_session=([^;]+)/)
-  const xsrf = xsrfMatch ? decodeURIComponent(xsrfMatch[1]) : ''
-  const cookieStr = `XSRF-TOKEN=${xsrfMatch?.[1] || ''}; office_session=${sessionMatch?.[1] || ''}`
+
+  const initialCookies = loginPage.headers.getSetCookie?.() ?? []
+  const xsrfRaw   = initialCookies.find(c => c.startsWith('XSRF-TOKEN='))?.match(/XSRF-TOKEN=([^;]+)/)?.[1] ?? ''
+  const sessionRaw = initialCookies.find(c => c.startsWith('office_session='))?.match(/office_session=([^;]+)/)?.[1] ?? ''
+  const xsrf = decodeURIComponent(xsrfRaw)
+  const cookieStr = `XSRF-TOKEN=${xsrfRaw}; office_session=${sessionRaw}`
 
   const res = await fetch('https://adminx.offo.dad/login', {
     method: 'POST',
@@ -150,16 +151,18 @@ const eliteLogin = async () => {
       password: process.env.ELITEPASS,
     }).toString(),
     redirect: 'manual',
-    dispatcher: eliteProxy,          // ← NOVO
+    dispatcher: eliteProxy,
   })
 
-  const newCookies = res.headers.get('set-cookie') || ''
-  const newXsrf = newCookies.match(/XSRF-TOKEN=([^;]+)/)
-  const newSession = newCookies.match(/office_session=([^;]+)/)
+  const newCookies = res.headers.getSetCookie?.() ?? []
+  console.log('🔍 Elite cookies pós-login:', newCookies)
 
-  eliteToken = newXsrf ? decodeURIComponent(newXsrf[1]) : ''
-  eliteCookies = `XSRF-TOKEN=${newXsrf?.[1] || ''}; office_session=${newSession?.[1] || ''}`
-  console.log('🔑 Elite login OK')
+  const newXsrfRaw    = newCookies.find(c => c.startsWith('XSRF-TOKEN='))?.match(/XSRF-TOKEN=([^;]+)/)?.[1] ?? ''
+  const newSessionRaw = newCookies.find(c => c.startsWith('office_session='))?.match(/office_session=([^;]+)/)?.[1] ?? ''
+
+  eliteToken   = decodeURIComponent(newXsrfRaw)
+  eliteCookies = `XSRF-TOKEN=${newXsrfRaw}; office_session=${newSessionRaw}`
+  console.log('🔑 Elite login OK — status:', res.status)
 }
 
 const eliteFetch = async (path, method = 'GET', body = null, contentType = 'application/json') => {
