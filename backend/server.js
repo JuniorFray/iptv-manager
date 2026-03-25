@@ -125,36 +125,44 @@ let eliteToken = null
 let eliteCookies = null
 
 const eliteLogin = async () => {
-  // Etapa 1 — pegar cookies iniciais
+  // Etapa 1 — pegar página e extrair _token do HTML + cookies
   const step1 = await undiciRequest('https://adminx.offo.dad/login', {
     method: 'GET',
-    headers: { 'User-Agent': 'Mozilla/5.0' },
+    headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36' },
     dispatcher: eliteProxy,
     maxRedirections: 0,
   })
-  await step1.body.text()
+  const html = await step1.body.text()
+
+  // Extrai _token do input hidden no HTML
+  const tokenMatch = html.match(/name="_token"\s+value="([^"]+)"/) 
+                  ?? html.match(/value="([^"]+)"\s+name="_token"/)
+  const formToken = tokenMatch?.[1] ?? ''
+  console.log('🔍 _token do HTML:', formToken)
 
   const raw1 = step1.headers['set-cookie'] ?? []
   const arr1 = Array.isArray(raw1) ? raw1 : [raw1]
   const xsrfRaw    = arr1.find(c => c.startsWith('XSRF-TOKEN='))?.match(/XSRF-TOKEN=([^;]+)/)?.[1] ?? ''
   const sessionRaw = arr1.find(c => c.startsWith('office_session='))?.match(/office_session=([^;]+)/)?.[1] ?? ''
-  const xsrf       = decodeURIComponent(xsrfRaw)
   const cookieStr  = `XSRF-TOKEN=${xsrfRaw}; office_session=${sessionRaw}`
 
-  // Etapa 2 — POST login
+  // Etapa 2 — POST com _token correto + timezone + remember
   const step2 = await undiciRequest('https://adminx.offo.dad/login', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
       'Cookie': cookieStr,
-      'User-Agent': 'Mozilla/5.0',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36',
       'Origin': 'https://adminx.offo.dad',
       'Referer': 'https://adminx.offo.dad/login',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
     },
     body: new URLSearchParams({
-      _token: xsrf,
+      _token: formToken,
+      timezone: 'America/Sao_Paulo',
       email: process.env.ELITEUSER,
       password: process.env.ELITEPASS,
+      remember: 'on',
     }).toString(),
     dispatcher: eliteProxy,
     maxRedirections: 0,
@@ -171,7 +179,7 @@ const eliteLogin = async () => {
 
   eliteToken   = decodeURIComponent(newXsrfRaw)
   eliteCookies = `XSRF-TOKEN=${newXsrfRaw}; office_session=${newSessionRaw}`
-  console.log('🔑 Elite login OK')
+  console.log('🔑 Elite login OK — status:', step2.statusCode)
 }
 
 const eliteFetch = async (path, method = 'GET', body = null, contentType = 'application/json') => {
