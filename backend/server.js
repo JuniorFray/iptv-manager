@@ -9,7 +9,7 @@ import qrcode from 'qrcode'
 import cron from 'node-cron'
 import admin from 'firebase-admin'
 import { createRequire } from 'module'
-import { ProxyAgent } from 'undici'          // ← NOVO
+import { ProxyAgent, request as undiciRequest } from 'undici'          // ← NOVO
 
 const require = createRequire(import.meta.url)
 const serviceAccount = JSON.parse(process.env.SERVICEACCOUNTKEY)
@@ -125,18 +125,24 @@ let eliteToken = null
 let eliteCookies = null
 
 const eliteLogin = async () => {
-  const loginPage = await fetch('https://adminx.offo.dad/login', {
+  // Etapa 1 — pegar cookies iniciais
+  const step1 = await undiciRequest('https://adminx.offo.dad/login', {
+    method: 'GET',
     headers: { 'User-Agent': 'Mozilla/5.0' },
     dispatcher: eliteProxy,
+    maxRedirections: 0,
   })
+  await step1.body.text()
 
-  const initialCookies = loginPage.headers.getSetCookie?.() ?? []
-  const xsrfRaw   = initialCookies.find(c => c.startsWith('XSRF-TOKEN='))?.match(/XSRF-TOKEN=([^;]+)/)?.[1] ?? ''
-  const sessionRaw = initialCookies.find(c => c.startsWith('office_session='))?.match(/office_session=([^;]+)/)?.[1] ?? ''
-  const xsrf = decodeURIComponent(xsrfRaw)
-  const cookieStr = `XSRF-TOKEN=${xsrfRaw}; office_session=${sessionRaw}`
+  const raw1 = step1.headers['set-cookie'] ?? []
+  const arr1 = Array.isArray(raw1) ? raw1 : [raw1]
+  const xsrfRaw    = arr1.find(c => c.startsWith('XSRF-TOKEN='))?.match(/XSRF-TOKEN=([^;]+)/)?.[1] ?? ''
+  const sessionRaw = arr1.find(c => c.startsWith('office_session='))?.match(/office_session=([^;]+)/)?.[1] ?? ''
+  const xsrf       = decodeURIComponent(xsrfRaw)
+  const cookieStr  = `XSRF-TOKEN=${xsrfRaw}; office_session=${sessionRaw}`
 
-  const res = await fetch('https://adminx.offo.dad/login', {
+  // Etapa 2 — POST login
+  const step2 = await undiciRequest('https://adminx.offo.dad/login', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
@@ -150,19 +156,22 @@ const eliteLogin = async () => {
       email: process.env.ELITEUSER,
       password: process.env.ELITEPASS,
     }).toString(),
-    redirect: 'manual',
     dispatcher: eliteProxy,
+    maxRedirections: 0,
   })
+  await step2.body.text()
 
-  const newCookies = res.headers.getSetCookie?.() ?? []
-  console.log('🔍 Elite cookies pós-login:', newCookies)
+  const raw2 = step2.headers['set-cookie'] ?? []
+  const arr2 = Array.isArray(raw2) ? raw2 : [raw2]
+  console.log('🔍 Elite status login:', step2.statusCode)
+  console.log('🔍 Elite cookies pós-login:', arr2)
 
-  const newXsrfRaw    = newCookies.find(c => c.startsWith('XSRF-TOKEN='))?.match(/XSRF-TOKEN=([^;]+)/)?.[1] ?? ''
-  const newSessionRaw = newCookies.find(c => c.startsWith('office_session='))?.match(/office_session=([^;]+)/)?.[1] ?? ''
+  const newXsrfRaw    = arr2.find(c => c.startsWith('XSRF-TOKEN='))?.match(/XSRF-TOKEN=([^;]+)/)?.[1] ?? ''
+  const newSessionRaw = arr2.find(c => c.startsWith('office_session='))?.match(/office_session=([^;]+)/)?.[1] ?? ''
 
   eliteToken   = decodeURIComponent(newXsrfRaw)
   eliteCookies = `XSRF-TOKEN=${newXsrfRaw}; office_session=${newSessionRaw}`
-  console.log('🔑 Elite login OK — status:', res.status)
+  console.log('🔑 Elite login OK')
 }
 
 const eliteFetch = async (path, method = 'GET', body = null, contentType = 'application/json') => {
