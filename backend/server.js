@@ -184,6 +184,7 @@ const eliteLogin = async () => {
 
 const eliteFetch = async (path, method = 'GET', body = null, contentType = 'application/json') => {
   if (!eliteToken) await eliteLogin()
+
   const headers = {
     'Accept': '*/*',
     'Content-Type': contentType,
@@ -193,20 +194,41 @@ const eliteFetch = async (path, method = 'GET', body = null, contentType = 'appl
     'X-CSRF-TOKEN': eliteToken,
     'User-Agent': 'Mozilla/5.0',
   }
+
+  const bodyStr = body
+    ? (contentType.includes('json')
+        ? JSON.stringify(body)
+        : new URLSearchParams(body).toString())
+    : null
+
+  console.log('📤 eliteFetch →', method, `https://adminx.offo.dad/${path}`)
+  console.log('📤 X-CSRF-TOKEN:', eliteToken?.substring(0, 30))
+  console.log('📤 Cookie:', eliteCookies?.substring(0, 80))
+  if (bodyStr) console.log('📤 Body:', bodyStr.substring(0, 200))
+
   const res = await fetch(`https://adminx.offo.dad/${path}`, {
-    method, headers,
-    body: body
-      ? (contentType.includes('json')
-          ? JSON.stringify(body)
-          : new URLSearchParams(body).toString())
-      : null,
-    dispatcher: eliteProxy,          // ← NOVO
+    method,
+    headers,
+    body: bodyStr,
+    dispatcher: eliteProxy,
   })
+
+  const rawText = await res.text()
+  console.log('📥 eliteFetch status:', res.status)
+  console.log('📥 eliteFetch body:', rawText.substring(0, 500))
+
   if (res.status === 401 || res.status === 419) {
+    console.log('🔄 Token expirado — fazendo novo login...')
     await eliteLogin()
     return eliteFetch(path, method, body, contentType)
   }
-  return res.json()
+
+  try {
+    return JSON.parse(rawText)
+  } catch {
+    console.error('❌ eliteFetch: resposta não é JSON válido')
+    return { error: true, raw: rawText.substring(0, 300) }
+  }
 }
 
 // ---- Helpers WhatsApp ----
