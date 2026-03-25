@@ -718,7 +718,7 @@ app.get('/elite/debug-login', async (req, res) => {
 app.get('/elite/debug', async (req, res) => {
   try {
     await eliteLogin()
-    const resIptv = await eliteReq('https://adminx.offo.dad/dashboard/iptv/data?per_page=5', {
+    const resIptv = await fetch('https://adminx.offo.dad/dashboard/iptv/data?per_page=5', {
       headers: {
         'Accept': 'application/json, text/plain, */*',
         'Cookie': eliteCookies,
