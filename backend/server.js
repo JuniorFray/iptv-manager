@@ -9,7 +9,7 @@ import qrcode from 'qrcode'
 import cron from 'node-cron'
 import admin from 'firebase-admin'
 import { createRequire } from 'module'
-import { ProxyAgent, request as undiciRequest, fetch as undiciFetch } from 'undici'          // ← NOVO
+import { ProxyAgent, request as undiciRequest, fetch as undiciFetch } from 'undici'
 
 const require = createRequire(import.meta.url)
 const serviceAccount = JSON.parse(process.env.SERVICEACCOUNTKEY)
@@ -28,46 +28,55 @@ let qrCodeBase64 = null
 let clientReady = false
 
 const conectarWhatsApp = async () => {
-  const { state, saveCreds } = await useMultiFileAuthState('authinfo')
-  const { version } = await fetchLatestBaileysVersion()
+  try {
+    const { state, saveCreds } = await useMultiFileAuthState('authinfo')
+    const { version } = await fetchLatestBaileysVersion()
 
-  sock = makeWASocket({
-    version,
-    auth: state,
-    printQRInTerminal: false,
-    generateHighQualityLinkPreview: true,
-    browser: ['Sistema TV', 'Chrome', '1.0'],
-    keepAliveIntervalMs: 30000,
-    connectTimeoutMs: 60000,
-    retryRequestDelayMs: 2000,
-    qrTimeout: 60000,
-  })
+    sock = makeWASocket({
+      version,
+      auth: state,
+      printQRInTerminal: false,
+      generateHighQualityLinkPreview: true,
+      browser: ['Sistema TV', 'Chrome', '1.0'],
+      keepAliveIntervalMs: 30000,
+      connectTimeoutMs: 60000,
+      retryRequestDelayMs: 2000,
+      qrTimeout: 60000,
+    })
 
-  sock.ev.on('creds.update', saveCreds)
+    sock.ev.on('creds.update', saveCreds)
 
-  sock.ev.on('connection.update', async (update) => {
-    const { connection, lastDisconnect, qr } = update
+    sock.ev.on('connection.update', async (update) => {
+      const { connection, lastDisconnect, qr } = update
 
-    if (qr) {
-      qrCodeBase64 = await qrcode.toDataURL(qr)
-      clientReady = false
-    }
-
-    if (connection === 'close') {
-      clientReady = false
-      const statusCode = lastDisconnect?.error?.output?.statusCode
-      console.log('Desconectado', statusCode)
-      if (statusCode !== 401) {
-        const delay = statusCode === 408 ? 5000 : 10000
-        console.log(`Reconectando em ${delay / 1000}s...`)
-        setTimeout(conectarWhatsApp, delay)
+      if (qr) {
+        try {
+          qrCodeBase64 = await qrcode.toDataURL(qr)
+        } catch {
+          qrCodeBase64 = null
+        }
+        clientReady = false
       }
-    } else if (connection === 'open') {
-      clientReady = true
-      qrCodeBase64 = null
-      console.log('WhatsApp conectado!')
-    }
-  })
+
+      if (connection === 'close') {
+        clientReady = false
+        const statusCode = lastDisconnect?.error?.output?.statusCode
+        console.log('Desconectado', statusCode)
+        if (statusCode !== 401) {
+          const delay = statusCode === 408 ? 5000 : 10000
+          console.log(`Reconectando em ${delay / 1000}s...`)
+          setTimeout(conectarWhatsApp, delay)
+        }
+      } else if (connection === 'open') {
+        clientReady = true
+        qrCodeBase64 = null
+        console.log('WhatsApp conectado!')
+      }
+    })
+  } catch (err) {
+    console.error('Erro ao conectar WhatsApp:', err)
+    setTimeout(conectarWhatsApp, 10000)
+  }
 }
 
 conectarWhatsApp()
@@ -116,7 +125,6 @@ const wpFetch = async (path, method = 'GET', body = null) => {
 
 // ---- Elite (adminx.offo.dad) ----
 
-// ← NOVO: proxy Webshare para contornar bloqueio Cloudflare
 const eliteProxy = process.env.PROXY_URL
   ? new ProxyAgent(process.env.PROXY_URL)
   : undefined
@@ -125,35 +133,59 @@ let eliteToken = null
 let eliteCookies = null
 
 const eliteLogin = async () => {
+  console.log('🔐 Iniciando eliteLogin...')
   // Etapa 1 — pegar página e extrair _token do HTML + cookies
   const step1 = await undiciRequest('https://adminx.offo.dad/login', {
     method: 'GET',
-    headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36' },
+    headers: {
+      'User-Agent':
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) ' +
+        'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36'
+    },
     dispatcher: eliteProxy,
     maxRedirections: 0,
   })
+
   const html = await step1.body.text()
 
-  // Extrai _token do input hidden no HTML
-  const tokenMatch = html.match(/name="_token"\s+value="([^"]+)"/) 
-                  ?? html.match(/value="([^"]+)"\s+name="_token"/)
-  const formToken = tokenMatch?.[1] ?? ''
+  const tokenMatch =
+    html.match(/name="_token"\s+value="([^"]+)"/) ??
+    html.match(/value="([^"]+)"\s+name="_token"/)
+
+  if (!tokenMatch?.[1]) {
+    console.error('❌ eliteLogin: não encontrou _token no HTML')
+    throw new Error('Elite: _token não encontrado no HTML de login')
+  }
+
+  const formToken = tokenMatch[1]
   console.log('🔍 _token do HTML:', formToken)
 
   const raw1 = step1.headers['set-cookie'] ?? []
   const arr1 = Array.isArray(raw1) ? raw1 : [raw1]
-  const xsrfRaw    = arr1.find(c => c.startsWith('XSRF-TOKEN='))?.match(/XSRF-TOKEN=([^;]+)/)?.[1] ?? ''
-  const sessionRaw = arr1.find(c => c.startsWith('office_session='))?.match(/office_session=([^;]+)/)?.[1] ?? ''
-  const cookieStr  = `XSRF-TOKEN=${xsrfRaw}; office_session=${sessionRaw}`
-  console.log('🔍 step1 cookieStr:', cookieStr)   // ← NOVO
 
-  // Etapa 2 — POST com _token correto + timezone + remember
+  const xsrfRaw = arr1
+    .find(c => c.startsWith('XSRF-TOKEN='))?.match(/XSRF-TOKEN=([^;]+)/)?.[1] ?? ''
+
+  const sessionRaw = arr1
+    .find(c => c.startsWith('office_session='))?.match(/office_session=([^;]+)/)?.[1] ?? ''
+
+  if (!xsrfRaw || !sessionRaw) {
+    console.error('❌ eliteLogin: não conseguiu XSRF-TOKEN ou office_session no step1')
+    throw new Error('Elite: cookies iniciais não encontrados')
+  }
+
+  const cookieStr = `XSRF-TOKEN=${xsrfRaw}; office_session=${sessionRaw}`
+  console.log('🔍 step1 cookieStr:', cookieStr)
+
+  // Etapa 2 — POST login
   const step2 = await undiciRequest('https://adminx.offo.dad/login', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
       'Cookie': cookieStr,
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36',
+      'User-Agent':
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) ' +
+        'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36',
       'Origin': 'https://adminx.offo.dad',
       'Referer': 'https://adminx.offo.dad/login',
       'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -168,32 +200,55 @@ const eliteLogin = async () => {
     dispatcher: eliteProxy,
     maxRedirections: 0,
   })
-  await step2.body.text()
 
+  const step2Text = await step2.body.text().catch(() => '')
   const raw2 = step2.headers['set-cookie'] ?? []
   const arr2 = Array.isArray(raw2) ? raw2 : [raw2]
+
   console.log('🔍 Elite status login:', step2.statusCode)
-  console.log('🔍 step2 Location:', step2.headers['location'])  // ← NOVO
+  console.log('🔍 step2 Location:', step2.headers['location'])
   console.log('🔍 Elite cookies pós-login:', arr2)
 
-  const newXsrfRaw = arr2.find(c => c.startsWith('XSRF-TOKEN='))?.match(/XSRF-TOKEN=([^;]+)/)?.[1] ?? ''
+  if (step2.statusCode !== 302 && step2.statusCode !== 200) {
+    console.error('❌ eliteLogin: status inesperado', step2.statusCode, step2Text.slice(0, 300))
+    throw new Error(`Elite login falhou (status ${step2.statusCode})`)
+  }
 
-  eliteToken   = decodeURIComponent(newXsrfRaw)
+  const newXsrfRaw = arr2
+    .find(c => c.startsWith('XSRF-TOKEN='))?.match(/XSRF-TOKEN=([^;]+)/)?.[1] ?? ''
+
+  if (!newXsrfRaw) {
+    console.error('❌ eliteLogin: não achou XSRF-TOKEN pós-login')
+    throw new Error('Elite: XSRF-TOKEN pós-login não encontrado')
+  }
+
+  eliteToken = decodeURIComponent(newXsrfRaw)
+
   eliteCookies = arr2
-  .map(c => c.split(';')[0])
-  .map(pair => {
-    const eqIdx = pair.indexOf('=')
-    const name  = pair.substring(0, eqIdx)
-    const val   = decodeURIComponent(pair.substring(eqIdx + 1))
-    return `${name}=${val}`
-  })
-  .join('; ')
+    .map(c => c.split(';')[0])
+    .filter(Boolean)
+    .map(pair => {
+      const eqIdx = pair.indexOf('=')
+      if (eqIdx === -1) return pair
+      const name = pair.substring(0, eqIdx)
+      const val = decodeURIComponent(pair.substring(eqIdx + 1))
+      return `${name}=${val}`
+    })
+    .join('; ')
+
+  if (!eliteCookies) {
+    console.error('❌ eliteLogin: eliteCookies final vazio')
+    throw new Error('Elite: cookies pós-login vazios')
+  }
+
   console.log('🔑 Elite login OK — status:', step2.statusCode)
   console.log('🔍 eliteCookies final:', eliteCookies.substring(0, 80) + '...')
 }
 
 const eliteFetch = async (path, method = 'GET', body = null, contentType = 'application/json') => {
-  if (!eliteToken) await eliteLogin()
+  if (!eliteToken || !eliteCookies) {
+    await eliteLogin()
+  }
 
   const headers = {
     'Accept': 'application/json, text/plain, */*',
@@ -202,14 +257,14 @@ const eliteFetch = async (path, method = 'GET', body = null, contentType = 'appl
     'Origin': 'https://adminx.offo.dad',
     'Referer': 'https://adminx.offo.dad/dashboard/iptv',
     'X-CSRF-TOKEN': eliteToken,
-    'X-Requested-With': 'XMLHttpRequest',   // ← NOVO
+    'X-Requested-With': 'XMLHttpRequest',
     'User-Agent': 'Mozilla/5.0',
   }
 
   const bodyStr = body
     ? (contentType.includes('json')
-        ? JSON.stringify(body)
-        : new URLSearchParams(body).toString())
+      ? JSON.stringify(body)
+      : new URLSearchParams(body).toString())
     : null
 
   console.log('📤 eliteFetch →', method, `https://adminx.offo.dad/${path}`)
@@ -217,7 +272,7 @@ const eliteFetch = async (path, method = 'GET', body = null, contentType = 'appl
   console.log('📤 Cookie:', eliteCookies?.substring(0, 80))
   if (bodyStr) console.log('📤 Body:', bodyStr.substring(0, 200))
 
-  const res = await undiciFetch(`https://adminx.offo.dad/${path}`, {  // ← undiciFetch
+  const res = await undiciFetch(`https://adminx.offo.dad/${path}`, {
     method,
     headers,
     body: bodyStr,
@@ -232,6 +287,11 @@ const eliteFetch = async (path, method = 'GET', body = null, contentType = 'appl
     console.log('🔄 Token expirado — fazendo novo login...')
     await eliteLogin()
     return eliteFetch(path, method, body, contentType)
+  }
+
+  if (res.status >= 400) {
+    // Não deixa explodir silenciosamente
+    throw new Error(`EliteFetch falhou (status ${res.status}): ${rawText.slice(0, 300)}`)
   }
 
   try {
@@ -265,7 +325,12 @@ const formatarMensagem = (template, cliente) => {
     .replace(/NOME/gi, cliente.nome || '')
     .replace(/VENCIMENTO/gi, cliente.vencimento || '')
     .replace(/SERVIDOR/gi, cliente.servidor || '')
-    .replace(/VALOR/gi, cliente.valor ? `R$ ${parseFloat(cliente.valor).toFixed(2).replace('.', ',')}` : '')
+    .replace(
+      /VALOR/gi,
+      cliente.valor
+        ? `R$ ${parseFloat(cliente.valor).toFixed(2).replace('.', ',')}`
+        : ''
+    )
 }
 
 const normalizarTelefone = tel => {
@@ -369,23 +434,40 @@ const processarFila = async () => {
       try {
         const numero = normalizarTelefone(item.telefone)
         await sock.sendMessage(numero, { text: item.mensagem })
-        await ref.update({ status: 'enviado', enviadoEm: admin.firestore.FieldValue.serverTimestamp(), erro: null })
+        await ref.update({
+          status: 'enviado',
+          enviadoEm: admin.firestore.FieldValue.serverTimestamp(),
+          erro: null
+        })
         await db.collection('notificacoesEnviadas').add({
-          clienteId: item.clienteId, clienteNome: item.clienteNome,
-          gatilho: item.gatilho, data: new Date().toISOString().split('T')[0],
+          clienteId: item.clienteId,
+          clienteNome: item.clienteNome,
+          gatilho: item.gatilho,
+          data: new Date().toISOString().split('T')[0],
           enviadoEm: admin.firestore.FieldValue.serverTimestamp(),
         })
         await salvarLog(item.clienteNome, item.telefone, item.gatilho, item.mensagem, 'enviado')
         console.log(`Enviado: ${item.clienteNome} ${item.gatilho}`)
       } catch (err) {
+        console.error('Erro ao enviar mensagem WhatsApp:', err)
         const novasTentativas = (item.tentativas || 0) + 1
         const backoffMs = BACKOFF_BASE_MS * Math.pow(2, novasTentativas - 1)
         const proximaTentativa = admin.firestore.Timestamp.fromMillis(Date.now() + backoffMs)
         if (novasTentativas >= MAX_TENTATIVAS) {
-          await ref.update({ status: 'erro', tentativas: novasTentativas, erro: err.message, proximaTentativa })
+          await ref.update({
+            status: 'erro',
+            tentativas: novasTentativas,
+            erro: err.message,
+            proximaTentativa
+          })
           await salvarLog(item.clienteNome, item.telefone, item.gatilho, item.mensagem, 'erro')
         } else {
-          await ref.update({ status: 'pendente', tentativas: novasTentativas, erro: err.message, proximaTentativa })
+          await ref.update({
+            status: 'pendente',
+            tentativas: novasTentativas,
+            erro: err.message,
+            proximaTentativa
+          })
         }
       }
       await sleep(intervalo)
@@ -405,8 +487,11 @@ const executarEnvioAutomatico = async () => {
   const snapshot = await db.collection('clientes').get()
   const clientes = snapshot.docs.map(d => ({ id: d.id, ...d.data() }))
   const regrasMap = [
-    { key: 'dias7', diff: 7 }, { key: 'dias4', diff: 4 },
-    { key: 'dia0',  diff: 0 }, { key: 'pos1',  diff: -1 }, { key: 'pos3', diff: -3 },
+    { key: 'dias7', diff: 7 },
+    { key: 'dias4', diff: 4 },
+    { key: 'dia0',  diff: 0 },
+    { key: 'pos1',  diff: -1 },
+    { key: 'pos3',  diff: -3 },
   ]
   let adicionados = 0
   for (const cliente of clientes) {
@@ -435,7 +520,11 @@ const iniciarCron = async () => {
   const config = await getConfig()
   const [hora, minuto] = (config.horario || '09:00').split(':').map(Number)
   if (cronJob) cronJob.stop()
-  cronJob = cron.schedule(`${minuto} ${hora} * * *`, executarEnvioAutomatico, { timezone: 'America/Sao_Paulo' })
+  cronJob = cron.schedule(
+    `${minuto} ${hora} * * *`,
+    executarEnvioAutomatico,
+    { timezone: 'America/Sao_Paulo' }
+  )
   console.log(`Cron agendado para ${config.horario}`)
 }
 iniciarCron()
@@ -474,14 +563,16 @@ app.post('/config', async (req, res) => {
 })
 
 app.get('/logs', async (req, res) => {
-  const snap = await db.collection('logswhatsapp').orderBy('enviadoEm', 'desc').limit(100).get()
+  const snap = await db.collection('logswhatsapp')
+    .orderBy('enviadoEm', 'desc').limit(100).get()
   res.json(snap.docs.map(d => ({ id: d.id, ...d.data() })))
 })
 
 // ---- Rotas da Fila ----
 
 app.get('/fila', async (req, res) => {
-  const snap = await db.collection('filaEnvios').orderBy('criadoEm', 'desc').limit(200).get()
+  const snap = await db.collection('filaEnvios')
+    .orderBy('criadoEm', 'desc').limit(200).get()
   res.json(snap.docs.map(d => ({ id: d.id, ...d.data() })))
 })
 
@@ -666,12 +757,12 @@ app.post('/painel/teste', async (req, res) => {
 app.get('/elite/debug', async (req, res) => {
   try {
     await eliteLogin()
-    const resIptv = await undiciFetch('https://adminx.offo.dad/dashboard/iptv/data?per_page=5', {  // ← undiciFetch
+    const resIptv = await undiciFetch('https://adminx.offo.dad/dashboard/iptv/data?per_page=5', {
       headers: {
         'Accept': 'application/json, text/plain, */*',
         'Cookie': eliteCookies,
         'X-CSRF-TOKEN': eliteToken,
-        'X-Requested-With': 'XMLHttpRequest',   // ← NOVO
+        'X-Requested-With': 'XMLHttpRequest',
         'Referer': 'https://adminx.offo.dad/dashboard/iptv',
         'User-Agent': 'Mozilla/5.0',
       },
@@ -682,8 +773,15 @@ app.get('/elite/debug', async (req, res) => {
     const contentType = resIptv.headers.get('content-type') ?? 'unknown'
     let parsed = null
     try { parsed = JSON.parse(rawText) } catch { parsed = null }
-    res.json({ status, contentType, isJson: parsed !== null, preview: rawText.substring(0, 500), data: parsed })
+    res.json({
+      status,
+      contentType,
+      isJson: parsed !== null,
+      preview: rawText.substring(0, 500),
+      data: parsed
+    })
   } catch (err) {
+    console.error('Erro em /elite/debug:', err)
     res.status(500).json({ error: err.message })
   }
 })
@@ -706,7 +804,10 @@ app.get('/elite/sincronizar', async (req, res) => {
       exp_date: l.exp_date ?? l.expiry_date ?? null,
     }))
     res.json({ total: linhas.length, linhas })
-  } catch (err) { res.status(500).json({ error: err.message }) }
+  } catch (err) {
+    console.error('Erro em /elite/sincronizar:', err)
+    res.status(500).json({ error: err.message })
+  }
 })
 
 app.post('/elite/renovar', async (req, res) => {
@@ -724,7 +825,10 @@ app.post('/elite/renovar', async (req, res) => {
     }
     console.log(`[RENOVAR ELITE] id=${id} tipo=${tipoPath} meses=${meses} resposta=`, JSON.stringify(data))
     res.json(data)
-  } catch (err) { res.status(500).json({ error: err.message }) }
+  } catch (err) {
+    console.error('Erro em /elite/renovar:', err)
+    res.status(500).json({ error: err.message })
+  }
 })
 
 app.get('/meu-ip', async (req, res) => {
