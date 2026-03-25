@@ -167,22 +167,24 @@ let eliteToken = null
 let eliteCookies = null
 
 const eliteLogin = async () => {
-  const loginPage = await eliteReq('https://adminx.offo.dad/login', {
+  // fetch direto — era assim quando funcionava
+  const loginPage = await fetch('https://adminx.offo.dad/login', {
     headers: { 'User-Agent': 'Mozilla/5.0' }
   })
+
   const html = await loginPage.text()
 
-  // Token real do formulário HTML
+  // _token real do HTML (correção que fizemos hoje)
   const tokenMatch = html.match(/<input[^>]+name="_token"[^>]+value="([^"]+)"/)
     ?? html.match(/<meta name="csrf-token" content="([^"]+)"/)
   const csrfToken = tokenMatch?.[1] ?? ''
 
   const setCookieHeader = loginPage.headers.get('set-cookie') || ''
-  const xsrfMatch   = setCookieHeader.match(/XSRF-TOKEN=([^;]+)/)
+  const xsrfMatch    = setCookieHeader.match(/XSRF-TOKEN=([^;]+)/)
   const sessionMatch = setCookieHeader.match(/office_session=([^;]+)/)
-  const cookieStr   = `XSRF-TOKEN=${xsrfMatch?.[1] || ''}; office_session=${sessionMatch?.[1] || ''}`
+  const cookieStr    = `XSRF-TOKEN=${xsrfMatch?.[1] || ''}; office_session=${sessionMatch?.[1] || ''}`
 
-  const res = await eliteReq('https://adminx.offo.dad/login', {
+  const res = await fetch('https://adminx.offo.dad/login', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
@@ -206,7 +208,7 @@ const eliteLogin = async () => {
 
   eliteToken   = newXsrf ? decodeURIComponent(newXsrf[1]) : ''
   eliteCookies = `XSRF-TOKEN=${newXsrf?.[1] || ''}; office_session=${newSession?.[1] || ''}`
-  console.log('🔑 Elite login OK - status:', res.status)
+  console.log('🔑 Elite login OK')
 }
 
 const eliteFetch = async (path, method = 'GET', body = null, contentType = 'application/json') => {
@@ -220,12 +222,10 @@ const eliteFetch = async (path, method = 'GET', body = null, contentType = 'appl
     'X-CSRF-TOKEN': eliteToken,
     'User-Agent': 'Mozilla/5.0',
   }
-  const res = await eliteReq(`https://adminx.offo.dad/${path}`, {
+  const res = await fetch(`https://adminx.offo.dad/${path}`, {
     method, headers,
     body: body
-      ? (contentType.includes('json')
-          ? JSON.stringify(body)
-          : new URLSearchParams(body).toString())
+      ? (contentType.includes('json') ? JSON.stringify(body) : new URLSearchParams(body).toString())
       : null
   })
   if (res.status === 401 || res.status === 419) {
