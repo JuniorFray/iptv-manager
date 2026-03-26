@@ -47,6 +47,7 @@ export default function Clientes() {
   const [carregando, setCarregando] = useState(false)
   const [renovandoId, setRenovandoId] = useState<string | null>(null)
   const [importandoId, setImportandoId] = useState<string | null>(null)
+  const [menuAbertoId, setMenuAbertoId] = useState<string | null>(null)
   const [msgPainel, setMsgPainel] = useState<{ tipo: 'ok' | 'erro'; msg: string } | null>(null)
 
   // Warez
@@ -69,6 +70,14 @@ export default function Clientes() {
     })
     return unsub
   }, [])
+
+  // Fechar menu ao clicar fora
+  useEffect(() => {
+    if (!menuAbertoId) return
+    const handler = () => setMenuAbertoId(null)
+    document.addEventListener('click', handler)
+    return () => document.removeEventListener('click', handler)
+  }, [menuAbertoId])
 
   const clientesFiltrados = clientes.filter(c => {
     const t = busca.toLowerCase()
@@ -472,25 +481,17 @@ export default function Clientes() {
       </div>
 
       {/* Tabela */}
-      <div className="glass-card" style={{ overflowX: 'auto', position: 'relative' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '900px' }}>
+      <div className="glass-card" style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-              {['NOME', 'TELEFONE', 'TIPO', 'SERVIDOR', 'USUÁRIO', 'SENHA', 'VENCIMENTO', 'VALOR', 'STATUS', 'OBS.'].map(col => (
+              {['NOME', 'TELEFONE', 'TIPO', 'SERVIDOR', 'USUÁRIO', 'SENHA', 'VENCIMENTO', 'VALOR', 'STATUS', 'OBS.', ''].map(col => (
                 <th key={col} style={{
                   padding: '14px 16px', textAlign: 'left',
                   color: 'rgba(255,255,255,0.4)', fontSize: '11px',
                   fontWeight: '600', letterSpacing: '0.05em', whiteSpace: 'nowrap',
                 }}>{col}</th>
               ))}
-              <th style={{
-                padding: '14px 16px', textAlign: 'left',
-                color: 'rgba(255,255,255,0.4)', fontSize: '11px',
-                fontWeight: '600', letterSpacing: '0.05em', whiteSpace: 'nowrap',
-                position: 'sticky', right: 0,
-                background: 'linear-gradient(to right, transparent, #0f0f1a 18px)',
-                backdropFilter: 'blur(8px)',
-              }}>AÇÕES</th>
             </tr>
           </thead>
           <tbody>
@@ -542,84 +543,102 @@ export default function Clientes() {
                   {c.obs || '—'}
                 </td>
 
-                {/* Ações */}
-                <td style={{
-                  padding: '14px 16px', whiteSpace: 'nowrap',
-                  position: 'sticky', right: 0,
-                  background: 'linear-gradient(to right, transparent, #0f0f1a 18px)',
-                  backdropFilter: 'blur(8px)',
-                }}>
-                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                {/* Ações — dropdown */}
+                <td style={{ padding: '10px 16px', whiteSpace: 'nowrap' }}>
+                  <div style={{ position: 'relative', display: 'inline-block' }}>
+                    {/* Botão ⋮ */}
+                    <button
+                      onClick={() => setMenuAbertoId(menuAbertoId === c.id ? null : c.id)}
+                      style={{
+                        width: '32px', height: '32px', borderRadius: '8px', border: 'none',
+                        cursor: 'pointer', background: 'rgba(255,255,255,0.08)',
+                        color: 'rgba(255,255,255,0.7)', fontSize: '18px', fontWeight: 'bold',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        lineHeight: 1,
+                      }}
+                    >⋮</button>
 
-                    {/* Importar Elite (força re-importação mesmo com usuário preenchido) */}
-                    {isElite(c.servidor) && (
-                      <button
-                        onClick={() => importarElite(c)}
-                        disabled={importandoId === c.id}
-                        title="Importar usuário/senha/vencimento do Elite"
+                    {/* Menu dropdown */}
+                    {menuAbertoId === c.id && (
+                      <div
                         style={{
-                          padding: '6px 10px', borderRadius: '8px', border: 'none',
-                          cursor: importandoId === c.id ? 'not-allowed' : 'pointer',
-                          background: importandoId === c.id ? 'rgba(255,255,255,0.05)' : 'rgba(34,197,94,0.15)',
-                          color: importandoId === c.id ? 'rgba(255,255,255,0.3)' : '#4ade80',
-                          fontSize: '16px',
+                          position: 'absolute', right: 0, top: '38px', zIndex: 500,
+                          background: '#1e1e30', border: '1px solid rgba(255,255,255,0.12)',
+                          borderRadius: '10px', padding: '6px', minWidth: '160px',
+                          boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
                         }}
                       >
-                        {importandoId === c.id ? '⏳' : <Download size={14} />}
-                      </button>
+                        {/* Importar Elite */}
+                        {isElite(c.servidor) && (
+                          <button
+                            onClick={() => { setMenuAbertoId(null); importarElite(c) }}
+                            disabled={importandoId === c.id}
+                            style={{
+                              width: '100%', padding: '9px 12px', borderRadius: '7px', border: 'none',
+                              cursor: 'pointer', background: 'transparent', textAlign: 'left',
+                              color: '#4ade80', fontSize: '13px', fontWeight: '600',
+                              display: 'flex', alignItems: 'center', gap: '8px',
+                            }}
+                            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(34,197,94,0.1)')}
+                            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                          >
+                            <Download size={13} /> {importandoId === c.id ? 'Importando...' : 'Importar Elite'}
+                          </button>
+                        )}
+
+                        {/* Renovar */}
+                        {(isWarez(c.servidor) || isElite(c.servidor)) && (
+                          <button
+                            onClick={() => { setMenuAbertoId(null); abrirModalRenovar(c) }}
+                            disabled={renovandoId === c.id}
+                            style={{
+                              width: '100%', padding: '9px 12px', borderRadius: '7px', border: 'none',
+                              cursor: 'pointer', background: 'transparent', textAlign: 'left',
+                              color: isElite(c.servidor) ? '#c084fc' : '#60a5fa',
+                              fontSize: '13px', fontWeight: '600',
+                              display: 'flex', alignItems: 'center', gap: '8px',
+                            }}
+                            onMouseEnter={e => (e.currentTarget.style.background = isElite(c.servidor) ? 'rgba(168,85,247,0.1)' : 'rgba(59,130,246,0.1)')}
+                            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                          >
+                            <RefreshCw size={13} /> {renovandoId === c.id ? 'Renovando...' : 'Renovar'}
+                          </button>
+                        )}
+
+                        {/* Separador */}
+                        <div style={{ height: '1px', background: 'rgba(255,255,255,0.08)', margin: '4px 0' }} />
+
+                        {/* Editar */}
+                        <button
+                          onClick={() => { setMenuAbertoId(null); abrirModal(c) }}
+                          style={{
+                            width: '100%', padding: '9px 12px', borderRadius: '7px', border: 'none',
+                            cursor: 'pointer', background: 'transparent', textAlign: 'left',
+                            color: '#818cf8', fontSize: '13px', fontWeight: '600',
+                            display: 'flex', alignItems: 'center', gap: '8px',
+                          }}
+                          onMouseEnter={e => (e.currentTarget.style.background = 'rgba(99,102,241,0.1)')}
+                          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                        >
+                          <Pencil size={13} /> Editar
+                        </button>
+
+                        {/* Excluir */}
+                        <button
+                          onClick={() => { setMenuAbertoId(null); excluirCliente(c.id) }}
+                          style={{
+                            width: '100%', padding: '9px 12px', borderRadius: '7px', border: 'none',
+                            cursor: 'pointer', background: 'transparent', textAlign: 'left',
+                            color: '#f87171', fontSize: '13px', fontWeight: '600',
+                            display: 'flex', alignItems: 'center', gap: '8px',
+                          }}
+                          onMouseEnter={e => (e.currentTarget.style.background = 'rgba(239,68,68,0.1)')}
+                          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                        >
+                          <Trash2 size={13} /> Excluir
+                        </button>
+                      </div>
                     )}
-
-                    {/* Renovar Warez */}
-                    {isWarez(c.servidor) && (
-                      <button
-                        onClick={() => abrirModalRenovar(c)}
-                        disabled={renovandoId === c.id}
-                        title="Renovar no Warez"
-                        style={{
-                          padding: '6px 10px', borderRadius: '8px', border: 'none',
-                          cursor: renovandoId === c.id ? 'not-allowed' : 'pointer',
-                          background: renovandoId === c.id ? 'rgba(255,255,255,0.05)' : 'rgba(59,130,246,0.15)',
-                          color: renovandoId === c.id ? 'rgba(255,255,255,0.3)' : '#60a5fa',
-                          fontSize: '16px',
-                        }}
-                      >
-                        {renovandoId === c.id ? '⏳' : '🔄'}
-                      </button>
-                    )}
-
-                    {/* Renovar Elite */}
-                    {isElite(c.servidor) && (
-                      <button
-                        onClick={() => abrirModalRenovar(c)}
-                        disabled={renovandoId === c.id}
-                        title="Renovar no Elite"
-                        style={{
-                          padding: '6px 10px', borderRadius: '8px', border: 'none',
-                          cursor: renovandoId === c.id ? 'not-allowed' : 'pointer',
-                          background: renovandoId === c.id ? 'rgba(255,255,255,0.05)' : 'rgba(168,85,247,0.15)',
-                          color: renovandoId === c.id ? 'rgba(255,255,255,0.3)' : '#c084fc',
-                          fontSize: '16px',
-                        }}
-                      >
-                        {renovandoId === c.id ? '⏳' : '🔄'}
-                      </button>
-                    )}
-
-                    {/* Editar */}
-                    <button onClick={() => abrirModal(c)} title="Editar" style={{
-                      padding: '6px 10px', borderRadius: '8px', border: 'none',
-                      cursor: 'pointer', background: 'rgba(99,102,241,0.15)', color: '#818cf8',
-                    }}>
-                      <Pencil size={14} />
-                    </button>
-
-                    {/* Excluir */}
-                    <button onClick={() => excluirCliente(c.id)} title="Excluir" style={{
-                      padding: '6px 10px', borderRadius: '8px', border: 'none',
-                      cursor: 'pointer', background: 'rgba(239,68,68,0.15)', color: '#f87171',
-                    }}>
-                      <Trash2 size={14} />
-                    </button>
                   </div>
                 </td>
               </tr>
