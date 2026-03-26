@@ -107,7 +107,21 @@ export default function createWhatsAppRouter(db, admin) {
           clientReady = false
           const statusCode = lastDisconnect?.error?.output?.statusCode
           console.log('Desconectado', statusCode)
-          if (statusCode !== 401) {
+
+          if (statusCode === 440 || statusCode === 401) {
+            // 440 = outra sessão conectou | 401 = sessão inválida → limpar auth e pedir novo QR
+            console.log('Sessão invalidada — limpando auth do Firestore...')
+            try {
+              const snap  = await db.collection('whatsapp_auth').get()
+              const batch = db.batch()
+              snap.docs.forEach(d => batch.delete(d.ref))
+              await batch.commit()
+              console.log('Auth limpo. Aguardando novo QR...')
+            } catch (e) {
+              console.error('Erro ao limpar auth:', e.message)
+            }
+            setTimeout(conectarWhatsApp, 3000)
+          } else {
             const delay = statusCode === 408 ? 5000 : 10000
             console.log(`Reconectando em ${delay / 1000}s...`)
             setTimeout(conectarWhatsApp, delay)
