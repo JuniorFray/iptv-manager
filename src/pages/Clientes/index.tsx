@@ -163,8 +163,16 @@ export default function Clientes() {
   }
 
   const matchElite = (cliente: Cliente, linhas: any[]): any | null => {
+    // 1. Busca por username (mais preciso)
+    const usuario = cliente.usuario?.trim().toLowerCase()
+    if (usuario) {
+      const byUser = linhas.find((l: any) => l.username?.toLowerCase() === usuario)
+      if (byUser) return byUser
+    }
+    // 2. Fallback: busca por nome (para clientes sem usuário ainda)
     const nomeLower = cliente.nome?.toLowerCase() ?? ''
     const palavras = nomeLower.split(' ').filter((p: string) => p.length > 2)
+    if (palavras.length === 0) return null
     return linhas.find((l: any) => {
       const name = (l.name ?? l.notes ?? '').toLowerCase()
       if (!name) return false
