@@ -472,17 +472,25 @@ export default function Clientes() {
       </div>
 
       {/* Tabela */}
-      <div className="glass-card" style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+      <div className="glass-card" style={{ overflowX: 'auto', position: 'relative' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '900px' }}>
           <thead>
             <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-              {['NOME', 'TELEFONE', 'TIPO', 'SERVIDOR', 'USUÁRIO', 'SENHA', 'VENCIMENTO', 'VALOR', 'STATUS', 'OBS.', 'AÇÕES'].map(col => (
+              {['NOME', 'TELEFONE', 'TIPO', 'SERVIDOR', 'USUÁRIO', 'SENHA', 'VENCIMENTO', 'VALOR', 'STATUS', 'OBS.'].map(col => (
                 <th key={col} style={{
                   padding: '14px 16px', textAlign: 'left',
                   color: 'rgba(255,255,255,0.4)', fontSize: '11px',
                   fontWeight: '600', letterSpacing: '0.05em', whiteSpace: 'nowrap',
                 }}>{col}</th>
               ))}
+              <th style={{
+                padding: '14px 16px', textAlign: 'left',
+                color: 'rgba(255,255,255,0.4)', fontSize: '11px',
+                fontWeight: '600', letterSpacing: '0.05em', whiteSpace: 'nowrap',
+                position: 'sticky', right: 0,
+                background: 'linear-gradient(to right, transparent, #0f0f1a 18px)',
+                backdropFilter: 'blur(8px)',
+              }}>AÇÕES</th>
             </tr>
           </thead>
           <tbody>
@@ -535,7 +543,12 @@ export default function Clientes() {
                 </td>
 
                 {/* Ações */}
-                <td style={{ padding: '14px 16px', whiteSpace: 'nowrap' }}>
+                <td style={{
+                  padding: '14px 16px', whiteSpace: 'nowrap',
+                  position: 'sticky', right: 0,
+                  background: 'linear-gradient(to right, transparent, #0f0f1a 18px)',
+                  backdropFilter: 'blur(8px)',
+                }}>
                   <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
 
                     {/* Importar Elite (força re-importação mesmo com usuário preenchido) */}
