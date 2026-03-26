@@ -58,11 +58,19 @@ export default function createEliteRouter() {
     })
     const html1 = await s1.body.text()
     console.log('🔍 [Elite] GET /login status:', s1.statusCode)
-    console.log('🔍 [Elite] HTML preview:', html1.substring(0, 300).replace(/\n/g, ' '))
+    console.log('🔍 [Elite] HTML preview:', html1.substring(0, 200).replace(/\n/g, ' '))
+
+    if (s1.statusCode === 404 || html1.includes('MANUTENCAO') || html1.includes('manutenção') || html1.includes('manutencao')) {
+      throw new Error('[Elite] Servidor em manutenção. Tente novamente mais tarde.')
+    }
+    if (s1.statusCode !== 200) {
+      throw new Error(`[Elite] GET /login retornou status ${s1.statusCode}`)
+    }
+
     const fmMatch = html1.match(/name="_token"\s+value="([^"]+)"/) ?? html1.match(/value="([^"]+)"\s+name="_token"/)
     if (!fmMatch?.[1]) {
-      console.error('❌ [Elite] _token nao encontrado. HTML completo (1000 chars):', html1.substring(0, 1000))
-      throw new Error('[Elite] _token nao encontrado')
+      console.error('❌ [Elite] HTML (500 chars):', html1.substring(0, 500))
+      throw new Error('[Elite] _token nao encontrado no formulario de login')
     }
     const formToken = fmMatch[1]
     const c1 = parseCookies(toArray(s1.headers['set-cookie']))
