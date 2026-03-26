@@ -485,11 +485,11 @@ export default function Clientes() {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-              {['NOME', 'TELEFONE', 'TIPO', 'SERVIDOR', 'USUÁRIO', 'SENHA', 'VENCIMENTO', 'VALOR', 'STATUS', 'OBS.', ''].map(col => (
+              {['NOME','TELEFONE','TIPO','SERVIDOR','USUÁRIO','SENHA','VENCIMENTO','VALOR','STATUS','OBS',''].map(col => (
                 <th key={col} style={{
-                  padding: '14px 16px', textAlign: 'left',
-                  color: 'rgba(255,255,255,0.4)', fontSize: '11px',
-                  fontWeight: '600', letterSpacing: '0.05em', whiteSpace: 'nowrap',
+                  padding: '8px 10px', textAlign: 'left',
+                  color: 'rgba(255,255,255,0.4)', fontSize: '10px',
+                  fontWeight: '700', letterSpacing: '0.06em', whiteSpace: 'nowrap',
                 }}>{col}</th>
               ))}
             </tr>
@@ -502,36 +502,36 @@ export default function Clientes() {
                 </td>
               </tr>
             ) : clientesFiltrados.map(c => (
-              <tr key={c.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', transition: 'background 0.15s' }}
+              <tr key={c.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', transition: 'background 0.15s' }}
                 onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.03)')}
                 onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
               >
-                <td style={{ padding: '14px 16px', color: 'white', fontWeight: '600', fontSize: '14px', whiteSpace: 'nowrap' }}>{c.nome || '—'}</td>
-                <td style={{ padding: '14px 16px', color: 'rgba(255,255,255,0.6)', fontSize: '13px', whiteSpace: 'nowrap' }}>{c.telefone || '—'}</td>
-                <td style={{ padding: '14px 16px' }}>
+                <td style={{ padding: '8px 10px', color: 'white', fontWeight: '600', fontSize: '12px', whiteSpace: 'nowrap', maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.nome || '—'}</td>
+                <td style={{ padding: '8px 10px', color: 'rgba(255,255,255,0.55)', fontSize: '11px', whiteSpace: 'nowrap' }}>{c.telefone || '—'}</td>
+                <td style={{ padding: '8px 10px' }}>
                   {c.tipo ? (
                     <span style={{
-                      padding: '4px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '700',
+                      padding: '2px 7px', borderRadius: '20px', fontSize: '10px', fontWeight: '700',
                       background: c.tipo === 'P2P' ? 'rgba(168,85,247,0.2)' : 'rgba(59,130,246,0.2)',
                       color: c.tipo === 'P2P' ? '#c084fc' : '#60a5fa',
                       border: c.tipo === 'P2P' ? '1px solid rgba(168,85,247,0.4)' : '1px solid rgba(59,130,246,0.4)',
                     }}>{c.tipo}</span>
                   ) : '—'}
                 </td>
-                <td style={{ padding: '14px 16px', color: 'rgba(255,255,255,0.7)', fontSize: '13px', whiteSpace: 'nowrap' }}>{c.servidor || '—'}</td>
-                <td style={{ padding: '14px 16px', color: 'rgba(255,255,255,0.5)', fontSize: '12px', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{c.usuario || '—'}</td>
-                <td style={{ padding: '14px 16px', color: 'rgba(255,255,255,0.5)', fontSize: '12px', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{c.senha || '—'}</td>
-                <td style={{ padding: '14px 16px', whiteSpace: 'nowrap' }}>
-                  <span style={{ color: corVencimento(c.vencimento), fontWeight: '600', fontSize: '13px' }}>
+                <td style={{ padding: '8px 10px', color: 'rgba(255,255,255,0.7)', fontSize: '11px', whiteSpace: 'nowrap' }}>{c.servidor || '—'}</td>
+                <td style={{ padding: '8px 10px', color: 'rgba(255,255,255,0.6)', fontSize: '11px', fontFamily: 'monospace', whiteSpace: 'nowrap', maxWidth: '110px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.usuario || '—'}</td>
+                <td style={{ padding: '8px 10px', color: 'rgba(255,255,255,0.5)', fontSize: '11px', fontFamily: 'monospace', whiteSpace: 'nowrap', maxWidth: '100px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.senha || '—'}</td>
+                <td style={{ padding: '8px 10px', whiteSpace: 'nowrap' }}>
+                  <span style={{ color: corVencimento(c.vencimento), fontWeight: '600', fontSize: '11px' }}>
                     {formatarData(c.vencimento)}
                   </span>
                 </td>
-                <td style={{ padding: '14px 16px', color: '#4ade80', fontWeight: '600', fontSize: '13px', whiteSpace: 'nowrap' }}>
+                <td style={{ padding: '8px 10px', color: '#4ade80', fontWeight: '600', fontSize: '11px', whiteSpace: 'nowrap' }}>
                   {c.valor ? `R$ ${parseFloat(c.valor).toFixed(2).replace('.', ',')}` : '—'}
                 </td>
-                <td style={{ padding: '14px 16px' }}>
+                <td style={{ padding: '8px 10px' }}>
                   <span style={{
-                    padding: '4px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: '600',
+                    padding: '2px 8px', borderRadius: '20px', fontSize: '10px', fontWeight: '600',
                     background: c.status === 'ativo' ? 'rgba(34,197,94,0.15)' : c.status === 'suspenso' ? 'rgba(245,158,11,0.15)' : 'rgba(239,68,68,0.15)',
                     color: c.status === 'ativo' ? '#4ade80' : c.status === 'suspenso' ? '#fbbf24' : '#f87171',
                     border: c.status === 'ativo' ? '1px solid rgba(34,197,94,0.3)' : c.status === 'suspenso' ? '1px solid rgba(245,158,11,0.3)' : '1px solid rgba(239,68,68,0.3)',
@@ -539,7 +539,7 @@ export default function Clientes() {
                     {c.status ? c.status.charAt(0).toUpperCase() + c.status.slice(1) : '—'}
                   </span>
                 </td>
-                <td style={{ padding: '14px 16px', color: 'rgba(255,255,255,0.4)', fontSize: '12px', maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <td style={{ padding: '8px 10px', color: 'rgba(255,255,255,0.4)', fontSize: '11px', maxWidth: '100px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {c.obs || '—'}
                 </td>
 
