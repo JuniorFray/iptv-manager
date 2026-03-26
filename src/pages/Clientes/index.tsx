@@ -1,7 +1,7 @@
-﻿import { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { collection, onSnapshot, doc, updateDoc, deleteDoc, addDoc } from 'firebase/firestore'
 import { db } from '../../firebase'
-import { Plus, Search, Pencil, Trash2, RefreshCw, Check, X } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, RefreshCw, Check, X, Download } from 'lucide-react'
 
 const BACKEND_URL = 'https://iptv-manager-production.up.railway.app'
 
@@ -24,6 +24,21 @@ const clienteVazio: Omit<Cliente, 'id'> = {
   senha: '', vencimento: '', valor: '', status: 'ativo', obs: '',
 }
 
+// Converte "YYYY-MM-DD" ou "YYYY-MM-DD HH:mm:ss" → "DD/MM/YYYY"
+const isoParaBR = (str: string): string => {
+  if (!str) return ''
+  const parte = str.split(' ')[0]          // descarta hora se houver
+  const [y, m, d] = parte.split('-')
+  if (!y || !m || !d) return ''
+  return `${d.padStart(2,'0')}/${m.padStart(2,'0')}/${y}`
+}
+
+// Converte "DD/MM/YYYY HH:mm" (resposta IPTV) → "DD/MM/YYYY"
+const dtBRParaBR = (str: string): string => {
+  if (!str) return ''
+  return str.split(' ')[0]
+}
+
 export default function Clientes() {
   const [clientes, setClientes] = useState<Cliente[]>([])
   const [busca, setBusca] = useState('')
@@ -31,6 +46,7 @@ export default function Clientes() {
   const [clienteEditando, setClienteEditando] = useState<Omit<Cliente, 'id'> & { id?: string }>(clienteVazio)
   const [carregando, setCarregando] = useState(false)
   const [renovandoId, setRenovandoId] = useState<string | null>(null)
+  const [importandoId, setImportandoId] = useState<string | null>(null)
   const [msgPainel, setMsgPainel] = useState<{ tipo: 'ok' | 'erro'; msg: string } | null>(null)
 
   // Warez
@@ -40,6 +56,7 @@ export default function Clientes() {
   // Elite
   const [sincronizandoElite, setSincronizandoElite] = useState(false)
   const [syncEliteResult, setSyncEliteResult] = useState<{ tipo: 'ok' | 'erro'; msg: string } | null>(null)
+  const [linhasEliteCache, setLinhasEliteCache] = useState<any[]>([])
 
   // Modal de período de renovação
   const [modalRenovar, setModalRenovar] = useState(false)
@@ -125,6 +142,27 @@ export default function Clientes() {
   const isWarez = (servidor: string) => servidor?.toUpperCase().includes('WAREZ')
   const isElite = (servidor: string) => servidor?.toUpperCase().includes('ELITE')
 
+  // ---- Buscar linhas Elite (com cache) ----
+  const buscarLinhasElite = async (): Promise<any[]> => {
+    if (linhasEliteCache.length > 0) return linhasEliteCache
+    const res = await fetch(`${BACKEND_URL}/elite/sincronizar`)
+    const data = await res.json()
+    if (data.error) throw new Error(data.error)
+    const linhas = data.linhas ?? []
+    setLinhasEliteCache(linhas)
+    return linhas
+  }
+
+  const matchElite = (cliente: Cliente, linhas: any[]): any | null => {
+    const nomeLower = cliente.nome?.toLowerCase() ?? ''
+    const palavras = nomeLower.split(' ').filter((p: string) => p.length > 2)
+    return linhas.find((l: any) => {
+      const name = (l.name ?? l.notes ?? '').toLowerCase()
+      if (!name) return false
+      return palavras.filter((p: string) => name.includes(p)).length >= 2
+    }) ?? null
+  }
+
   // ---- Sincronizar Warez ----
   const sincronizarWWPanel = async () => {
     setSincronizandoWarez(true)
@@ -142,7 +180,6 @@ export default function Clientes() {
 
         const nomeLower = cliente.nome?.toLowerCase() ?? ''
         const palavras = nomeLower.split(' ').filter((p: string) => p.length > 2)
-
         const match = linhasWarez.find((l: any) => {
           const notes = (l.notes ?? '').toLowerCase()
           if (!notes) return false
@@ -170,7 +207,7 @@ export default function Clientes() {
     }
   }
 
-  // ---- Renovar Warez (aceita credits: 1=30d, 2=60d, 3=90d, 6=180d) ----
+  // ---- Renovar Warez ----
   const renovarClienteWarez = async (cliente: Cliente, credits: number = 1) => {
     setRenovandoId(cliente.id)
     try {
@@ -205,35 +242,34 @@ export default function Clientes() {
     }
   }
 
-  // ---- Sincronizar Elite ----
+  // ---- Sincronizar Elite (atualiza usuario, senha E vencimento) ----
   const sincronizarElite = async () => {
     setSincronizandoElite(true)
     setSyncEliteResult(null)
+    setLinhasEliteCache([])
     try {
       const res = await fetch(`${BACKEND_URL}/elite/sincronizar`)
       const data = await res.json()
       if (data.error) throw new Error(data.error)
       const linhasElite: any[] = data.linhas ?? []
+      setLinhasEliteCache(linhasElite)
       let atualizados = 0, pulados = 0, naoEncontrados = 0
 
       for (const cliente of clientes) {
         if (cliente.usuario?.trim()) { pulados++; continue }
         if (!isElite(cliente.servidor)) continue
 
-        const nomeLower = cliente.nome?.toLowerCase() ?? ''
-        const palavras = nomeLower.split(' ').filter((p: string) => p.length > 2)
-
-        const match = linhasElite.find((l: any) => {
-          const name = (l.name ?? l.notes ?? '').toLowerCase()
-          if (!name) return false
-          return palavras.filter((p: string) => name.includes(p)).length >= 2
-        })
-
+        const match = matchElite(cliente, linhasElite)
         if (match) {
-          await updateDoc(doc(db, 'clientes', cliente.id), {
-            usuario: match.username,
-            senha: match.password,
-          })
+          const updates: any = {
+            usuario: match.username ?? '',
+            senha:   match.password ?? '',
+          }
+          // Atualizar vencimento se disponível
+          if (match.exp_date) {
+            updates.vencimento = isoParaBR(match.exp_date)
+          }
+          await updateDoc(doc(db, 'clientes', cliente.id), updates)
           atualizados++
         } else {
           naoEncontrados++
@@ -250,33 +286,62 @@ export default function Clientes() {
     }
   }
 
-  // ---- Renovar Elite (aceita meses: 1, 2, 3, 6) ----
+  // ---- Importar usuario/senha/vencimento Elite para um cliente específico ----
+  const importarElite = async (cliente: Cliente) => {
+    setImportandoId(cliente.id)
+    try {
+      const linhas = await buscarLinhasElite()
+      const match = matchElite(cliente, linhas)
+      if (!match) throw new Error(`Nenhuma linha Elite encontrada para "${cliente.nome}". Verifique se o nome bate com o cadastro no Elite.`)
+
+      const updates: any = {
+        usuario: match.username ?? '',
+        senha:   match.password ?? '',
+      }
+      if (match.exp_date) {
+        updates.vencimento = isoParaBR(match.exp_date)
+      }
+      await updateDoc(doc(db, 'clientes', cliente.id), updates)
+      mostrarMsgPainel('ok', `✅ ${cliente.nome} importado!\n👤 ${match.username}${match.exp_date ? ' | 📅 ' + isoParaBR(match.exp_date) : ''}`)
+    } catch (err: any) {
+      mostrarMsgPainel('erro', `❌ Erro ao importar ${cliente.nome}:\n${err.message}`)
+    } finally {
+      setImportandoId(null)
+    }
+  }
+
+  // ---- Renovar Elite ----
   const renovarClienteElite = async (cliente: Cliente, meses: number = 1) => {
     setRenovandoId(cliente.id)
     try {
       const username = cliente.usuario?.trim()
-      if (!username) throw new Error('Cliente sem usuário. Sincronize o Elite primeiro.')
+      if (!username) throw new Error('Cliente sem usuário. Use o botão Importar primeiro.')
 
-      const syncRes = await fetch(`${BACKEND_URL}/elite/sincronizar`)
-      const syncData = await syncRes.json()
-      const linhas: any[] = syncData.linhas ?? []
+      const linhas = await buscarLinhasElite()
       const linha = linhas.find((l: any) => l.username === username)
       if (!linha) throw new Error(`Usuário "${username}" não encontrado no painel Elite.`)
 
       const renovarRes = await fetch(`${BACKEND_URL}/elite/renovar`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: linha.id, tipo: cliente.tipo ?? 'IPTV', meses }),
+        body: JSON.stringify({ id: linha.id, tipo: linha.tipo ?? cliente.tipo ?? 'IPTV', meses }),
       })
       const renovarData = await renovarRes.json()
       if (!renovarRes.ok) throw new Error(renovarData?.error ?? 'Falha ao renovar no Elite.')
 
-      const expDate = renovarData?.exp_date ?? renovarData?.expiry_date
-      if (!expDate) throw new Error('Renovação feita mas data não retornada pelo painel.')
+      // Elite IPTV retorna new_exp_date: "25/05/2026 23:59"
+      // Elite P2P  retorna new_end_time: "2026-07-25 23:30:00"
+      const rawDate = renovarData?.new_exp_date ?? renovarData?.new_end_time
+      if (!rawDate) throw new Error('Renovação feita mas data não retornada pelo painel.')
 
-      const d = new Date(expDate)
-      const novaDataStr = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
+      // Detecta formato pela presença de '-' no início (ISO) ou '/' (BR)
+      const novaDataStr = rawDate.includes('-')
+        ? isoParaBR(rawDate)       // "2026-07-25 23:30:00" → "25/07/2026"
+        : dtBRParaBR(rawDate)      // "25/05/2026 23:59"    → "25/05/2026"
+
       await updateDoc(doc(db, 'clientes', cliente.id), { vencimento: novaDataStr })
+      // Limpa cache para próxima renovação buscar datas atualizadas
+      setLinhasEliteCache([])
       mostrarMsgPainel('ok', `✅ ${cliente.nome} renovado! (${meses} ${meses === 1 ? 'mês' : 'meses'})\n👤 ${username} | 📅 ${novaDataStr}`)
     } catch (err: any) {
       mostrarMsgPainel('erro', `❌ Erro ao renovar ${cliente.nome}:\n${err.message}`)
@@ -397,10 +462,7 @@ export default function Clientes() {
           value={busca}
           onChange={e => setBusca(e.target.value)}
           placeholder="Buscar por nome, telefone, servidor, usuário..."
-          style={{
-            background: 'transparent', border: 'none', outline: 'none',
-            color: 'white', fontSize: '15px', flex: 1,
-          }}
+          style={{ background: 'transparent', border: 'none', outline: 'none', color: 'white', fontSize: '15px', flex: 1 }}
         />
         {busca && (
           <button onClick={() => setBusca('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.4)' }}>
@@ -435,13 +497,8 @@ export default function Clientes() {
                 onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.03)')}
                 onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
               >
-                {/* Nome */}
                 <td style={{ padding: '14px 16px', color: 'white', fontWeight: '600', fontSize: '14px', whiteSpace: 'nowrap' }}>{c.nome || '—'}</td>
-
-                {/* Telefone */}
                 <td style={{ padding: '14px 16px', color: 'rgba(255,255,255,0.6)', fontSize: '13px', whiteSpace: 'nowrap' }}>{c.telefone || '—'}</td>
-
-                {/* Tipo */}
                 <td style={{ padding: '14px 16px' }}>
                   {c.tipo ? (
                     <span style={{
@@ -452,29 +509,17 @@ export default function Clientes() {
                     }}>{c.tipo}</span>
                   ) : '—'}
                 </td>
-
-                {/* Servidor */}
                 <td style={{ padding: '14px 16px', color: 'rgba(255,255,255,0.7)', fontSize: '13px', whiteSpace: 'nowrap' }}>{c.servidor || '—'}</td>
-
-                {/* Usuário */}
                 <td style={{ padding: '14px 16px', color: 'rgba(255,255,255,0.5)', fontSize: '12px', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{c.usuario || '—'}</td>
-
-                {/* Senha */}
                 <td style={{ padding: '14px 16px', color: 'rgba(255,255,255,0.5)', fontSize: '12px', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{c.senha || '—'}</td>
-
-                {/* Vencimento */}
                 <td style={{ padding: '14px 16px', whiteSpace: 'nowrap' }}>
                   <span style={{ color: corVencimento(c.vencimento), fontWeight: '600', fontSize: '13px' }}>
                     {formatarData(c.vencimento)}
                   </span>
                 </td>
-
-                {/* Valor */}
                 <td style={{ padding: '14px 16px', color: '#4ade80', fontWeight: '600', fontSize: '13px', whiteSpace: 'nowrap' }}>
                   {c.valor ? `R$ ${parseFloat(c.valor).toFixed(2).replace('.', ',')}` : '—'}
                 </td>
-
-                {/* Status */}
                 <td style={{ padding: '14px 16px' }}>
                   <span style={{
                     padding: '4px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: '600',
@@ -485,8 +530,6 @@ export default function Clientes() {
                     {c.status ? c.status.charAt(0).toUpperCase() + c.status.slice(1) : '—'}
                   </span>
                 </td>
-
-                {/* Obs */}
                 <td style={{ padding: '14px 16px', color: 'rgba(255,255,255,0.4)', fontSize: '12px', maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {c.obs || '—'}
                 </td>
@@ -494,6 +537,24 @@ export default function Clientes() {
                 {/* Ações */}
                 <td style={{ padding: '14px 16px', whiteSpace: 'nowrap' }}>
                   <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+
+                    {/* Importar Elite (força re-importação mesmo com usuário preenchido) */}
+                    {isElite(c.servidor) && (
+                      <button
+                        onClick={() => importarElite(c)}
+                        disabled={importandoId === c.id}
+                        title="Importar usuário/senha/vencimento do Elite"
+                        style={{
+                          padding: '6px 10px', borderRadius: '8px', border: 'none',
+                          cursor: importandoId === c.id ? 'not-allowed' : 'pointer',
+                          background: importandoId === c.id ? 'rgba(255,255,255,0.05)' : 'rgba(34,197,94,0.15)',
+                          color: importandoId === c.id ? 'rgba(255,255,255,0.3)' : '#4ade80',
+                          fontSize: '16px',
+                        }}
+                      >
+                        {importandoId === c.id ? '⏳' : <Download size={14} />}
+                      </button>
+                    )}
 
                     {/* Renovar Warez */}
                     {isWarez(c.servidor) && (
@@ -532,26 +593,18 @@ export default function Clientes() {
                     )}
 
                     {/* Editar */}
-                    <button
-                      onClick={() => abrirModal(c)}
-                      title="Editar"
-                      style={{
-                        padding: '6px 10px', borderRadius: '8px', border: 'none',
-                        cursor: 'pointer', background: 'rgba(99,102,241,0.15)', color: '#818cf8', fontSize: '16px',
-                      }}
-                    >
+                    <button onClick={() => abrirModal(c)} title="Editar" style={{
+                      padding: '6px 10px', borderRadius: '8px', border: 'none',
+                      cursor: 'pointer', background: 'rgba(99,102,241,0.15)', color: '#818cf8',
+                    }}>
                       <Pencil size={14} />
                     </button>
 
                     {/* Excluir */}
-                    <button
-                      onClick={() => excluirCliente(c.id)}
-                      title="Excluir"
-                      style={{
-                        padding: '6px 10px', borderRadius: '8px', border: 'none',
-                        cursor: 'pointer', background: 'rgba(239,68,68,0.15)', color: '#f87171', fontSize: '16px',
-                      }}
-                    >
+                    <button onClick={() => excluirCliente(c.id)} title="Excluir" style={{
+                      padding: '6px 10px', borderRadius: '8px', border: 'none',
+                      cursor: 'pointer', background: 'rgba(239,68,68,0.15)', color: '#f87171',
+                    }}>
                       <Trash2 size={14} />
                     </button>
                   </div>
@@ -565,98 +618,51 @@ export default function Clientes() {
       {/* ===== MODAL PERÍODO DE RENOVAÇÃO ===== */}
       {modalRenovar && clienteParaRenovar && (
         <div
-          style={{
-            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            zIndex: 1000, padding: '20px',
-          }}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}
           onClick={e => { if (e.target === e.currentTarget) setModalRenovar(false) }}
         >
           <div className="glass-card" style={{ width: '100%', maxWidth: '400px', padding: '32px' }}>
-            {/* Título */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-              <h2 style={{ color: 'white', fontWeight: 'bold', fontSize: '18px', margin: 0 }}>
-                Renovar Assinatura
-              </h2>
-              <button onClick={() => setModalRenovar(false)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.5)' }}>
+              <h2 style={{ color: 'white', fontWeight: 'bold', fontSize: '18px', margin: 0 }}>Renovar Assinatura</h2>
+              <button onClick={() => setModalRenovar(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.5)' }}>
                 <X size={20} />
               </button>
             </div>
-
             <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '13px', marginBottom: '20px', marginTop: '4px' }}>
               Cliente: <strong style={{ color: 'white' }}>{clienteParaRenovar.nome}</strong>
             </p>
-
             <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '12px', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
               Selecione o período
             </p>
-
-            {/* Opções de período */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '28px' }}>
               {(isElite(clienteParaRenovar.servidor)
-                ? [
-                    { label: '1 mês',   value: 1 },
-                    { label: '2 meses', value: 2 },
-                    { label: '3 meses', value: 3 },
-                    { label: '6 meses', value: 6 },
-                  ]
-                : [
-                    { label: '30 dias',  value: 30 },
-                    { label: '60 dias',  value: 60 },
-                    { label: '90 dias',  value: 90 },
-                    { label: '180 dias', value: 180 },
-                  ]
+                ? [{ label: '1 mês', value: 1 }, { label: '2 meses', value: 2 }, { label: '3 meses', value: 3 }, { label: '6 meses', value: 6 }]
+                : [{ label: '30 dias', value: 30 }, { label: '60 dias', value: 60 }, { label: '90 dias', value: 90 }, { label: '180 dias', value: 180 }]
               ).map(opt => {
-                const isEliteClient = isElite(clienteParaRenovar.servidor)
+                const eliteClient = isElite(clienteParaRenovar.servidor)
                 const selected = periodoRenovar === opt.value
                 return (
-                  <button
-                    key={opt.value}
-                    onClick={() => setPeriodoRenovar(opt.value)}
-                    style={{
-                      padding: '14px', borderRadius: '10px', cursor: 'pointer',
-                      fontWeight: 'bold', fontSize: '14px', transition: 'all 0.15s',
-                      background: selected
-                        ? (isEliteClient ? 'rgba(168,85,247,0.35)' : 'rgba(59,130,246,0.35)')
-                        : 'rgba(255,255,255,0.06)',
-                      border: selected
-                        ? (isEliteClient ? '1px solid rgba(168,85,247,0.7)' : '1px solid rgba(59,130,246,0.7)')
-                        : '1px solid rgba(255,255,255,0.1)',
-                      color: selected
-                        ? (isEliteClient ? '#c084fc' : '#60a5fa')
-                        : 'rgba(255,255,255,0.55)',
-                    }}
-                  >
+                  <button key={opt.value} onClick={() => setPeriodoRenovar(opt.value)} style={{
+                    padding: '14px', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px', transition: 'all 0.15s',
+                    background: selected ? (eliteClient ? 'rgba(168,85,247,0.35)' : 'rgba(59,130,246,0.35)') : 'rgba(255,255,255,0.06)',
+                    border: selected ? (eliteClient ? '1px solid rgba(168,85,247,0.7)' : '1px solid rgba(59,130,246,0.7)') : '1px solid rgba(255,255,255,0.1)',
+                    color: selected ? (eliteClient ? '#c084fc' : '#60a5fa') : 'rgba(255,255,255,0.55)',
+                  }}>
                     {opt.label}
                   </button>
                 )
               })}
             </div>
-
-            {/* Botões de ação */}
             <div style={{ display: 'flex', gap: '12px' }}>
-              <button
-                onClick={() => setModalRenovar(false)}
-                style={{
-                  flex: 1, padding: '12px', borderRadius: '10px',
-                  border: '1px solid rgba(255,255,255,0.15)', background: 'transparent',
-                  color: 'rgba(255,255,255,0.6)', cursor: 'pointer', fontSize: '14px', fontWeight: '600',
-                }}
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={confirmarRenovar}
-                style={{
-                  flex: 1, padding: '12px', borderRadius: '10px', border: 'none',
-                  cursor: 'pointer', fontWeight: 'bold', fontSize: '14px', color: 'white',
-                  background: isElite(clienteParaRenovar.servidor)
-                    ? 'linear-gradient(135deg,#a855f7,#7c3aed)'
-                    : 'linear-gradient(135deg,#3b82f6,#6366f1)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-                }}
-              >
+              <button onClick={() => setModalRenovar(false)} style={{
+                flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.15)',
+                background: 'transparent', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', fontSize: '14px', fontWeight: '600',
+              }}>Cancelar</button>
+              <button onClick={confirmarRenovar} style={{
+                flex: 1, padding: '12px', borderRadius: '10px', border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px', color: 'white',
+                background: isElite(clienteParaRenovar.servidor) ? 'linear-gradient(135deg,#a855f7,#7c3aed)' : 'linear-gradient(135deg,#3b82f6,#6366f1)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+              }}>
                 <Check size={16} /> Confirmar
               </button>
             </div>
@@ -667,11 +673,7 @@ export default function Clientes() {
       {/* ===== MODAL CADASTRO/EDIÇÃO ===== */}
       {modalAberto && (
         <div
-          style={{
-            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            zIndex: 1000, padding: '20px',
-          }}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}
           onClick={e => { if (e.target === e.currentTarget) fecharModal() }}
         >
           <div className="glass-card" style={{ width: '100%', maxWidth: '560px', padding: '32px', maxHeight: '90vh', overflowY: 'auto' }}>
@@ -683,7 +685,6 @@ export default function Clientes() {
                 <X size={20} />
               </button>
             </div>
-
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
               {([
                 { label: 'Nome', field: 'nome', type: 'text' },
@@ -696,73 +697,36 @@ export default function Clientes() {
                 { label: 'Obs.', field: 'obs', type: 'text' },
               ] as { label: string; field: keyof Omit<Cliente, 'id'>; type: string }[]).map(({ label, field, type }) => (
                 <div key={field} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <label style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    {label}
-                  </label>
+                  <label style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</label>
                   <input
                     type={type}
                     value={(clienteEditando as any)[field] || ''}
                     onChange={e => setClienteEditando(prev => ({ ...prev, [field]: e.target.value }))}
-                    style={{
-                      background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)',
-                      borderRadius: '8px', padding: '10px 14px', color: 'white', fontSize: '14px', outline: 'none',
-                    }}
+                    style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '8px', padding: '10px 14px', color: 'white', fontSize: '14px', outline: 'none' }}
                   />
                 </div>
               ))}
-
-              {/* Tipo */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  Tipo
-                </label>
-                <select
-                  value={clienteEditando.tipo}
-                  onChange={e => setClienteEditando(prev => ({ ...prev, tipo: e.target.value }))}
-                  style={{
-                    background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)',
-                    borderRadius: '8px', padding: '10px 14px', color: 'white', fontSize: '14px', outline: 'none',
-                  }}
-                >
+                <label style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Tipo</label>
+                <select value={clienteEditando.tipo} onChange={e => setClienteEditando(prev => ({ ...prev, tipo: e.target.value }))}
+                  style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '8px', padding: '10px 14px', color: 'white', fontSize: '14px', outline: 'none' }}>
                   <option value="IPTV" style={{ background: '#1a1a2e' }}>IPTV</option>
                   <option value="P2P" style={{ background: '#1a1a2e' }}>P2P</option>
                 </select>
               </div>
-
-              {/* Status */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  Status
-                </label>
-                <select
-                  value={clienteEditando.status}
-                  onChange={e => setClienteEditando(prev => ({ ...prev, status: e.target.value }))}
-                  style={{
-                    background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)',
-                    borderRadius: '8px', padding: '10px 14px', color: 'white', fontSize: '14px', outline: 'none',
-                  }}
-                >
+                <label style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status</label>
+                <select value={clienteEditando.status} onChange={e => setClienteEditando(prev => ({ ...prev, status: e.target.value }))}
+                  style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '8px', padding: '10px 14px', color: 'white', fontSize: '14px', outline: 'none' }}>
                   <option value="ativo" style={{ background: '#1a1a2e' }}>Ativo</option>
                   <option value="suspenso" style={{ background: '#1a1a2e' }}>Suspenso</option>
                   <option value="inativo" style={{ background: '#1a1a2e' }}>Inativo</option>
                 </select>
               </div>
             </div>
-
             <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
-              <button onClick={fecharModal} style={{
-                flex: 1, padding: '12px', borderRadius: '10px',
-                border: '1px solid rgba(255,255,255,0.15)', background: 'transparent',
-                color: 'rgba(255,255,255,0.6)', cursor: 'pointer', fontSize: '14px', fontWeight: '600',
-              }}>
-                Cancelar
-              </button>
-              <button onClick={salvarCliente} disabled={carregando} style={{
-                flex: 1, padding: '12px', borderRadius: '10px', border: 'none',
-                cursor: carregando ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '14px',
-                color: 'white', background: 'linear-gradient(135deg,#3b82f6,#6366f1)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-              }}>
+              <button onClick={fecharModal} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.15)', background: 'transparent', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', fontSize: '14px', fontWeight: '600' }}>Cancelar</button>
+              <button onClick={salvarCliente} disabled={carregando} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', cursor: carregando ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '14px', color: 'white', background: 'linear-gradient(135deg,#3b82f6,#6366f1)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
                 <Check size={16} /> {carregando ? 'Salvando...' : 'Salvar'}
               </button>
             </div>
