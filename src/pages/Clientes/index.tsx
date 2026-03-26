@@ -548,7 +548,7 @@ export default function Clientes() {
                   <div style={{ position: 'relative', display: 'inline-block' }}>
                     {/* Botão ⋮ */}
                     <button
-                      onClick={() => setMenuAbertoId(menuAbertoId === c.id ? null : c.id)}
+                      onClick={(e) => { e.stopPropagation(); setMenuAbertoId(menuAbertoId === c.id ? null : c.id) }}
                       style={{
                         width: '32px', height: '32px', borderRadius: '8px', border: 'none',
                         cursor: 'pointer', background: 'rgba(255,255,255,0.08)',
@@ -561,6 +561,7 @@ export default function Clientes() {
                     {/* Menu dropdown */}
                     {menuAbertoId === c.id && (
                       <div
+                        onClick={(e) => e.stopPropagation()}
                         style={{
                           position: 'absolute', right: 0, top: '38px', zIndex: 500,
                           background: '#1e1e30', border: '1px solid rgba(255,255,255,0.12)',
