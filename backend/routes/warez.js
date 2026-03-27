@@ -151,8 +151,22 @@ export default function createWarezRouter(enviarMensagemRenovacao) {
     try {
       const lineId  = req.params.lineId
       const credits = req.body?.credits ?? 1
+      const { nome, telefone, usuario, senha } = req.body ?? {}
       const data    = await wpFetch(`/lines/extend/${lineId}`, 'PATCH', { credits })
       console.log(`[RENOVAR WAREZ] lineId=${lineId} credits=${credits} resposta=`, JSON.stringify(data))
+
+      // Extrai nova data de vencimento
+      let vencimento = null
+      const expRaw = data?.exp_date ?? data?.expiry_date
+      if (expRaw) {
+        const d = new Date(expRaw)
+        if (!isNaN(d.getTime())) {
+          vencimento = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`
+        }
+      }
+      if (enviarMensagemRenovacao && telefone) {
+        enviarMensagemRenovacao(telefone, { nome, usuario, senha, vencimento })
+      }
       res.json(data)
     } catch (err) { res.status(500).json({ error: err.message }) }
   })

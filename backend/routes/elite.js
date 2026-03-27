@@ -187,7 +187,7 @@ export default function createEliteRouter(enviarMensagemRenovacao) {
 
   router.post('/elite/renovar', async (req, res) => {
     try {
-      const { id, tipo, meses = 1 } = req.body
+      const { id, tipo, meses = 1, nome, telefone, usuario, senha } = req.body
       if (!id || !tipo) return res.status(400).json({ error: 'id e tipo sao obrigatorios' })
       const t    = tipo.toLowerCase() === 'p2p' ? 'p2p' : 'iptv'
       const n    = Number(meses)
@@ -195,6 +195,19 @@ export default function createEliteRouter(enviarMensagemRenovacao) {
       const body = n <= 1 ? null : { user_id: id, months: n }
       const data = await eliteFetch(path, 'POST', body)
       console.log(`[Elite] RENOVAR id=${id} tipo=${t} meses=${n}`, JSON.stringify(data))
+
+      // Extrai nova data
+      let vencimento = null
+      if (data?.new_exp_date) {
+        const m = data.new_exp_date.match(/(\d{2})\/(\d{2})\/(\d{4})/)
+        vencimento = m ? `${m[1]}/${m[2]}/${m[3]}` : null
+      } else if (data?.new_end_time) {
+        const d = new Date(data.new_end_time)
+        vencimento = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`
+      }
+      if (enviarMensagemRenovacao && telefone) {
+        enviarMensagemRenovacao(telefone, { nome, usuario, senha, vencimento })
+      }
       res.json(data)
     } catch (err) {
       console.error('[Elite] renovar erro:', err.message)

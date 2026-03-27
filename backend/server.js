@@ -19,10 +19,10 @@ app.use(cors())
 app.use(express.json())
 
 // ---- Routers ----
-const { router: whatsappRouter, inicializar: inicializarWA } = createWhatsAppRouter(db, admin)
-const { router: warezRouter }   = createWarezRouter()
-const { router: eliteRouter }   = createEliteRouter()
-const { router: centralRouter } = createCentralRouter()
+const { router: whatsappRouter, inicializar: inicializarWA, enviarMensagemRenovacao } = createWhatsAppRouter(db, admin)
+const { router: warezRouter }   = createWarezRouter(enviarMensagemRenovacao)
+const { router: eliteRouter }   = createEliteRouter(enviarMensagemRenovacao)
+const { router: centralRouter } = createCentralRouter(db, admin, enviarMensagemRenovacao)
 
 app.use('/', whatsappRouter)
 app.use('/', warezRouter)

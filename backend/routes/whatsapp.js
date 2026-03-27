@@ -81,12 +81,15 @@ export default function createWhatsAppRouter(db, admin) {
         version,
         auth: state,
         printQRInTerminal: false,
-        generateHighQualityLinkPreview: true,
-        browser: ['Sistema TV', 'Chrome', '1.0'],
-        keepAliveIntervalMs: 30000,
+        generateHighQualityLinkPreview: false,
+        browser: ['Ubuntu', 'Chrome', '20.0.04'],
+        keepAliveIntervalMs: 25000,
         connectTimeoutMs:    60000,
         retryRequestDelayMs: 2000,
         qrTimeout:           60000,
+        markOnlineOnConnect: false,
+        syncFullHistory:     false,
+        shouldSyncHistoryMessage: () => false,
       })
 
       sock.ev.on('creds.update', saveCreds)
@@ -108,9 +111,9 @@ export default function createWhatsAppRouter(db, admin) {
           const statusCode = lastDisconnect?.error?.output?.statusCode
           console.log('Desconectado', statusCode)
 
-          if (statusCode === 440 || statusCode === 401) {
-            // 440 = outra sessão conectou | 401 = sessão inválida → limpar auth e pedir novo QR
-            console.log('Sessão invalidada — limpando auth do Firestore...')
+          if (statusCode === 401) {
+            // 401 = sessão inválida → limpar auth e pedir novo QR
+            console.log('Sessão inválida (401) — limpando auth...')
             try {
               const snap  = await db.collection('whatsapp_auth').get()
               const batch = db.batch()
@@ -121,6 +124,13 @@ export default function createWhatsAppRouter(db, admin) {
               console.error('Erro ao limpar auth:', e.message)
             }
             setTimeout(conectarWhatsApp, 3000)
+          } else if (statusCode === 440) {
+            // 440 = outra sessão conectou momentaneamente → aguarda e reconecta sem limpar auth
+            console.log('Sessão substituída (440) — reconectando em 20s...')
+            setTimeout(conectarWhatsApp, 20000)
+          } else if (statusCode === 428) {
+            console.log('Reconectando em 15s...')
+            setTimeout(conectarWhatsApp, 15000)
           } else {
             const delay = statusCode === 408 ? 5000 : 10000
             console.log(`Reconectando em ${delay / 1000}s...`)
@@ -456,58 +466,34 @@ export default function createWhatsAppRouter(db, admin) {
   })
 
   // ---- Enviar mensagem de renovação ----
-
   const enviarMensagemRenovacao = async (telefone, dados) => {
-    if (!telefone) {
-      console.warn('[WA] enviarMensagemRenovacao: telefone vazio, ignorando')
-      return
-    }
-
+    if (!telefone) return
     try {
-      // Busca template no Firestore
       const snap = await db.collection('config_whatsapp').doc('template_renovacao').get()
       let template = snap.exists
         ? snap.data().mensagem
-        : `✅ *Renovação realizada!*
+        : `✅ *Renovação realizada!*\n\nOlá, *{nome}*! 🎉\n\nSeu serviço foi renovado com sucesso.\n\n📋 *Seus dados de acesso:*\n👤 Usuário: *{usuario}*\n🔑 Senha: *{senha}*\n📅 Válido até: *{vencimento}*\n\nEm caso de dúvidas, fale comigo! 😊`
 
-Olá! 🎉
-
-Seu serviço foi renovado com sucesso.
-
-📋 *Seus dados de acesso:*
-👤 Usuário: *{usuario}*
-🔑 Senha: *{senha}*
-📅 Válido até: *{vencimento}*
-
-Em caso de dúvidas, fale comigo! 😊`
-
-      // Substitui variáveis
       const mensagem = template
-        .replace(/{nome}/g,       dados.nome       ?? '')
-        .replace(/{usuario}/g,    dados.usuario    ?? '')
-        .replace(/{senha}/g,      dados.senha      ?? '')
+        .replace(/{nome}/g, dados.nome ?? '')
+        .replace(/{usuario}/g, dados.usuario ?? '')
+        .replace(/{senha}/g, dados.senha ?? '')
         .replace(/{vencimento}/g, dados.vencimento ?? '')
 
       if (clientReady && sock) {
-        // Envia imediatamente
         const numero = normalizarTelefone(telefone)
         await sock.sendMessage(numero, { text: mensagem })
-        console.log(`[WA] ✅ Mensagem de renovação enviada para ${telefone}`)
+        console.log(`[WA] ✅ Renovação enviada para ${telefone}`)
       } else {
-        // Salva na fila
         await db.collection('filaEnvios').add({
-          nome:      dados.nome ?? '',
-          telefone,
-          mensagem,
-          status:    'pendente',
-          gatilho:   'renovacao',
-          tentativas: 0,
-          criadoEm:  new Date(),
+          nome: dados.nome ?? '', telefone, mensagem,
+          status: 'pendente', gatilho: 'renovacao',
+          tentativas: 0, criadoEm: new Date(),
         })
-        console.log(`[WA] 📋 Renovação na fila (WA desconectado): ${dados.nome} ${telefone}`)
+        console.log(`[WA] 📋 Renovação na fila (WA offline): ${dados.nome}`)
       }
     } catch (err) {
-      console.error('[WA] Erro ao enviar mensagem de renovação:', err.message)
+      console.error('[WA] Erro msg renovação:', err.message)
     }
   }
 
