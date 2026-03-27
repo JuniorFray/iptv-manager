@@ -17,7 +17,7 @@ export default function createCentralRouter(db, admin) {
   const resolverCaptcha = async () => {
     const apiKey  = process.env.CAPSOLVER_KEY
     const sitekey = '6LeJTpIeAAAAALiuQPGPcaXbs9XL-cKdwEBuOmJ7'
-    const pageURL = 'https://painel.fun/login'
+    const pageURL = 'https://painel.fun'
 
     console.log('🤖 [Central] Resolvendo reCAPTCHA via CapSolver...')
 
