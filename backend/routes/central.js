@@ -12,7 +12,8 @@ export default function createCentralRouter(db, admin) {
   const resolverCaptcha = async () => {
     const apiKey  = process.env.CAPSOLVER_KEY
     const sitekey = '6LeJTpIeAAAAALiuQPGPcaXbs9XL-cKdwEBuOmJ7'
-    const pageURL = 'https://painel.fun'
+    // Tenta domínios alternativos onde o sitekey pode estar registrado
+    const pageURL = 'https://controle.vip'
 
     console.log('🤖 [Central] Resolvendo reCAPTCHA via CapSolver...')
 
