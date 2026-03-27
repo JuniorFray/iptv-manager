@@ -16,25 +16,37 @@
 - Ver `docs/WHATSAPP_SESSAO_FIRESTORE.md`
 
 #### Elite — Integração corrigida e funcional
-- Descoberto que a API requer os parâmetros completos do DataTables (sem eles retorna 500)
-- Corrigido o CSRF token: usar `<meta name="csrf-token">` (curto), não o cookie `XSRF-TOKEN` (longo)
-- Endpoints corretos descobertos via inspeção do Network do browser:
-  - Listagem: `GET /dashboard/iptv?draw=1&columns[...]`
-  - Renovar: `POST /api/iptv/renewone/{id}` e `POST /api/p2p/renewone/{id}`
+- Descoberto que a API requer os parâmetros completos do DataTables
+- Corrigido o CSRF token: usar `<meta name="csrf-token">` (curto), não o cookie `XSRF-TOKEN`
+- Endpoints corretos descobertos via inspeção do Network
 - Adicionado lock de login para evitar logins simultâneos
 - Tratamento de manutenção do servidor
 - Ver `docs/ELITE_INTEGRACAO_V2.md`
+
+#### Central — Integração com CapSolver
+- Login automático via Cloudflare Turnstile resolvido pelo CapSolver
+- Sitekey correto: `0x4AAAAAACFhU7XJduqvbHH2` (domínio `controle.vip`)
+- Token JWT salvo no Firestore, renovado automaticamente a cada 55min
+- Paginação automática para buscar todos os clientes
+- Conversão de `exp_date` (unix timestamp) para `DD/MM/YYYY`
+- Ver `docs/CENTRAL_INTEGRACAO.md`
 
 ### Frontend
 
 #### Página Clientes — Melhorias
 - Sincronizar Elite agora também atualiza vencimento
 - Botão **Importar Elite** por linha (força importação mesmo com usuário preenchido)
-- Renovação Elite: corrigido parsing de data (`new_exp_date` e `new_end_time`)
-- Matching Elite: busca por username primeiro, nome como fallback
+- Renovação Elite: corrigido parsing de data
+- Matching Elite/Central: busca por username primeiro, nome como fallback
 - Ações em dropdown ⋮ (menu compacto por linha)
 - Tabela compacta com todas as colunas visíveis
 - Layout com `marginLeft: 176px` para o menu lateral
+
+#### Central no Frontend
+- Botão **Sincronizar Central** (amarelo) no cabeçalho
+- **Importar Central** no dropdown ⋮ de cada cliente Central
+- **Renovar** funcionando para clientes Central
+- Cores amarelas para identificar visualmente clientes Central
 
 #### Menu Lateral
 - Largura reduzida de 240px para 176px
