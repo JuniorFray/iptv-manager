@@ -8,41 +8,56 @@ export default function createCentralRouter(db, admin) {
   let centralTokenExp = 0
   let loginPromise    = null
 
-  // ---- 2captcha ----
+  // ---- CapSolver ----
   const resolverCaptcha = async () => {
-    const apiKey  = process.env.TWOCAPTCHA_KEY
+    const apiKey  = process.env.CAPSOLVER_KEY
     const sitekey = '6LeJTpIeAAAAALiuQPGPcaXbs9XL-cKdwEBuOmJ7'
     const pageURL = 'https://painel.fun'
 
-    console.log('🤖 [Central] Resolvendo reCAPTCHA via 2captcha...')
+    console.log('🤖 [Central] Resolvendo reCAPTCHA via CapSolver...')
 
-    // Envia tarefa
-    const submitRes = await fetch(
-      `https://2captcha.com/in.php?key=${apiKey}&method=userrecaptcha&googlekey=${sitekey}&pageurl=${encodeURIComponent(pageURL)}&invisible=1&json=1`,
-      { method: 'GET' }
-    )
-    const submitData = await submitRes.json()
-    console.log('🤖 [2captcha] submit:', JSON.stringify(submitData))
+    const createRes = await fetch('https://api.capsolver.com/createTask', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        clientKey: apiKey,
+        task: {
+          type:        'ReCaptchaV2TaskProxyLess',
+          websiteURL:  pageURL,
+          websiteKey:  sitekey,
+          isInvisible: true,
+        }
+      })
+    })
 
-    if (submitData.status !== 1) throw new Error(`[2captcha] Erro ao enviar: ${submitData.request}`)
-    const taskId = submitData.request
+    const createData = await createRes.json()
+    console.log('🤖 [CapSolver] create:', JSON.stringify(createData))
+    if (createData.errorId) throw new Error(`[CapSolver] Erro: ${createData.errorDescription}`)
 
-    // Aguarda resultado
+    const taskId = createData.taskId
+
     for (let i = 0; i < 24; i++) {
       await new Promise(r => setTimeout(r, 5000))
-      const resultRes = await fetch(`https://2captcha.com/res.php?key=${apiKey}&action=get&id=${taskId}&json=1`)
+      const resultRes = await fetch('https://api.capsolver.com/getTaskResult', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientKey: apiKey, taskId })
+      })
       const result = await resultRes.json()
-      console.log(`⏳ [2captcha] ${result.request} (${(i+1)*5}s)`)
+      console.log(`⏳ [CapSolver] ${result.status} (${(i+1)*5}s)`)
 
-      if (result.status === 1) {
+      if (result.status === 'ready') {
+        const token = result.solution?.gRecaptchaResponse
+        if (!token) throw new Error('[CapSolver] Token vazio')
         console.log('✅ [Central] reCAPTCHA resolvido!')
-        return result.request
+        return token
       }
-      if (result.request !== 'CAPCHA_NOT_READY') {
-        throw new Error(`[2captcha] Falhou: ${result.request}`)
+      if (result.status === 'failed') {
+        console.log('❌ [CapSolver]:', JSON.stringify(result))
+        throw new Error(`[CapSolver] Tarefa falhou: ${result.errorDescription}`)
       }
     }
-    throw new Error('[Central] 2captcha timeout')
+    throw new Error('[Central] CapSolver timeout')
   }
 
   // ---- Login ----
@@ -71,11 +86,18 @@ export default function createCentralRouter(db, admin) {
     centralToken    = data.token
     centralTokenExp = Date.now() + (55 * 60 * 1000)
 
-    await db.collection('config_central').doc('central_token').set({
-      token: centralToken,
-      exp:   Math.floor(centralTokenExp / 1000),
-      atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
-    })
+    // Salva no Firestore
+    if (db) {
+      try {
+        await db.collection('config_central').doc('central_token').set({
+          token: centralToken,
+          exp:   Math.floor(centralTokenExp / 1000),
+          atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+        })
+      } catch (e) {
+        console.warn('[Central] Falha ao salvar Firestore:', e.message)
+      }
+    }
 
     console.log('✅ [Central] Login OK:', data.user?.username)
     return centralToken
@@ -90,19 +112,22 @@ export default function createCentralRouter(db, admin) {
   const getToken = async () => {
     if (centralToken && Date.now() < centralTokenExp) return centralToken
 
-    try {
-      const snap = await db.collection('config_central').doc('central_token').get()
-      if (snap.exists) {
-        const { token, exp } = snap.data()
-        if (token && (exp * 1000) > Date.now() + 60000) {
-          centralToken    = token
-          centralTokenExp = exp * 1000
-          console.log('[Central] Token do Firestore OK')
-          return centralToken
+    // Tenta recuperar token salvo no Firestore
+    if (db) {
+      try {
+        const snap = await db.collection('config_central').doc('central_token').get()
+        if (snap.exists) {
+          const { token, exp } = snap.data()
+          if (token && (exp * 1000) > Date.now() + 60000) {
+            centralToken    = token
+            centralTokenExp = exp * 1000
+            console.log('[Central] Token do Firestore OK')
+            return centralToken
+          }
         }
+      } catch (e) {
+        console.warn('[Central] Firestore err:', e.message)
       }
-    } catch (e) {
-      console.warn('[Central] Firestore err:', e.message)
     }
 
     return centralLogin()
@@ -110,7 +135,6 @@ export default function createCentralRouter(db, admin) {
 
   const centralFetch = async (path, method = 'GET', body = null, retry = true) => {
     const token = await getToken()
-
     const res = await fetch(`${BASE_URL}${path}`, {
       method,
       headers: {
@@ -154,10 +178,12 @@ export default function createCentralRouter(db, admin) {
         centralTokenExp = p.exp ? p.exp * 1000 : Date.now() + 55 * 60 * 1000
       } catch { centralTokenExp = Date.now() + 55 * 60 * 1000 }
 
-      await db.collection('config_central').doc('central_token').set({
-        token, exp: Math.floor(centralTokenExp / 1000),
-        atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
-      })
+      if (db) {
+        await db.collection('config_central').doc('central_token').set({
+          token, exp: Math.floor(centralTokenExp / 1000),
+          atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+        })
+      }
       res.json({ ok: true, expira: new Date(centralTokenExp).toISOString() })
     } catch (err) { res.status(500).json({ error: err.message }) }
   })
@@ -203,7 +229,7 @@ export default function createCentralRouter(db, admin) {
 
   router.post('/central/renovar', async (req, res) => {
     try {
-      const { id, meses = 1 } = req.body
+      const { id } = req.body
       if (!id) return res.status(400).json({ error: 'id obrigatorio' })
       const packageId = Number(process.env.CENTRAL_PACKAGE_ID ?? 17)
       const data = await centralFetch(`/users/${id}/renew`, 'POST', { package_id: packageId })
