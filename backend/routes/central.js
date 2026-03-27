@@ -28,16 +28,18 @@ export default function createCentralRouter(db, admin) {
       body: JSON.stringify({
         clientKey: apiKey,
         task: {
-          type:    'ReCaptchaV2TaskProxyLess',
+          type:       'ReCaptchaV2TaskProxyless',
           websiteURL: pageURL,
           websiteKey: sitekey,
           isInvisible: true,
+          userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         }
       })
     })
 
     const createData = await createRes.json()
-    if (createData.errorId) throw new Error(`[CapSolver] Erro ao criar tarefa: ${createData.errorDescription}`)
+    console.log('🤖 [CapSolver] createTask response:', JSON.stringify(createData).substring(0, 300))
+    if (createData.errorId) throw new Error(`[CapSolver] Erro ao criar tarefa: ${createData.errorDescription} (errorId=${createData.errorId})`)
 
     const taskId = createData.taskId
     console.log(`🤖 [Central] Tarefa criada: ${taskId}`)
