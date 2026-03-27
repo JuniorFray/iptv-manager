@@ -391,7 +391,65 @@ export default function Clientes() {
     }
   }
 
-  // ---- Modal de período ----
+  // ---- Sincronizar Central ----
+  const sincronizarCentral = async () => {
+    setSincronizandoCentral(true)
+    setSyncCentralResult(null)
+    try {
+      const res = await fetch(`${BACKEND_URL}/central/sincronizar`)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = await res.json()
+      const linhas: any[] = data.linhas ?? []
+      setLinhasCentralCache(linhas)
+
+      let atualizados = 0
+      for (const cliente of clientes) {
+        if (!isCentral(cliente.servidor)) continue
+        const linha = matchCentral(cliente, linhas)
+        if (!linha) continue
+        const updates: any = {}
+        if (linha.username && linha.username !== cliente.usuario) updates.usuario = linha.username
+        if (linha.password && linha.password !== cliente.senha) updates.senha = linha.password
+        if (linha.exp_date && linha.exp_date !== cliente.vencimento) updates.vencimento = linha.exp_date
+        if (Object.keys(updates).length > 0) {
+          await updateDoc(doc(db, 'clientes', cliente.id), updates)
+          atualizados++
+        }
+      }
+      setSyncCentralResult({ tipo: 'ok', msg: `Central sincronizado: ${atualizados} cliente(s) atualizado(s)` })
+    } catch (e: any) {
+      setSyncCentralResult({ tipo: 'erro', msg: `Erro Central: ${e.message}` })
+    } finally {
+      setSincronizandoCentral(false)
+    }
+  }
+
+  const importarCentral = async (cliente: Cliente) => {
+    setImportandoId(cliente.id)
+    try {
+      let linhas = linhasCentralCache
+      if (linhas.length === 0) {
+        const res = await fetch(`${BACKEND_URL}/central/sincronizar`)
+        const data = await res.json()
+        linhas = data.linhas ?? []
+        setLinhasCentralCache(linhas)
+      }
+      const linha = matchCentral(cliente, linhas)
+      if (!linha) throw new Error('Cliente não encontrado no Central')
+      await updateDoc(doc(db, 'clientes', cliente.id), {
+        usuario:    linha.username ?? cliente.usuario,
+        senha:      linha.password ?? cliente.senha,
+        vencimento: linha.exp_date ?? cliente.vencimento,
+      })
+      mostrarMsgPainel('ok', `Central: ${cliente.nome} importado com sucesso!`)
+    } catch (e: any) {
+      mostrarMsgPainel('erro', `Erro ao importar ${cliente.nome}: ${e.message}`)
+    } finally {
+      setImportandoId(null)
+    }
+  }
+
+    // ---- Modal de período ----
   const abrirModalRenovar = (cliente: Cliente) => {
     setClienteParaRenovar(cliente)
     setPeriodoRenovar((isElite(cliente.servidor) || isCentral(cliente.servidor)) ? 1 : 30)
