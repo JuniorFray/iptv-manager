@@ -472,7 +472,7 @@ export default function createWhatsAppRouter(db, admin) {
       const snap = await db.collection('config_whatsapp').doc('template_renovacao').get()
       let template = snap.exists
         ? snap.data().mensagem
-        : `✅ *Renovação realizada!*\n\nOlá, *{nome}*! 🎉\n\nSeu serviço foi renovado com sucesso.\n\n📋 *Seus dados de acesso:*\n👤 Usuário: *{usuario}*\n🔑 Senha: *{senha}*\n📅 Válido até: *{vencimento}*\n\nEm caso de dúvidas, fale comigo! 😊`
+        : `✅ *Renovação realizada!*\n\nOlá! 🎉\n\nSeu serviço foi renovado com sucesso.\n\n📋 *Seus dados de acesso:*\n👤 Usuário: *{usuario}*\n🔑 Senha: *{senha}*\n📅 Válido até: *{vencimento}*\n\nEm caso de dúvidas, fale comigo! 😊`
 
       const mensagem = template
         .replace(/{nome}/g, dados.nome ?? '')
