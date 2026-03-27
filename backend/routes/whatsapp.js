@@ -470,7 +470,7 @@ export default function createWhatsAppRouter(db, admin) {
         ? snap.data().mensagem
         : `✅ *Renovação realizada!*
 
-Olá, *{nome}*! 🎉
+Olá! 🎉
 
 Seu serviço foi renovado com sucesso.
 
