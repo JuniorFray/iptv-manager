@@ -59,6 +59,11 @@ export default function Clientes() {
   const [syncEliteResult, setSyncEliteResult] = useState<{ tipo: 'ok' | 'erro'; msg: string } | null>(null)
   const [linhasEliteCache, setLinhasEliteCache] = useState<any[]>([])
 
+  // Central
+  const [sincronizandoCentral, setSincronizandoCentral] = useState(false)
+  const [syncCentralResult, setSyncCentralResult] = useState<{ tipo: 'ok' | 'erro'; msg: string } | null>(null)
+  const [linhasCentralCache, setLinhasCentralCache] = useState<any[]>([])
+
   // Modal de período de renovação
   const [modalRenovar, setModalRenovar] = useState(false)
   const [clienteParaRenovar, setClienteParaRenovar] = useState<Cliente | null>(null)
@@ -148,8 +153,9 @@ export default function Clientes() {
   }
 
   // ---- Helpers de servidor ----
-  const isWarez = (servidor: string) => servidor?.toUpperCase().includes('WAREZ')
-  const isElite = (servidor: string) => servidor?.toUpperCase().includes('ELITE')
+  const isWarez   = (servidor: string) => servidor?.toUpperCase().includes('WAREZ')
+  const isElite   = (servidor: string) => servidor?.toUpperCase().includes('ELITE')
+  const isCentral = (servidor: string) => servidor?.toUpperCase().includes('CENTRAL')
 
   // ---- Buscar linhas Elite (com cache) ----
   const buscarLinhasElite = async (): Promise<any[]> => {
@@ -175,6 +181,24 @@ export default function Clientes() {
     if (palavras.length === 0) return null
     return linhas.find((l: any) => {
       const name = (l.name ?? l.notes ?? '').toLowerCase()
+      if (!name) return false
+      return palavras.filter((p: string) => name.includes(p)).length >= 2
+    }) ?? null
+  }
+
+  const matchCentral = (cliente: Cliente, linhas: any[]): any | null => {
+    // 1. Busca por username exato
+    const usuario = cliente.usuario?.trim().toLowerCase()
+    if (usuario) {
+      const byUser = linhas.find((l: any) => l.username?.toLowerCase() === usuario)
+      if (byUser) return byUser
+    }
+    // 2. Fallback por nome
+    const nomeLower = cliente.nome?.toLowerCase() ?? ''
+    const palavras = nomeLower.split(' ').filter((p: string) => p.length > 2)
+    if (palavras.length === 0) return null
+    return linhas.find((l: any) => {
+      const name = (l.name ?? '').toLowerCase()
       if (!name) return false
       return palavras.filter((p: string) => name.includes(p)).length >= 2
     }) ?? null
@@ -370,14 +394,25 @@ export default function Clientes() {
   // ---- Modal de período ----
   const abrirModalRenovar = (cliente: Cliente) => {
     setClienteParaRenovar(cliente)
-    setPeriodoRenovar(isElite(cliente.servidor) ? 1 : 30)
+    setPeriodoRenovar((isElite(cliente.servidor) || isCentral(cliente.servidor)) ? 1 : 30)
     setModalRenovar(true)
   }
 
   const confirmarRenovar = async () => {
     if (!clienteParaRenovar) return
     setModalRenovar(false)
-    if (isElite(clienteParaRenovar.servidor)) {
+    if (isCentral(clienteParaRenovar.servidor)) {
+      const res = await fetch(`${BACKEND_URL}/central/renovar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: clienteParaRenovar.usuario, meses: periodoRenovar }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) throw new Error(data.error ?? 'Falha ao renovar no Central')
+      const novaData = data.exp_date
+      if (novaData) await updateDoc(doc(db, 'clientes', clienteParaRenovar.id), { vencimento: novaData })
+      mostrarMsgPainel('ok', `Central: ${clienteParaRenovar.nome} renovado até ${novaData ?? ''}`)
+    } else if (isElite(clienteParaRenovar.servidor)) {
       await renovarClienteElite(clienteParaRenovar, periodoRenovar)
     } else {
       await renovarClienteWarez(clienteParaRenovar, periodoRenovar / 30)
@@ -406,6 +441,23 @@ export default function Clientes() {
           }}>
             <RefreshCw size={18} style={{ animation: sincronizandoWarez ? 'spin 1s linear infinite' : 'none' }} />
             {sincronizandoWarez ? 'Sincronizando...' : 'Sincronizar Warez'}
+          </button>
+
+          {/* Sincronizar Central */}
+          <button
+            onClick={sincronizarCentral}
+            disabled={sincronizandoCentral}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '8px',
+              padding: '10px 20px', borderRadius: '12px', border: '1px solid rgba(234,179,8,0.4)',
+              background: sincronizandoCentral ? 'rgba(255,255,255,0.05)' : 'rgba(234,179,8,0.15)',
+              color: sincronizandoCentral ? 'rgba(255,255,255,0.3)' : '#facc15',
+              cursor: sincronizandoCentral ? 'not-allowed' : 'pointer',
+              fontWeight: '600', fontSize: '14px',
+            }}
+          >
+            <RefreshCw size={16} className={sincronizandoCentral ? 'spin' : ''} />
+            {sincronizandoCentral ? 'Sincronizando...' : 'Sincronizar Central'}
           </button>
 
           {/* Sincronizar Elite */}
@@ -577,6 +629,24 @@ export default function Clientes() {
                           boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
                         }}
                       >
+                        {/* Importar Central */}
+                        {isCentral(c.servidor) && (
+                          <button
+                            onClick={() => { setMenuAbertoId(null); importarCentral(c) }}
+                            disabled={importandoId === c.id}
+                            style={{
+                              width: '100%', padding: '9px 12px', borderRadius: '7px', border: 'none',
+                              cursor: 'pointer', background: 'transparent', textAlign: 'left',
+                              color: '#facc15', fontSize: '13px', fontWeight: '600',
+                              display: 'flex', alignItems: 'center', gap: '8px',
+                            }}
+                            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(234,179,8,0.1)')}
+                            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                          >
+                            <Download size={13} /> {importandoId === c.id ? 'Importando...' : 'Importar Central'}
+                          </button>
+                        )}
+
                         {/* Importar Elite */}
                         {isElite(c.servidor) && (
                           <button
@@ -596,18 +666,18 @@ export default function Clientes() {
                         )}
 
                         {/* Renovar */}
-                        {(isWarez(c.servidor) || isElite(c.servidor)) && (
+                        {(isWarez(c.servidor) || isElite(c.servidor) || isCentral(c.servidor)) && (
                           <button
                             onClick={() => { setMenuAbertoId(null); abrirModalRenovar(c) }}
                             disabled={renovandoId === c.id}
                             style={{
                               width: '100%', padding: '9px 12px', borderRadius: '7px', border: 'none',
                               cursor: 'pointer', background: 'transparent', textAlign: 'left',
-                              color: isElite(c.servidor) ? '#c084fc' : '#60a5fa',
+                              color: isCentral(c.servidor) ? '#facc15' : isElite(c.servidor) ? '#c084fc' : '#60a5fa',
                               fontSize: '13px', fontWeight: '600',
                               display: 'flex', alignItems: 'center', gap: '8px',
                             }}
-                            onMouseEnter={e => (e.currentTarget.style.background = isElite(c.servidor) ? 'rgba(168,85,247,0.1)' : 'rgba(59,130,246,0.1)')}
+                            onMouseEnter={e => (e.currentTarget.style.background = isCentral(c.servidor) ? 'rgba(234,179,8,0.1)' : isElite(c.servidor) ? 'rgba(168,85,247,0.1)' : 'rgba(59,130,246,0.1)')}
                             onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                           >
                             <RefreshCw size={13} /> {renovandoId === c.id ? 'Renovando...' : 'Renovar'}
@@ -701,7 +771,7 @@ export default function Clientes() {
               }}>Cancelar</button>
               <button onClick={confirmarRenovar} style={{
                 flex: 1, padding: '12px', borderRadius: '10px', border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px', color: 'white',
-                background: isElite(clienteParaRenovar.servidor) ? 'linear-gradient(135deg,#a855f7,#7c3aed)' : 'linear-gradient(135deg,#3b82f6,#6366f1)',
+                background: isCentral(clienteParaRenovar.servidor) ? 'linear-gradient(135deg,#eab308,#ca8a04)' : isElite(clienteParaRenovar.servidor) ? 'linear-gradient(135deg,#a855f7,#7c3aed)' : 'linear-gradient(135deg,#3b82f6,#6366f1)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
               }}>
                 <Check size={16} /> Confirmar
