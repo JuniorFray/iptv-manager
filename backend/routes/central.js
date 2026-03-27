@@ -25,6 +25,7 @@ export default function createCentralRouter(db, admin) {
           type:        'ReCaptchaV2TaskProxyLess',
           websiteURL:  pageURL,
           websiteKey:  sitekey,
+          isInvisible: true,
         }
       })
     })
