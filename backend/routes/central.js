@@ -8,58 +8,41 @@ export default function createCentralRouter(db, admin) {
   let centralTokenExp = 0
   let loginPromise    = null
 
-  // ---- CapSolver ----
+  // ---- 2captcha ----
   const resolverCaptcha = async () => {
-    const apiKey  = process.env.CAPSOLVER_KEY
+    const apiKey  = process.env.TWOCAPTCHA_KEY
     const sitekey = '6LeJTpIeAAAAALiuQPGPcaXbs9XL-cKdwEBuOmJ7'
-    const pageURL = 'https://painel.fun:443/login'
+    const pageURL = 'https://painel.fun'
 
-    console.log('🤖 [Central] Resolvendo reCAPTCHA...')
+    console.log('🤖 [Central] Resolvendo reCAPTCHA via 2captcha...')
 
-    const createRes = await fetch('https://api.capsolver.com/createTask', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        clientKey: apiKey,
-        task: {
-          type:        'ReCaptchaV2TaskProxyLess',
-          websiteURL:  pageURL,
-          websiteKey:  sitekey,
-          isInvisible: true,
-        }
-      })
-    })
+    // Envia tarefa
+    const submitRes = await fetch(
+      `https://2captcha.com/in.php?key=${apiKey}&method=userrecaptcha&googlekey=${sitekey}&pageurl=${encodeURIComponent(pageURL)}&invisible=1&json=1`,
+      { method: 'GET' }
+    )
+    const submitData = await submitRes.json()
+    console.log('🤖 [2captcha] submit:', JSON.stringify(submitData))
 
-    const createData = await createRes.json()
-    console.log('🤖 [CapSolver] create:', JSON.stringify(createData))
-    if (createData.errorId) throw new Error(`[CapSolver] Erro: ${createData.errorDescription}`)
+    if (submitData.status !== 1) throw new Error(`[2captcha] Erro ao enviar: ${submitData.request}`)
+    const taskId = submitData.request
 
-    const taskId = createData.taskId
-
+    // Aguarda resultado
     for (let i = 0; i < 24; i++) {
       await new Promise(r => setTimeout(r, 5000))
-
-      const resultRes = await fetch('https://api.capsolver.com/getTaskResult', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientKey: apiKey, taskId })
-      })
-
+      const resultRes = await fetch(`https://2captcha.com/res.php?key=${apiKey}&action=get&id=${taskId}&json=1`)
       const result = await resultRes.json()
-      console.log(`⏳ [CapSolver] ${result.status} (${(i+1)*5}s)`)
+      console.log(`⏳ [2captcha] ${result.request} (${(i+1)*5}s)`)
 
-      if (result.status === 'ready') {
-        const token = result.solution?.gRecaptchaResponse
-        if (!token) throw new Error('[CapSolver] Token vazio')
+      if (result.status === 1) {
         console.log('✅ [Central] reCAPTCHA resolvido!')
-        return token
+        return result.request
       }
-      if (result.status === 'failed') {
-        console.log('❌ [CapSolver] full result:', JSON.stringify(result))
-        throw new Error(`[CapSolver] Tarefa falhou: ${result.errorDescription}`)
+      if (result.request !== 'CAPCHA_NOT_READY') {
+        throw new Error(`[2captcha] Falhou: ${result.request}`)
       }
     }
-    throw new Error('[Central] CapSolver timeout')
+    throw new Error('[Central] 2captcha timeout')
   }
 
   // ---- Login ----
