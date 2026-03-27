@@ -61,7 +61,7 @@ export default function Clientes() {
 
   // Central
   const [sincronizandoCentral, setSincronizandoCentral] = useState(false)
-  const [syncCentralResult, setSyncCentralResult] = useState<{ tipo: 'ok' | 'erro'; msg: string } | null>(null)
+  const [_syncCentralResult, setSyncCentralResult] = useState<{ tipo: 'ok' | 'erro'; msg: string } | null>(null)
   const [linhasCentralCache, setLinhasCentralCache] = useState<any[]>([])
 
   // Modal de período de renovação
@@ -579,6 +579,18 @@ export default function Clientes() {
           fontWeight: '600', fontSize: '13px', whiteSpace: 'pre-wrap',
         }}>
           {syncEliteResult.msg}
+        </div>
+      )}
+
+      {_syncCentralResult && (
+        <div style={{
+          marginBottom: '16px', padding: '14px 18px', borderRadius: '12px',
+          background: _syncCentralResult.tipo === 'ok' ? 'rgba(234,179,8,0.1)' : 'rgba(239,68,68,0.1)',
+          border: _syncCentralResult.tipo === 'ok' ? '1px solid rgba(234,179,8,0.3)' : '1px solid rgba(239,68,68,0.3)',
+          color: _syncCentralResult.tipo === 'ok' ? '#facc15' : '#f87171',
+          fontWeight: '600', fontSize: '13px', whiteSpace: 'pre-wrap',
+        }}>
+          {_syncCentralResult.msg}
         </div>
       )}
 
