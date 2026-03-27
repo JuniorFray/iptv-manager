@@ -8,14 +8,13 @@ export default function createCentralRouter(db, admin) {
   let centralTokenExp = 0
   let loginPromise    = null
 
-  // ---- CapSolver ----
+    // ---- CapSolver: Cloudflare Turnstile ----
   const resolverCaptcha = async () => {
     const apiKey  = process.env.CAPSOLVER_KEY
-    const sitekey = '6LeJTpIeAAAAALiuQPGPcaXbs9XL-cKdwEBuOmJ7'
-    // Tenta domínios alternativos onde o sitekey pode estar registrado
+    const sitekey = '0x4AAAAAACFhU7XJduqvbHH2'
     const pageURL = 'https://controle.vip'
 
-    console.log('🤖 [Central] Resolvendo reCAPTCHA via CapSolver...')
+    console.log('🤖 [Central] Resolvendo Turnstile via CapSolver...')
 
     const createRes = await fetch('https://api.capsolver.com/createTask', {
       method: 'POST',
@@ -23,10 +22,9 @@ export default function createCentralRouter(db, admin) {
       body: JSON.stringify({
         clientKey: apiKey,
         task: {
-          type:        'ReCaptchaV2TaskProxyLess',
-          websiteURL:  pageURL,
-          websiteKey:  sitekey,
-          isInvisible: true,
+          type:       'AntiTurnstileTaskProxyLess',
+          websiteURL: pageURL,
+          websiteKey: sitekey,
         }
       })
     })
@@ -48,9 +46,9 @@ export default function createCentralRouter(db, admin) {
       console.log(`⏳ [CapSolver] ${result.status} (${(i+1)*5}s)`)
 
       if (result.status === 'ready') {
-        const token = result.solution?.gRecaptchaResponse
+        const token = result.solution?.token
         if (!token) throw new Error('[CapSolver] Token vazio')
-        console.log('✅ [Central] reCAPTCHA resolvido!')
+        console.log('✅ [Central] Turnstile resolvido!')
         return token
       }
       if (result.status === 'failed') {
@@ -61,7 +59,7 @@ export default function createCentralRouter(db, admin) {
     throw new Error('[Central] CapSolver timeout')
   }
 
-  // ---- Login ----
+    // ---- Login ----
   const _doLogin = async () => {
     console.log('🔐 [Central] Iniciando login...')
     const captchaToken = await resolverCaptcha()
