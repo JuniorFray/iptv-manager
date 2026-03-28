@@ -21,7 +21,6 @@ export default function createWhatsAppRouter(db, admin) {
   let sock          = null
   let qrCodeBase64  = null
   let clientReady   = false
-  let reconexoes440 = 0
 
   // ---- Auth State no Firestore (persiste entre deploys) ----
 
@@ -91,8 +90,6 @@ export default function createWhatsAppRouter(db, admin) {
         markOnlineOnConnect: false,
         syncFullHistory:     false,
         shouldSyncHistoryMessage: () => false,
-        // Retorna undefined para evitar retry receipts em msgs que não conseguimos decriptografar
-        getMessage: async () => undefined,
       })
 
       sock.ev.on('creds.update', saveCreds)
@@ -131,11 +128,9 @@ export default function createWhatsAppRouter(db, admin) {
             }
             setTimeout(conectarWhatsApp, 3000)
           } else if (statusCode === 440) {
-            // 440 = outra sessão — backoff exponencial para quebrar o loop
-            reconexoes440 = (reconexoes440 || 0) + 1
-            const delay = Math.min(reconexoes440 * 15000, 120000) // 15s, 30s, 45s... máx 2min
-            console.log(`Sessão substituída (440) — tentativa ${reconexoes440}, reconectando em ${delay/1000}s...`)
-            setTimeout(() => { reconexoes440 = 0; conectarWhatsApp() }, delay)
+            // 440 = outra sessão conectou momentaneamente → aguarda e reconecta sem limpar auth
+            console.log('Sessão substituída (440) — reconectando em 20s...')
+            setTimeout(conectarWhatsApp, 20000)
           } else if (statusCode === 428) {
             console.log('Reconectando em 15s...')
             setTimeout(conectarWhatsApp, 15000)
@@ -148,8 +143,6 @@ export default function createWhatsAppRouter(db, admin) {
           clientReady  = true
           qrCodeBase64 = null
           console.log('WhatsApp conectado!')
-          // Só reseta o backoff após 60s conectado (evita reset em conexões instáveis)
-          setTimeout(() => { if (clientReady) reconexoes440 = 0 }, 60000)
           // Processa fila pendente imediatamente ao conectar
           setTimeout(processarFila, 3000)
         }
@@ -484,7 +477,7 @@ export default function createWhatsAppRouter(db, admin) {
       const snap = await db.collection('config_whatsapp').doc('template_renovacao').get()
       let template = snap.exists
         ? snap.data().mensagem
-        : `✅ *Renovação realizada!*\n\nOlá, *{nome}*! 🎉\n\nSeu serviço foi renovado com sucesso.\n\n📋 *Seus dados de acesso:*\n👤 Usuário: *{usuario}*\n🔑 Senha: *{senha}*\n📅 Válido até: *{vencimento}*\n\nEm caso de dúvidas, fale comigo! 😊`
+        : `✅ *Renovação realizada!*\n\nOlá! 🎉\n\nSeu serviço foi renovado com sucesso.\n\n📋 *Seus dados de acesso:*\n👤 Usuário: *{usuario}*\n🔑 Senha: *{senha}*\n📅 Válido até: *{vencimento}*\n\nEm caso de dúvidas, fale comigo! 😊`
 
       const mensagem = template
         .replace(/{nome}/g, dados.nome ?? '')
