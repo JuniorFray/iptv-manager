@@ -94,6 +94,9 @@ export default function createWhatsAppRouter(db, admin) {
 
       sock.ev.on('creds.update', saveCreds)
 
+      // Ignora erros de decriptografia (não desconectar por isso)
+      sock.ev.on('messages.upsert', () => {})
+
       sock.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect, qr } = update
 
@@ -140,6 +143,8 @@ export default function createWhatsAppRouter(db, admin) {
           clientReady  = true
           qrCodeBase64 = null
           console.log('WhatsApp conectado!')
+          // Processa fila pendente imediatamente ao conectar
+          setTimeout(processarFila, 3000)
         }
       })
     } catch (err) {
@@ -349,7 +354,7 @@ export default function createWhatsAppRouter(db, admin) {
 
   // ---- Crons ----
 
-  cron.schedule('*/30 * * * * *', processarFila, { timezone: 'America/Sao_Paulo' })
+  cron.schedule('*/10 * * * * *', processarFila, { timezone: 'America/Sao_Paulo' })
 
   let cronJob = null
   const iniciarCron = async () => {
@@ -472,7 +477,7 @@ export default function createWhatsAppRouter(db, admin) {
       const snap = await db.collection('config_whatsapp').doc('template_renovacao').get()
       let template = snap.exists
         ? snap.data().mensagem
-        : `✅ *Renovação realizada!*\n\nOlá! 🎉\n\nSeu serviço foi renovado com sucesso.\n\n📋 *Seus dados de acesso:*\n👤 Usuário: *{usuario}*\n🔑 Senha: *{senha}*\n📅 Válido até: *{vencimento}*\n\nEm caso de dúvidas, fale comigo! 😊`
+        : `✅ *Renovação realizada!*\n\nOlá, *{nome}*! 🎉\n\nSeu serviço foi renovado com sucesso.\n\n📋 *Seus dados de acesso:*\n👤 Usuário: *{usuario}*\n🔑 Senha: *{senha}*\n📅 Válido até: *{vencimento}*\n\nEm caso de dúvidas, fale comigo! 😊`
 
       const mensagem = template
         .replace(/{nome}/g, dados.nome ?? '')
