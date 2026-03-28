@@ -21,6 +21,7 @@ export default function createWhatsAppRouter(db, admin) {
   let sock          = null
   let qrCodeBase64  = null
   let clientReady   = false
+  let reconexoes440 = 0
 
   // ---- Auth State no Firestore (persiste entre deploys) ----
 
@@ -90,6 +91,8 @@ export default function createWhatsAppRouter(db, admin) {
         markOnlineOnConnect: false,
         syncFullHistory:     false,
         shouldSyncHistoryMessage: () => false,
+        // Retorna undefined para evitar retry receipts em msgs que não conseguimos decriptografar
+        getMessage: async () => undefined,
       })
 
       sock.ev.on('creds.update', saveCreds)
@@ -128,9 +131,11 @@ export default function createWhatsAppRouter(db, admin) {
             }
             setTimeout(conectarWhatsApp, 3000)
           } else if (statusCode === 440) {
-            // 440 = outra sessão conectou momentaneamente → aguarda e reconecta sem limpar auth
-            console.log('Sessão substituída (440) — reconectando em 20s...')
-            setTimeout(conectarWhatsApp, 20000)
+            // 440 = outra sessão — backoff exponencial para quebrar o loop
+            reconexoes440 = (reconexoes440 || 0) + 1
+            const delay = Math.min(reconexoes440 * 15000, 120000) // 15s, 30s, 45s... máx 2min
+            console.log(`Sessão substituída (440) — tentativa ${reconexoes440}, reconectando em ${delay/1000}s...`)
+            setTimeout(() => { reconexoes440 = 0; conectarWhatsApp() }, delay)
           } else if (statusCode === 428) {
             console.log('Reconectando em 15s...')
             setTimeout(conectarWhatsApp, 15000)
@@ -140,8 +145,9 @@ export default function createWhatsAppRouter(db, admin) {
             setTimeout(conectarWhatsApp, delay)
           }
         } else if (connection === 'open') {
-          clientReady  = true
-          qrCodeBase64 = null
+          clientReady   = true
+          qrCodeBase64  = null
+          reconexoes440 = 0  // reset backoff ao conectar com sucesso
           console.log('WhatsApp conectado!')
           // Processa fila pendente imediatamente ao conectar
           setTimeout(processarFila, 3000)
