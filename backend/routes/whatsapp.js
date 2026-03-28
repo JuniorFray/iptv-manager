@@ -145,10 +145,11 @@ export default function createWhatsAppRouter(db, admin) {
             setTimeout(conectarWhatsApp, delay)
           }
         } else if (connection === 'open') {
-          clientReady   = true
-          qrCodeBase64  = null
-          reconexoes440 = 0  // reset backoff ao conectar com sucesso
+          clientReady  = true
+          qrCodeBase64 = null
           console.log('WhatsApp conectado!')
+          // Só reseta o backoff após 60s conectado (evita reset em conexões instáveis)
+          setTimeout(() => { if (clientReady) reconexoes440 = 0 }, 60000)
           // Processa fila pendente imediatamente ao conectar
           setTimeout(processarFila, 3000)
         }
