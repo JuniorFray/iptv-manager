@@ -169,13 +169,10 @@ export default function Clientes() {
   }
 
   const matchElite = (cliente: Cliente, linhas: any[]): any | null => {
-    // 1. Busca por username — remove @dominio se existir
+    // 1. Busca por username — ignora @dominio (ex: cristianeS01@p2elite.com → cristianeS01)
     const usuario = cliente.usuario?.trim().toLowerCase().split('@')[0]
     if (usuario) {
-      const byUser = linhas.find((l: any) => {
-        const eliteUser = (l.username ?? '').toLowerCase().split('@')[0]
-        return eliteUser === usuario
-      })
+      const byUser = linhas.find((l: any) => (l.username ?? '').toLowerCase().split('@')[0] === usuario)
       if (byUser) return byUser
     }
     // 2. Fallback: nome completo deve bater (todas as palavras)
@@ -346,7 +343,7 @@ export default function Clientes() {
         updates.vencimento = isoParaBR(match.exp_date)
       }
       await updateDoc(doc(db, 'clientes', cliente.id), updates)
-      mostrarMsgPainel('ok', `✅ ${cliente.nome} importado!\n👤 ${(match.username ?? '').split('@')[0]}${match.exp_date ? ' | 📅 ' + isoParaBR(match.exp_date) : ''}`)
+      mostrarMsgPainel('ok', `✅ ${cliente.nome} importado!\n👤 ${match.username}${match.exp_date ? ' | 📅 ' + isoParaBR(match.exp_date) : ''}`)
     } catch (err: any) {
       mostrarMsgPainel('erro', `❌ Erro ao importar ${cliente.nome}:\n${err.message}`)
     } finally {
@@ -362,7 +359,7 @@ export default function Clientes() {
       if (!username) throw new Error('Cliente sem usuário. Use o botão Importar primeiro.')
 
       const linhas = await buscarLinhasElite()
-      const linha = linhas.find((l: any) => l.username === username)
+      const linha = linhas.find((l: any) => (l.username ?? '').split('@')[0].toLowerCase() === username.toLowerCase().split('@')[0])
       if (!linha) throw new Error(`Usuário "${username}" não encontrado no painel Elite.`)
 
       const renovarRes = await fetch(`${BACKEND_URL}/elite/renovar`, {
