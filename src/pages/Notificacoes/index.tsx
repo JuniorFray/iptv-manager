@@ -231,6 +231,33 @@ export default function Notificacoes() {
 
   const formatBytes = (b: number) => b > 1048576 ? `${(b/1048576).toFixed(1)}MB` : `${(b/1024).toFixed(0)}KB`
 
+  const uploadMidiaManual = async (file: File) => {
+    const ext  = file.name.split('.').pop()?.toLowerCase() || ''
+    const tipo: Midia['tipo'] =
+      ['jpg','jpeg','png','gif','webp'].includes(ext) ? 'imagem' :
+      ['ogg','opus','mp3','wav'].includes(ext)        ? 'audio'  :
+      ['mp4','mov','webm'].includes(ext)              ? 'video'  : 'documento'
+    const path = `midias/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
+    const storageRef = ref(storage, path)
+    const task = uploadBytesResumable(storageRef, file)
+    setUploadManualProg(0)
+    task.on('state_changed',
+      snap => setUploadManualProg(Math.round(snap.bytesTransferred / snap.totalBytes * 100)),
+      err  => { alert('Erro upload: ' + err.message); setUploadManualProg(-1) },
+      async () => {
+        const url = await getDownloadURL(task.snapshot.ref)
+        const docRef = await addDoc(collection(db, 'midias'), {
+          nome: file.name, url, tipo, tamanho: file.size,
+          storagePath: path, criadoEm: new Date()
+        })
+        const nova: Midia = { id: docRef.id, nome: file.name, url, tipo, tamanho: file.size, storagePath: path, criadoEm: new Date() }
+        setMidias(prev => [nova, ...prev])
+        setMidiaManual(nova)
+        setUploadManualProg(-1)
+      }
+    )
+  }
+
   const carregarLogs = async () => {
     try { const res = await axios.get(`${API}/logs`); setLogs(res.data) } catch {}
   }
