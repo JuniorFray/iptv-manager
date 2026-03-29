@@ -169,10 +169,13 @@ export default function Clientes() {
   }
 
   const matchElite = (cliente: Cliente, linhas: any[]): any | null => {
-    // 1. Busca por username exato (mais preciso)
+    // 1. Busca por username — remove @dominio se existir (ex: cristianeS01@p2elite.com → cristianeS01)
     const usuario = cliente.usuario?.trim().toLowerCase()
     if (usuario) {
-      const byUser = linhas.find((l: any) => l.username?.toLowerCase() === usuario)
+      const byUser = linhas.find((l: any) => {
+        const eliteUser = (l.username ?? '').toLowerCase().split('@')[0]
+        return eliteUser === usuario
+      })
       if (byUser) return byUser
     }
     // 2. Fallback: nome completo deve bater (todas as palavras)
@@ -182,7 +185,6 @@ export default function Clientes() {
     return linhas.find((l: any) => {
       const name = (l.name ?? l.notes ?? '').toLowerCase()
       if (!name) return false
-      // Todas as palavras do nome do sistema devem estar no nome do servidor
       return palavras.every((p: string) => name.includes(p))
     }) ?? null
   }
@@ -201,7 +203,7 @@ export default function Clientes() {
     return linhas.find((l: any) => {
       const name = (l.name ?? '').toLowerCase()
       if (!name) return false
-      return palavras.every((p: string) => name.includes(p))
+      return palavras.filter((p: string) => name.includes(p)).length >= 2
     }) ?? null
   }
 
