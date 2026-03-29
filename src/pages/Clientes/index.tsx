@@ -264,7 +264,13 @@ export default function Clientes() {
       const renovarRes = await fetch(`${BACKEND_URL}/painel/renovar/${linha.id}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ credits }),
+        body: JSON.stringify({
+          credits,
+          nome:     cliente.nome,
+          telefone: cliente.telefone,
+          usuario:  cliente.usuario,
+          senha:    cliente.senha,
+        }),
       })
       const renovarData = await renovarRes.json()
       if (!renovarRes.ok) throw new Error(renovarData?.error ?? 'Falha ao renovar no Warez.')
@@ -365,7 +371,15 @@ export default function Clientes() {
       const renovarRes = await fetch(`${BACKEND_URL}/elite/renovar`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: linha.id, tipo: linha.tipo ?? cliente.tipo ?? 'IPTV', meses }),
+        body: JSON.stringify({
+          id:   linha.id,
+          tipo: linha.tipo ?? cliente.tipo ?? 'IPTV',
+          meses,
+          nome:     cliente.nome,
+          telefone: cliente.telefone,
+          usuario:  cliente.usuario,
+          senha:    cliente.senha,
+        }),
       })
       const renovarData = await renovarRes.json()
       if (!renovarRes.ok) throw new Error(renovarData?.error ?? 'Falha ao renovar no Elite.')
@@ -463,7 +477,14 @@ export default function Clientes() {
       const res = await fetch(`${BACKEND_URL}/central/renovar`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: clienteParaRenovar.usuario, meses: periodoRenovar }),
+        body: JSON.stringify({
+          id:       clienteParaRenovar.usuario,
+          meses:    periodoRenovar,
+          nome:     clienteParaRenovar.nome,
+          telefone: clienteParaRenovar.telefone,
+          usuario:  clienteParaRenovar.usuario,
+          senha:    clienteParaRenovar.senha,
+        }),
       })
       const data = await res.json()
       if (!res.ok || !data.success) throw new Error(data.error ?? 'Falha ao renovar no Central')
