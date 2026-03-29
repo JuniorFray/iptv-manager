@@ -512,7 +512,88 @@ export default function Notificacoes() {
             <div className="glass-card" style={{ padding: '20px' }}>
               <h3 style={{ color: 'white', margin: '0 0 14px', fontSize: '15px' }}>Editar Mensagem</h3>
               <textarea value={mensagem} onChange={e => { setMensagem(e.target.value); setTemplate(e.target.value) }} placeholder="Selecione um modelo ou escreva sua mensagem. Use NOME, VENCIMENTO, SERVIDOR, VALOR." rows={5} style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit', lineHeight: '1.6' }} />
-              <button onClick={enviarUm} disabled={!clienteSel || !mensagem.trim() || !whatsReady} style={{ width: '100%', marginTop: '12px', padding: '13px', borderRadius: '12px', border: 'none', cursor: !clienteSel || !mensagem.trim() || !whatsReady ? 'not-allowed' : 'pointer', background: !clienteSel || !mensagem.trim() || !whatsReady ? 'rgba(255,255,255,0.08)' : 'linear-gradient(135deg,#25d366,#128c7e)', color: !clienteSel || !mensagem.trim() || !whatsReady ? 'rgba(255,255,255,0.3)' : 'white', fontWeight: 'bold', fontSize: '15px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+              {/* ── Mídia Manual ── */}
+              <div style={{ marginTop: '12px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', padding: '12px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                  <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', fontWeight: '600' }}>📎 Mídia (opcional)</span>
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <button onClick={() => { carregarMidias(); setModalMidias(true) }} style={{ padding: '4px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', background: 'rgba(99,102,241,0.2)', border: '1px solid rgba(99,102,241,0.3)', color: '#a5b4fc' }}>
+                      🗂️ Biblioteca
+                    </button>
+                    <button onClick={() => inputFileManualRef.current?.click()} style={{ padding: '4px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.3)', color: '#4ade80' }}>
+                      ⬆️ Upload
+                    </button>
+                    {midiaManual && <button onClick={() => setMidiaManual(null)} style={{ padding: '4px 8px', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171' }}>✕</button>}
+                  </div>
+                </div>
+                <input ref={inputFileManualRef} type="file" accept="image/*,audio/*,video/mp4,.ogg,.opus" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) uploadMidiaManual(f); e.target.value = '' }} />
+
+                {uploadManualProg >= 0 && (
+                  <div style={{ marginBottom: '8px' }}>
+                    <div style={{ height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px' }}>
+                      <div style={{ height: '100%', width: `${uploadManualProg}%`, background: '#6366f1', borderRadius: '4px', transition: 'width 0.3s' }} />
+                    </div>
+                    <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '11px' }}>Enviando... {uploadManualProg}%</span>
+                  </div>
+                )}
+
+                {midiaManual ? (
+                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                    {midiaManual.tipo === 'imagem' && <img src={midiaManual.url} style={{ width: '60px', height: '60px', objectFit: 'cover', borderRadius: '8px' }} alt="" />}
+                    {midiaManual.tipo === 'audio'  && <Music size={32} style={{ color: '#a78bfa', flexShrink: 0 }} />}
+                    {midiaManual.tipo === 'video'  && <video src={midiaManual.url} style={{ width: '60px', height: '60px', objectFit: 'cover', borderRadius: '8px' }} muted />}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ color: 'white', fontSize: '12px', margin: '0 0 6px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{midiaManual.nome}</p>
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        {(['junto', 'separado'] as const).map(modo => (
+                          <button key={modo} onClick={() => setModoEnvioMidia(modo)} style={{ padding: '3px 8px', borderRadius: '5px', cursor: 'pointer', fontSize: '11px', fontWeight: '600',
+                            background: modoEnvioMidia === modo ? 'rgba(99,102,241,0.3)' : 'rgba(255,255,255,0.05)',
+                            border: modoEnvioMidia === modo ? '1px solid rgba(99,102,241,0.5)' : '1px solid rgba(255,255,255,0.1)',
+                            color: modoEnvioMidia === modo ? '#a5b4fc' : 'rgba(255,255,255,0.4)' }}>
+                            {modo === 'junto' ? '📎 Com legenda' : '✉️ Separado'}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <p style={{ color: 'rgba(255,255,255,0.2)', fontSize: '11px', margin: 0, textAlign: 'center' }}>Nenhuma mídia selecionada</p>
+                )}
+              </div>
+
+              {/* ── Modal Biblioteca ── */}
+              {modalMidias && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+                  <div style={{ background: '#1a1a2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', padding: '24px', width: '100%', maxWidth: '700px', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                      <h3 style={{ color: 'white', margin: 0 }}>🗂️ Selecionar Mídia</h3>
+                      <button onClick={() => setModalMidias(false)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: '20px' }}>✕</button>
+                    </div>
+                    <div style={{ overflowY: 'auto', flex: 1 }}>
+                      {midias.length === 0 ? (
+                        <p style={{ color: 'rgba(255,255,255,0.3)', textAlign: 'center', padding: '40px 0' }}>Nenhuma mídia na biblioteca. Faça upload na aba Mídias.</p>
+                      ) : (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '12px' }}>
+                          {midias.map(m => (
+                            <div key={m.id} onClick={() => { setMidiaManual(m); setModalMidias(false) }}
+                              style={{ cursor: 'pointer', border: midiaManual?.id === m.id ? '2px solid #6366f1' : '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', overflow: 'hidden', background: 'rgba(255,255,255,0.03)', transition: 'border 0.15s' }}>
+                              <div style={{ height: '100px', background: 'rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                                {m.tipo === 'imagem' && <img src={m.url} alt={m.nome} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+                                {m.tipo === 'audio'  && <Music size={28} style={{ color: '#a78bfa' }} />}
+                                {m.tipo === 'video'  && <video src={m.url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} muted />}
+                                {m.tipo === 'documento' && <FileText size={28} style={{ color: '#60a5fa' }} />}
+                              </div>
+                              <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '11px', margin: '6px 8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.nome}</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <button onClick={enviarUm} disabled={!clienteSel || (!mensagem.trim() && !midiaManual) || !whatsReady} style={{ width: '100%', marginTop: '12px', padding: '13px', borderRadius: '12px', border: 'none', cursor: !clienteSel || (!mensagem.trim() && !midiaManual) || !whatsReady ? 'not-allowed' : 'pointer', background: !clienteSel || (!mensagem.trim() && !midiaManual) || !whatsReady ? 'rgba(255,255,255,0.08)' : 'linear-gradient(135deg,#25d366,#128c7e)', color: !clienteSel || (!mensagem.trim() && !midiaManual) || !whatsReady ? 'rgba(255,255,255,0.3)' : 'white', fontWeight: 'bold', fontSize: '15px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
                 <Send size={18} /> {!whatsReady ? 'WhatsApp desconectado' : `Enviar para ${clienteSel ? clienteSel.nome : '...'}`}
               </button>
             </div>

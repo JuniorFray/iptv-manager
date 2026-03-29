@@ -83,7 +83,7 @@ export default function createWhatsAppRouter(db, admin) {
         auth: state,
         printQRInTerminal: false,
         generateHighQualityLinkPreview: false,
-        browser: ['Ubuntu', 'Chrome', '20.0.04'],
+        browser: ['SistemaTV', 'Desktop', '1.0.0'],
         keepAliveIntervalMs: 25000,
         connectTimeoutMs:    60000,
         retryRequestDelayMs: 2000,
@@ -111,6 +111,7 @@ export default function createWhatsAppRouter(db, admin) {
 
         if (connection === 'close') {
           clientReady = false
+          processandoFila = false
           const statusCode = lastDisconnect?.error?.output?.statusCode
           console.log('Desconectado', statusCode)
 
@@ -357,68 +358,17 @@ export default function createWhatsAppRouter(db, admin) {
 
   cron.schedule('*/10 * * * * *', processarFila, { timezone: 'America/Sao_Paulo' })
 
-  let cronJobs = []
+  let cronJob = null
   const iniciarCron = async () => {
     const config = await getConfig()
-    // Para todos os jobs anteriores
-    cronJobs.forEach(j => j.stop())
-    cronJobs = []
-
-    const regrasMap = [
-      { key: 'dias7', diff:  7 },
-      { key: 'dias4', diff:  4 },
-      { key: 'dia0',  diff:  0 },
-      { key: 'pos1',  diff: -1 },
-      { key: 'pos3',  diff: -3 },
-    ]
-
-    // Agrupa regras por horário
-    const porHorario = {}
-    for (const { key, diff } of regrasMap) {
-      const regra = config.regras?.[key]
-      if (!regra?.ativo) continue
-      const horario = regra.horario || config.horario || '09:00'
-      if (!porHorario[horario]) porHorario[horario] = []
-      porHorario[horario].push({ key, diff })
-    }
-
-    // Cria um cron por horário único
-    for (const [horario, regrasDoHorario] of Object.entries(porHorario)) {
-      const [hora, minuto] = horario.split(':').map(Number)
-      const job = cron.schedule(
-        `${minuto} ${hora} * * *`,
-        async () => {
-          console.log(`Iniciando envio automático para horário ${horario}...`)
-          if (!clientReady) { console.log('WhatsApp não conectado.'); return }
-          const cfg = await getConfig()
-          if (!cfg.ativo) { console.log('Envio automático desativado.'); return }
-          const snapshot = await db.collection('clientes').get()
-          const clientes = snapshot.docs.map(d => ({ id: d.id, ...d.data() }))
-          let adicionados = 0
-          for (const { key, diff: diffAlvo } of regrasDoHorario) {
-            const regraAtual = cfg.regras?.[key]
-            if (!regraAtual?.ativo) continue
-            for (const cliente of clientes) {
-              if (!cliente.telefone) continue
-              const diff = diffDias(cliente.vencimento)
-              if (diff !== diffAlvo) continue
-              const mensagem = formatarMensagem(regraAtual.mensagem, cliente)
-              const adicionou = await adicionarNaFila(cliente, key, mensagem)
-              if (adicionou) adicionados++
-            }
-          }
-          console.log(`${adicionados} mensagens adicionadas (horário ${horario}).`)
-          processarFila()
-        },
-        { timezone: 'America/Sao_Paulo' }
-      )
-      cronJobs.push(job)
-      console.log(`Cron agendado para ${horario} (regras: ${regrasDoHorario.map(r => r.key).join(', ')})`)
-    }
-
-    if (cronJobs.length === 0) {
-      console.log('Nenhuma regra ativa para agendar.')
-    }
+    const [hora, minuto] = (config.horario || '09:00').split(':').map(Number)
+    if (cronJob) cronJob.stop()
+    cronJob = cron.schedule(
+      `${minuto} ${hora} * * *`,
+      executarEnvioAutomatico,
+      { timezone: 'America/Sao_Paulo' }
+    )
+    console.log(`Cron agendado para ${config.horario}`)
   }
 
   // ---- Rotas WhatsApp ----
@@ -437,6 +387,25 @@ export default function createWhatsAppRouter(db, admin) {
     if (!clientReady || !sock) return res.status(503).json({ error: 'WhatsApp não conectado' })
     try {
       await sock.sendMessage(normalizarTelefone(phone), { text: message })
+      res.json({ success: true })
+    } catch (err) { res.status(500).json({ error: err.message }) }
+  })
+
+  router.post('/send-midia', async (req, res) => {
+    const { phone, mediaUrl, mediaTipo, mediaNome, caption } = req.body
+    if (!clientReady || !sock) return res.status(503).json({ error: 'WhatsApp não conectado' })
+    if (!mediaUrl || !mediaTipo) return res.status(400).json({ error: 'mediaUrl e mediaTipo são obrigatórios' })
+    try {
+      const jid = normalizarTelefone(phone)
+      if (mediaTipo === 'imagem') {
+        await sock.sendMessage(jid, { image: { url: mediaUrl }, caption: caption || '' })
+      } else if (mediaTipo === 'audio') {
+        await sock.sendMessage(jid, { audio: { url: mediaUrl }, mimetype: 'audio/ogg; codecs=opus', ptt: true })
+      } else if (mediaTipo === 'video') {
+        await sock.sendMessage(jid, { video: { url: mediaUrl }, caption: caption || '' })
+      } else {
+        await sock.sendMessage(jid, { document: { url: mediaUrl }, fileName: mediaNome || 'arquivo', caption: caption || '' })
+      }
       res.json({ success: true })
     } catch (err) { res.status(500).json({ error: err.message }) }
   })
