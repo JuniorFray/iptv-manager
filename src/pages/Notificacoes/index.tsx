@@ -1,7 +1,8 @@
-import { useEffect, useState, useRef } from 'react'
-import { collection, onSnapshot, addDoc, deleteDoc, doc } from 'firebase/firestore'
-import { db } from '../../firebase'
-import { Send, Users, CheckCircle, Plus, Trash2, X, BookOpen, Wifi, WifiOff, QrCode, Settings, Clock, CheckCircle2, XCircle, Play, Save, RefreshCw } from 'lucide-react'
+import { useEffect, useState, useRef, useCallback } from 'react'
+import { collection, onSnapshot, addDoc, deleteDoc, doc, getDocs } from 'firebase/firestore'
+import { db, storage } from '../../firebase'
+import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage'
+import { Send, Users, CheckCircle, Plus, Trash2, X, BookOpen, Wifi, WifiOff, QrCode, Settings, Clock, CheckCircle2, XCircle, Play, Save, RefreshCw, Image, Music, Video, FileText, Upload } from 'lucide-react'
 import axios from 'axios'
 
 const API = 'https://iptv-manager-production.up.railway.app'
@@ -26,6 +27,16 @@ interface FilaItem {
   tentativas: number
   maxTentativas: number
   erro: string | null
+}
+
+interface Midia {
+  id: string
+  nome: string
+  url: string
+  tipo: 'imagem' | 'audio' | 'video' | 'documento'
+  tamanho: number
+  storagePath: string
+  criadoEm: any
 }
 
 function parseData(v: string): Date | null {
@@ -83,6 +94,11 @@ export default function Notificacoes() {
   const [novoTexto, setNovoTexto]         = useState('')
   const [enviando, setEnviando]           = useState(false)
   const [progresso, setProgresso]         = useState(0)
+  const [midias, setMidias]               = useState<Midia[]>([])
+  const [uploadProgress, setUploadProgress] = useState<number>(-1)
+  const [uploadError, setUploadError]       = useState('')
+  const [deletandoMidia, setDeletandoMidia] = useState<string | null>(null)
+  const inputFileRef                        = useRef<HTMLInputElement>(null)
   const [whatsReady, setWhatsReady]       = useState(false)
   const [qrCode, setQrCode]               = useState<string | null>(null)
   const [mostrarQR, setMostrarQR]         = useState(false)
@@ -147,6 +163,68 @@ export default function Notificacoes() {
   useEffect(() => {
     axios.get(`${API}/config`).then(res => setConfig(res.data)).catch(() => {})
   }, [])
+
+  const carregarMidias = useCallback(async () => {
+    try {
+      const snap = await getDocs(collection(db, 'midias'))
+      setMidias(snap.docs.map(d => ({ id: d.id, ...d.data() } as Midia)))
+    } catch (err) {
+      console.error('Erro ao carregar mídias:', err)
+    }
+  }, [])
+
+  const uploadMidia = async (file: File) => {
+    if (!file) return
+    const maxSize = 50 * 1024 * 1024 // 50MB
+    if (file.size > maxSize) { setUploadError('Arquivo muito grande. Máximo: 50MB'); return }
+    setUploadError('')
+    const ext  = file.name.split('.').pop()?.toLowerCase() || ''
+    const tipo: Midia['tipo'] =
+      ['jpg','jpeg','png','gif','webp'].includes(ext) ? 'imagem' :
+      ['ogg','opus','mp3','wav','m4a'].includes(ext)  ? 'audio'  :
+      ['mp4','mov','avi','webm'].includes(ext)        ? 'video'  : 'documento'
+    const path = `midias/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
+    const storageRef = ref(storage, path)
+    const task = uploadBytesResumable(storageRef, file)
+    setUploadProgress(0)
+    task.on('state_changed',
+      snap => setUploadProgress(Math.round(snap.bytesTransferred / snap.totalBytes * 100)),
+      err  => { setUploadError(err.message); setUploadProgress(-1) },
+      async () => {
+        const url = await getDownloadURL(task.snapshot.ref)
+        await addDoc(collection(db, 'midias'), {
+          nome: file.name, url, tipo, tamanho: file.size,
+          storagePath: path, criadoEm: new Date()
+        })
+        setUploadProgress(-1)
+        carregarMidias()
+      }
+    )
+  }
+
+  const excluirMidia = async (midia: Midia) => {
+    // Check if in use in regras
+    try {
+      const cfg = await getDocs(collection(db, 'configwhatsapp'))
+      const principal = cfg.docs.find(d => d.id === 'principal')?.data()
+      const emUso = principal?.regras && Object.values(principal.regras).some((r: any) => r.midiaUrl === midia.url)
+      if (emUso) {
+        if (!window.confirm(`⚠️ Esta mídia está em uso em uma regra de envio automático.\nDeseja excluir mesmo assim?`)) return
+      } else {
+        if (!window.confirm(`Excluir "${midia.nome}"? Esta ação não pode ser desfeita.`)) return
+      }
+      setDeletandoMidia(midia.id)
+      await deleteObject(ref(storage, midia.storagePath))
+      await deleteDoc(doc(db, 'midias', midia.id))
+      setMidias(prev => prev.filter(m => m.id !== midia.id))
+    } catch (err: any) {
+      alert('Erro ao excluir: ' + err.message)
+    } finally {
+      setDeletandoMidia(null)
+    }
+  }
+
+  const formatBytes = (b: number) => b > 1048576 ? `${(b/1048576).toFixed(1)}MB` : `${(b/1024).toFixed(0)}KB`
 
   const carregarLogs = async () => {
     try { const res = await axios.get(`${API}/logs`); setLogs(res.data) } catch {}
@@ -360,8 +438,9 @@ export default function Notificacoes() {
           { key: 'auto',   label: 'Envio Automático', icon: <Settings size={15} /> },
           { key: 'fila',   label: 'Fila',             icon: <RefreshCw size={15} /> },
           { key: 'log',    label: 'Histórico',        icon: <Clock size={15} />    },
+          { key: 'midias', label: 'Mídias',            icon: <Image size={15} />    },
         ].map(a => (
-          <button key={a.key} onClick={() => { setAba(a.key as any); if (a.key === 'log') carregarLogs(); if (a.key === 'fila') carregarFila() }} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px', background: aba === a.key ? 'rgba(99,102,241,0.3)' : 'rgba(255,255,255,0.05)', border: aba === a.key ? '1px solid rgba(99,102,241,0.5)' : '1px solid rgba(255,255,255,0.1)', color: aba === a.key ? 'white' : 'rgba(255,255,255,0.5)' }}>
+          <button key={a.key} onClick={() => { setAba(a.key as any); if (a.key === 'log') carregarLogs(); if (a.key === 'fila') carregarFila(); if (a.key === 'midias') carregarMidias() }} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px', background: aba === a.key ? 'rgba(99,102,241,0.3)' : 'rgba(255,255,255,0.05)', border: aba === a.key ? '1px solid rgba(99,102,241,0.5)' : '1px solid rgba(255,255,255,0.1)', color: aba === a.key ? 'white' : 'rgba(255,255,255,0.5)' }}>
             {a.icon}{a.label}
           </button>
         ))}
@@ -523,57 +602,16 @@ export default function Notificacoes() {
 
           {REGRAS_INFO.map(({ key, label, cor }) => {
             const regra = config.regras[key as keyof typeof config.regras]
-            const usaHorarioCustom = !!regra.horario
             return (
-              <div key={key} className="glass-card" style={{ padding: '24px', borderLeft: `3px solid rgba(${cor},0.6)`, opacity: regra.ativo ? 1 : 0.5, transition: 'opacity 0.2s' }}>
-                {/* Header: label + toggle ativo */}
+              <div key={key} className="glass-card" style={{ padding: '24px', borderLeft: `3px solid rgba(${cor},0.6)` }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                   <span style={{ background: `rgba(${cor},0.15)`, border: `1px solid rgba(${cor},0.3)`, color: `rgb(${cor})`, padding: '4px 12px', borderRadius: '20px', fontSize: '13px', fontWeight: '600' }}>{label}</span>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '12px' }}>
-                      {regra.ativo ? '✅ Ativo' : '🔴 Inativo'}
-                    </span>
-                    <button
-                      onClick={() => updateRegra(key, 'ativo', !regra.ativo)}
-                      style={{
-                        width: '44px', height: '24px', borderRadius: '12px', border: 'none', cursor: 'pointer', position: 'relative', transition: 'background 0.2s',
-                        background: regra.ativo ? 'rgba(34,197,94,0.7)' : 'rgba(255,255,255,0.15)',
-                      }}
-                    >
-                      <span style={{ position: 'absolute', top: '3px', left: regra.ativo ? '23px' : '3px', width: '18px', height: '18px', borderRadius: '50%', background: 'white', transition: 'left 0.2s' }} />
-                    </button>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    {[{ v: true, l: 'Ativo' }, { v: false, l: 'Inativo' }].map(({ v, l }) => (
+                      <button key={String(v)} onClick={() => updateRegra(key, 'ativo', v)} style={{ padding: '6px 14px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px', background: regra.ativo === v ? (v ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)') : 'rgba(255,255,255,0.05)', border: regra.ativo === v ? (v ? '1px solid rgba(34,197,94,0.6)' : '1px solid rgba(239,68,68,0.6)') : '1px solid rgba(255,255,255,0.1)', color: regra.ativo === v ? (v ? '#4ade80' : '#f87171') : 'rgba(255,255,255,0.4)' }}>{l}</button>
+                    ))}
                   </div>
                 </div>
-
-                {/* Horário override */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px' }}>
-                  <label style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', minWidth: '120px' }}>
-                    Horário desta regra:
-                  </label>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <button
-                      onClick={() => updateRegra(key, 'horario', usaHorarioCustom ? '' : (config.horario || '09:00'))}
-                      style={{ padding: '4px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', fontWeight: '600',
-                        background: usaHorarioCustom ? 'rgba(99,102,241,0.3)' : 'rgba(255,255,255,0.05)',
-                        border: usaHorarioCustom ? '1px solid rgba(99,102,241,0.5)' : '1px solid rgba(255,255,255,0.1)',
-                        color: usaHorarioCustom ? '#a5b4fc' : 'rgba(255,255,255,0.4)' }}
-                    >
-                      {usaHorarioCustom ? '⚙️ Personalizado' : '🌐 Global'}
-                    </button>
-                    {usaHorarioCustom ? (
-                      <input
-                        type="time"
-                        value={regra.horario || config.horario}
-                        onChange={e => updateRegra(key, 'horario', e.target.value)}
-                        style={{ ...inputStyle, width: '110px', fontSize: '13px', padding: '4px 8px' }}
-                      />
-                    ) : (
-                      <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: '12px' }}>{config.horario || '09:00'}</span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Mensagem */}
                 <label style={{ color: 'rgba(255,255,255,0.6)', fontSize: '13px', display: 'block', marginBottom: '6px' }}>Mensagem</label>
                 <textarea value={regra.mensagem} onChange={e => updateRegra(key, 'mensagem', e.target.value)} rows={4} style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit', lineHeight: '1.5' }} />
               </div>
@@ -584,6 +622,117 @@ export default function Notificacoes() {
             <button onClick={salvarConfig} disabled={salvando} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: saved ? 'rgba(34,197,94,0.3)' : 'linear-gradient(135deg,#3b82f6,#6366f1)', border: saved ? '1px solid rgba(34,197,94,0.5)' : 'none', color: 'white', borderRadius: '12px', padding: '12px 28px', cursor: salvando ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '14px', opacity: salvando ? 0.6 : 1 }}>
               <Save size={16} /> {saved ? 'Salvo!' : salvando ? 'Salvando...' : 'Salvar Configurações'}
             </button>
+          </div>
+        </div>
+      )}
+
+
+      {/* ── ABA MÍDIAS ── */}
+      {aba === 'midias' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+
+          {/* Upload */}
+          <div className="glass-card" style={{ padding: '24px' }}>
+            <h3 style={{ color: 'white', margin: '0 0 16px', fontSize: '16px', fontWeight: '600' }}>📁 Upload de Mídia</h3>
+            <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '13px', margin: '0 0 16px' }}>
+              Suportado: Imagens (JPG, PNG), Áudio (.ogg, .opus), Vídeo (.mp4) — Máximo 50MB
+            </p>
+
+            {/* Drop zone */}
+            <div
+              onClick={() => inputFileRef.current?.click()}
+              onDragOver={e => e.preventDefault()}
+              onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) uploadMidia(f) }}
+              style={{ border: '2px dashed rgba(99,102,241,0.4)', borderRadius: '12px', padding: '40px', textAlign: 'center', cursor: 'pointer', background: 'rgba(99,102,241,0.05)', transition: 'all 0.2s' }}
+            >
+              <Upload size={32} style={{ color: 'rgba(99,102,241,0.6)', marginBottom: '12px' }} />
+              <p style={{ color: 'rgba(255,255,255,0.6)', margin: 0, fontSize: '14px' }}>Clique ou arraste o arquivo aqui</p>
+            </div>
+            <input ref={inputFileRef} type="file" accept="image/*,audio/*,video/mp4,.ogg,.opus" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) uploadMidia(f); e.target.value = '' }} />
+
+            {/* Progress */}
+            {uploadProgress >= 0 && (
+              <div style={{ marginTop: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                  <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: '13px' }}>Enviando...</span>
+                  <span style={{ color: '#a5b4fc', fontSize: '13px', fontWeight: '600' }}>{uploadProgress}%</span>
+                </div>
+                <div style={{ height: '6px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${uploadProgress}%`, background: 'linear-gradient(90deg,#6366f1,#8b5cf6)', borderRadius: '4px', transition: 'width 0.3s' }} />
+                </div>
+              </div>
+            )}
+            {uploadError && <p style={{ color: '#f87171', fontSize: '13px', margin: '12px 0 0' }}>❌ {uploadError}</p>}
+          </div>
+
+          {/* Grid de mídias */}
+          <div className="glass-card" style={{ padding: '24px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h3 style={{ color: 'white', margin: 0, fontSize: '16px', fontWeight: '600' }}>
+                🗂️ Mídias Salvas <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: '14px', fontWeight: '400' }}>({midias.length})</span>
+              </h3>
+              <button onClick={carregarMidias} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.6)', borderRadius: '8px', padding: '6px 14px', cursor: 'pointer', fontSize: '13px' }}>
+                <RefreshCw size={13} /> Atualizar
+              </button>
+            </div>
+
+            {midias.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '40px', color: 'rgba(255,255,255,0.3)' }}>
+                <Image size={40} style={{ marginBottom: '12px', opacity: 0.3 }} />
+                <p style={{ margin: 0 }}>Nenhuma mídia enviada ainda</p>
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '16px' }}>
+                {midias.map(midia => (
+                  <div key={midia.id} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', overflow: 'hidden', position: 'relative' }}>
+
+                    {/* Preview */}
+                    <div style={{ height: '140px', background: 'rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                      {midia.tipo === 'imagem' && (
+                        <img src={midia.url} alt={midia.nome} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      )}
+                      {midia.tipo === 'audio' && (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', padding: '16px' }}>
+                          <Music size={36} style={{ color: '#a78bfa' }} />
+                          <audio controls style={{ width: '100%', height: '32px' }} src={midia.url} />
+                        </div>
+                      )}
+                      {midia.tipo === 'video' && (
+                        <video src={midia.url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} controls={false} muted
+                          onMouseEnter={e => (e.target as HTMLVideoElement).play()}
+                          onMouseLeave={e => { const v = e.target as HTMLVideoElement; v.pause(); v.currentTime = 0 }}
+                        />
+                      )}
+                      {midia.tipo === 'documento' && (
+                        <FileText size={36} style={{ color: '#60a5fa' }} />
+                      )}
+                    </div>
+
+                    {/* Info */}
+                    <div style={{ padding: '12px' }}>
+                      <p style={{ color: 'white', fontSize: '12px', margin: '0 0 4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={midia.nome}>{midia.nome}</p>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)' }}>{formatBytes(midia.tamanho)}</span>
+                        <span style={{ fontSize: '10px', padding: '2px 7px', borderRadius: '10px', fontWeight: '600',
+                          background: midia.tipo === 'imagem' ? 'rgba(34,197,94,0.2)' : midia.tipo === 'audio' ? 'rgba(167,139,250,0.2)' : midia.tipo === 'video' ? 'rgba(251,191,36,0.2)' : 'rgba(96,165,250,0.2)',
+                          color:      midia.tipo === 'imagem' ? '#4ade80'              : midia.tipo === 'audio' ? '#c4b5fd'              : midia.tipo === 'video' ? '#fcd34d'              : '#93c5fd',
+                        }}>
+                          {midia.tipo}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', gap: '6px', marginTop: '10px' }}>
+                        <a href={midia.url} target="_blank" rel="noreferrer" style={{ flex: 1, textAlign: 'center', padding: '6px', borderRadius: '7px', background: 'rgba(99,102,241,0.2)', border: '1px solid rgba(99,102,241,0.3)', color: '#a5b4fc', fontSize: '11px', fontWeight: '600', textDecoration: 'none' }}>
+                          Abrir
+                        </a>
+                        <button onClick={() => excluirMidia(midia)} disabled={deletandoMidia === midia.id} style={{ flex: 1, padding: '6px', borderRadius: '7px', background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171', fontSize: '11px', fontWeight: '600', cursor: 'pointer' }}>
+                          {deletandoMidia === midia.id ? '...' : '🗑️ Excluir'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
