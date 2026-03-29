@@ -500,9 +500,18 @@ export default function createWhatsAppRouter(db, admin) {
         console.log(`[WA] ✅ Renovação enviada para ${telefone}`)
       } else {
         await db.collection('filaEnvios').add({
-          nome: dados.nome ?? '', telefone, mensagem,
-          status: 'pendente', gatilho: 'renovacao',
-          tentativas: 0, criadoEm: new Date(),
+          clienteNome:      dados.nome ?? '',
+          nome:             dados.nome ?? '',
+          telefone,
+          mensagem,
+          status:           'pendente',
+          gatilho:          'renovacao',
+          tentativas:       0,
+          maxTentativas:    3,
+          criadoEm:         admin.firestore.FieldValue.serverTimestamp(),
+          proximaTentativa: admin.firestore.Timestamp.now(),
+          enviadoEm:        null,
+          erro:             null,
         })
         console.log(`[WA] 📋 Renovação na fila (WA offline): ${dados.nome}`)
       }

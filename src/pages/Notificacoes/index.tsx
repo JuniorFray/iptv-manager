@@ -149,7 +149,12 @@ export default function Notificacoes() {
   }, [])
 
   const carregarLogs = async () => {
-    try { const res = await axios.get(`${API}/logs`); setLogs(res.data) } catch {}
+    try {
+      const res = await axios.get(`${API}/logs`)
+      setLogs(res.data ?? [])
+    } catch (err) {
+      console.error('Erro ao carregar logs:', err)
+    }
   }
 
   const carregarFila = async () => {
