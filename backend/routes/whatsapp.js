@@ -83,7 +83,7 @@ export default function createWhatsAppRouter(db, admin) {
         auth: state,
         printQRInTerminal: false,
         generateHighQualityLinkPreview: false,
-        browser: ['Ubuntu', 'Chrome', '20.0.04'],
+        browser: ['SistemaTV', 'Desktop', '1.0.0'],
         keepAliveIntervalMs: 25000,
         connectTimeoutMs:    60000,
         retryRequestDelayMs: 2000,
@@ -111,7 +111,7 @@ export default function createWhatsAppRouter(db, admin) {
 
         if (connection === 'close') {
           clientReady = false
-          processandoFila = false  // reset lock ao desconectar
+          processandoFila = false
           const statusCode = lastDisconnect?.error?.output?.statusCode
           console.log('Desconectado', statusCode)
 
