@@ -2,7 +2,7 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { collection, onSnapshot, addDoc, deleteDoc, doc, getDocs } from 'firebase/firestore'
 import { db, storage } from '../../firebase'
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage'
-import { Send, Users, CheckCircle, Plus, Trash2, X, BookOpen, Wifi, WifiOff, QrCode, Settings, Clock, CheckCircle2, XCircle, Play, Save, RefreshCw, Image, Music, Video, FileText, Upload } from 'lucide-react'
+import { Send, Users, CheckCircle, Plus, Trash2, X, BookOpen, Wifi, WifiOff, QrCode, Settings, Clock, CheckCircle2, XCircle, Play, Save, RefreshCw, Image, Music, FileText, Upload } from 'lucide-react'
 import axios from 'axios'
 
 const API = 'https://iptv-manager-production.up.railway.app'
@@ -103,7 +103,7 @@ export default function Notificacoes() {
   const [qrCode, setQrCode]               = useState<string | null>(null)
   const [mostrarQR, setMostrarQR]         = useState(false)
   const [resultado, setResultado]         = useState<{ tipo: 'ok' | 'erro'; msg: string } | null>(null)
-  const [aba, setAba]                     = useState<'manual' | 'auto' | 'fila' | 'log'>('manual')
+  const [aba, setAba]                     = useState<'manual' | 'auto' | 'fila' | 'log' | 'midias'>('manual')
   const [logs, setLogs]                   = useState<LogEntry[]>([])
   const [salvando, setSalvando]           = useState(false)
   const [saved, setSaved]                 = useState(false)
