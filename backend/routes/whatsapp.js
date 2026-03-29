@@ -509,7 +509,6 @@ export default function createWhatsAppRouter(db, admin) {
     }
   }
 
-  // ---- Limpar histórico ----
   router.delete('/logs', async (req, res) => {
     try {
       const snap  = await db.collection('logswhatsapp').get()
