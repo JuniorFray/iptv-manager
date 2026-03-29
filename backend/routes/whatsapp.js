@@ -83,7 +83,7 @@ export default function createWhatsAppRouter(db, admin) {
         auth: state,
         printQRInTerminal: false,
         generateHighQualityLinkPreview: false,
-        browser: ['SistemaTV', 'Desktop', '1.0.0'],
+        browser: ['Ubuntu', 'Chrome', '20.0.04'],
         keepAliveIntervalMs: 25000,
         connectTimeoutMs:    60000,
         retryRequestDelayMs: 2000,
@@ -111,7 +111,6 @@ export default function createWhatsAppRouter(db, admin) {
 
         if (connection === 'close') {
           clientReady = false
-          processandoFila = false
           const statusCode = lastDisconnect?.error?.output?.statusCode
           console.log('Desconectado', statusCode)
 
@@ -358,17 +357,68 @@ export default function createWhatsAppRouter(db, admin) {
 
   cron.schedule('*/10 * * * * *', processarFila, { timezone: 'America/Sao_Paulo' })
 
-  let cronJob = null
+  let cronJobs = []
   const iniciarCron = async () => {
     const config = await getConfig()
-    const [hora, minuto] = (config.horario || '09:00').split(':').map(Number)
-    if (cronJob) cronJob.stop()
-    cronJob = cron.schedule(
-      `${minuto} ${hora} * * *`,
-      executarEnvioAutomatico,
-      { timezone: 'America/Sao_Paulo' }
-    )
-    console.log(`Cron agendado para ${config.horario}`)
+    // Para todos os jobs anteriores
+    cronJobs.forEach(j => j.stop())
+    cronJobs = []
+
+    const regrasMap = [
+      { key: 'dias7', diff:  7 },
+      { key: 'dias4', diff:  4 },
+      { key: 'dia0',  diff:  0 },
+      { key: 'pos1',  diff: -1 },
+      { key: 'pos3',  diff: -3 },
+    ]
+
+    // Agrupa regras por horário
+    const porHorario = {}
+    for (const { key, diff } of regrasMap) {
+      const regra = config.regras?.[key]
+      if (!regra?.ativo) continue
+      const horario = regra.horario || config.horario || '09:00'
+      if (!porHorario[horario]) porHorario[horario] = []
+      porHorario[horario].push({ key, diff })
+    }
+
+    // Cria um cron por horário único
+    for (const [horario, regrasDoHorario] of Object.entries(porHorario)) {
+      const [hora, minuto] = horario.split(':').map(Number)
+      const job = cron.schedule(
+        `${minuto} ${hora} * * *`,
+        async () => {
+          console.log(`Iniciando envio automático para horário ${horario}...`)
+          if (!clientReady) { console.log('WhatsApp não conectado.'); return }
+          const cfg = await getConfig()
+          if (!cfg.ativo) { console.log('Envio automático desativado.'); return }
+          const snapshot = await db.collection('clientes').get()
+          const clientes = snapshot.docs.map(d => ({ id: d.id, ...d.data() }))
+          let adicionados = 0
+          for (const { key, diff: diffAlvo } of regrasDoHorario) {
+            const regraAtual = cfg.regras?.[key]
+            if (!regraAtual?.ativo) continue
+            for (const cliente of clientes) {
+              if (!cliente.telefone) continue
+              const diff = diffDias(cliente.vencimento)
+              if (diff !== diffAlvo) continue
+              const mensagem = formatarMensagem(regraAtual.mensagem, cliente)
+              const adicionou = await adicionarNaFila(cliente, key, mensagem)
+              if (adicionou) adicionados++
+            }
+          }
+          console.log(`${adicionados} mensagens adicionadas (horário ${horario}).`)
+          processarFila()
+        },
+        { timezone: 'America/Sao_Paulo' }
+      )
+      cronJobs.push(job)
+      console.log(`Cron agendado para ${horario} (regras: ${regrasDoHorario.map(r => r.key).join(', ')})`)
+    }
+
+    if (cronJobs.length === 0) {
+      console.log('Nenhuma regra ativa para agendar.')
+    }
   }
 
   // ---- Rotas WhatsApp ----

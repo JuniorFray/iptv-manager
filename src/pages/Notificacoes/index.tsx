@@ -9,7 +9,7 @@ const API = 'https://iptv-manager-production.up.railway.app'
 interface Cliente { id: string; nome: string; telefone: string; servidor: string; tipo: string; status: string; vencimento: string; valor: string }
 interface ModeloMensagem { id: string; titulo: string; texto: string }
 interface LogEntry { id: string; clienteNome: string; telefone: string; gatilho: string; mensagem: string; status: string; data: string; hora: string }
-interface Regra { ativo: boolean; mensagem: string }
+interface Regra { ativo: boolean; mensagem: string; horario?: string }
 interface Config {
   horario: string
   ativo: boolean
@@ -149,12 +149,7 @@ export default function Notificacoes() {
   }, [])
 
   const carregarLogs = async () => {
-    try {
-      const res = await axios.get(`${API}/logs`)
-      setLogs(res.data ?? [])
-    } catch (err) {
-      console.error('Erro ao carregar logs:', err)
-    }
+    try { const res = await axios.get(`${API}/logs`); setLogs(res.data) } catch {}
   }
 
   const carregarFila = async () => {
@@ -528,16 +523,57 @@ export default function Notificacoes() {
 
           {REGRAS_INFO.map(({ key, label, cor }) => {
             const regra = config.regras[key as keyof typeof config.regras]
+            const usaHorarioCustom = !!regra.horario
             return (
-              <div key={key} className="glass-card" style={{ padding: '24px', borderLeft: `3px solid rgba(${cor},0.6)` }}>
+              <div key={key} className="glass-card" style={{ padding: '24px', borderLeft: `3px solid rgba(${cor},0.6)`, opacity: regra.ativo ? 1 : 0.5, transition: 'opacity 0.2s' }}>
+                {/* Header: label + toggle ativo */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                   <span style={{ background: `rgba(${cor},0.15)`, border: `1px solid rgba(${cor},0.3)`, color: `rgb(${cor})`, padding: '4px 12px', borderRadius: '20px', fontSize: '13px', fontWeight: '600' }}>{label}</span>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    {[{ v: true, l: 'Ativo' }, { v: false, l: 'Inativo' }].map(({ v, l }) => (
-                      <button key={String(v)} onClick={() => updateRegra(key, 'ativo', v)} style={{ padding: '6px 14px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px', background: regra.ativo === v ? (v ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)') : 'rgba(255,255,255,0.05)', border: regra.ativo === v ? (v ? '1px solid rgba(34,197,94,0.6)' : '1px solid rgba(239,68,68,0.6)') : '1px solid rgba(255,255,255,0.1)', color: regra.ativo === v ? (v ? '#4ade80' : '#f87171') : 'rgba(255,255,255,0.4)' }}>{l}</button>
-                    ))}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '12px' }}>
+                      {regra.ativo ? '✅ Ativo' : '🔴 Inativo'}
+                    </span>
+                    <button
+                      onClick={() => updateRegra(key, 'ativo', !regra.ativo)}
+                      style={{
+                        width: '44px', height: '24px', borderRadius: '12px', border: 'none', cursor: 'pointer', position: 'relative', transition: 'background 0.2s',
+                        background: regra.ativo ? 'rgba(34,197,94,0.7)' : 'rgba(255,255,255,0.15)',
+                      }}
+                    >
+                      <span style={{ position: 'absolute', top: '3px', left: regra.ativo ? '23px' : '3px', width: '18px', height: '18px', borderRadius: '50%', background: 'white', transition: 'left 0.2s' }} />
+                    </button>
                   </div>
                 </div>
+
+                {/* Horário override */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px' }}>
+                  <label style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', minWidth: '120px' }}>
+                    Horário desta regra:
+                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <button
+                      onClick={() => updateRegra(key, 'horario', usaHorarioCustom ? '' : (config.horario || '09:00'))}
+                      style={{ padding: '4px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', fontWeight: '600',
+                        background: usaHorarioCustom ? 'rgba(99,102,241,0.3)' : 'rgba(255,255,255,0.05)',
+                        border: usaHorarioCustom ? '1px solid rgba(99,102,241,0.5)' : '1px solid rgba(255,255,255,0.1)',
+                        color: usaHorarioCustom ? '#a5b4fc' : 'rgba(255,255,255,0.4)' }}
+                    >
+                      {usaHorarioCustom ? '⚙️ Personalizado' : '🌐 Global'}
+                    </button>
+                    {usaHorarioCustom ? (
+                      <input
+                        type="time"
+                        value={regra.horario || config.horario}
+                        onChange={e => updateRegra(key, 'horario', e.target.value)}
+                        style={{ ...inputStyle, width: '110px', fontSize: '13px', padding: '4px 8px' }}
+                      />
+                    ) : (
+                      <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: '12px' }}>{config.horario || '09:00'}</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Mensagem */}
                 <label style={{ color: 'rgba(255,255,255,0.6)', fontSize: '13px', display: 'block', marginBottom: '6px' }}>Mensagem</label>
                 <textarea value={regra.mensagem} onChange={e => updateRegra(key, 'mensagem', e.target.value)} rows={4} style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit', lineHeight: '1.5' }} />
               </div>
