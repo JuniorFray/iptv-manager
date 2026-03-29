@@ -169,8 +169,8 @@ export default function Clientes() {
   }
 
   const matchElite = (cliente: Cliente, linhas: any[]): any | null => {
-    // 1. Busca por username — remove @dominio se existir (ex: cristianeS01@p2elite.com → cristianeS01)
-    const usuario = cliente.usuario?.trim().toLowerCase()
+    // 1. Busca por username — remove @dominio se existir
+    const usuario = cliente.usuario?.trim().toLowerCase().split('@')[0]
     if (usuario) {
       const byUser = linhas.find((l: any) => {
         const eliteUser = (l.username ?? '').toLowerCase().split('@')[0]
@@ -339,14 +339,14 @@ export default function Clientes() {
       if (!match) throw new Error(`Nenhuma linha Elite encontrada para "${cliente.nome}". Verifique se o nome bate com o cadastro no Elite.`)
 
       const updates: any = {
-        usuario: match.username ?? '',
+        usuario: (match.username ?? '').split('@')[0],
         senha:   match.password ?? '',
       }
       if (match.exp_date) {
         updates.vencimento = isoParaBR(match.exp_date)
       }
       await updateDoc(doc(db, 'clientes', cliente.id), updates)
-      mostrarMsgPainel('ok', `✅ ${cliente.nome} importado!\n👤 ${match.username}${match.exp_date ? ' | 📅 ' + isoParaBR(match.exp_date) : ''}`)
+      mostrarMsgPainel('ok', `✅ ${cliente.nome} importado!\n👤 ${(match.username ?? '').split('@')[0]}${match.exp_date ? ' | 📅 ' + isoParaBR(match.exp_date) : ''}`)
     } catch (err: any) {
       mostrarMsgPainel('erro', `❌ Erro ao importar ${cliente.nome}:\n${err.message}`)
     } finally {
