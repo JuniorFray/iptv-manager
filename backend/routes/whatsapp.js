@@ -92,6 +92,7 @@ export default function createWhatsAppRouter(db, admin) {
         syncFullHistory:     false,
         shouldSyncHistoryMessage: () => false,
         getMessage: async () => undefined,
+        fireInitQueries: false,
       })
 
       sock.ev.on('creds.update', saveCreds)
@@ -143,7 +144,8 @@ export default function createWhatsAppRouter(db, admin) {
           qrCodeBase64 = null
           console.log('WhatsApp conectado!')
           setTimeout(() => { if (clientReady) reconexoes440 = 0 }, 60000)
-          setTimeout(processarFila, 3000)
+          // Processa fila rapidamente ao conectar
+          setTimeout(processarFila, 500)
         }
       })
     } catch (err) {
