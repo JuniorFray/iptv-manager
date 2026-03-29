@@ -169,20 +169,21 @@ export default function Clientes() {
   }
 
   const matchElite = (cliente: Cliente, linhas: any[]): any | null => {
-    // 1. Busca por username (mais preciso)
+    // 1. Busca por username exato (mais preciso)
     const usuario = cliente.usuario?.trim().toLowerCase()
     if (usuario) {
       const byUser = linhas.find((l: any) => l.username?.toLowerCase() === usuario)
       if (byUser) return byUser
     }
-    // 2. Fallback: busca por nome (para clientes sem usuário ainda)
+    // 2. Fallback: nome completo deve bater (todas as palavras)
     const nomeLower = cliente.nome?.toLowerCase() ?? ''
     const palavras = nomeLower.split(' ').filter((p: string) => p.length > 2)
     if (palavras.length === 0) return null
     return linhas.find((l: any) => {
       const name = (l.name ?? l.notes ?? '').toLowerCase()
       if (!name) return false
-      return palavras.filter((p: string) => name.includes(p)).length >= 2
+      // Todas as palavras do nome do sistema devem estar no nome do servidor
+      return palavras.every((p: string) => name.includes(p))
     }) ?? null
   }
 
@@ -200,7 +201,7 @@ export default function Clientes() {
     return linhas.find((l: any) => {
       const name = (l.name ?? '').toLowerCase()
       if (!name) return false
-      return palavras.filter((p: string) => name.includes(p)).length >= 2
+      return palavras.every((p: string) => name.includes(p))
     }) ?? null
   }
 
@@ -264,13 +265,7 @@ export default function Clientes() {
       const renovarRes = await fetch(`${BACKEND_URL}/painel/renovar/${linha.id}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          credits,
-          nome:     cliente.nome,
-          telefone: cliente.telefone,
-          usuario:  cliente.usuario,
-          senha:    cliente.senha,
-        }),
+        body: JSON.stringify({ credits }),
       })
       const renovarData = await renovarRes.json()
       if (!renovarRes.ok) throw new Error(renovarData?.error ?? 'Falha ao renovar no Warez.')
@@ -371,15 +366,7 @@ export default function Clientes() {
       const renovarRes = await fetch(`${BACKEND_URL}/elite/renovar`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id:   linha.id,
-          tipo: linha.tipo ?? cliente.tipo ?? 'IPTV',
-          meses,
-          nome:     cliente.nome,
-          telefone: cliente.telefone,
-          usuario:  cliente.usuario,
-          senha:    cliente.senha,
-        }),
+        body: JSON.stringify({ id: linha.id, tipo: linha.tipo ?? cliente.tipo ?? 'IPTV', meses }),
       })
       const renovarData = await renovarRes.json()
       if (!renovarRes.ok) throw new Error(renovarData?.error ?? 'Falha ao renovar no Elite.')
@@ -477,14 +464,7 @@ export default function Clientes() {
       const res = await fetch(`${BACKEND_URL}/central/renovar`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id:       clienteParaRenovar.usuario,
-          meses:    periodoRenovar,
-          nome:     clienteParaRenovar.nome,
-          telefone: clienteParaRenovar.telefone,
-          usuario:  clienteParaRenovar.usuario,
-          senha:    clienteParaRenovar.senha,
-        }),
+        body: JSON.stringify({ id: clienteParaRenovar.usuario, meses: periodoRenovar }),
       })
       const data = await res.json()
       if (!res.ok || !data.success) throw new Error(data.error ?? 'Falha ao renovar no Central')
