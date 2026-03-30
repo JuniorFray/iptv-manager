@@ -226,7 +226,7 @@ export default function createEliteRouter(enviarMensagemRenovacao) {
         headersTimeout: 30000, bodyTimeout: 30000,
       })
       const html = await r.body.text()
-      const match = html.match(/id="navbarCredits"[^>]*>\s*([0-9]+[.,][0-9]+)/)
+      const match = html.match(/id="navbarCredits"[^>]*>[\s\S]*?([0-9]+[.,][0-9]+)[\s\S]*?<\/span>/)
       const creditos = match ? parseFloat(match[1].replace(',', '.')) : null
       res.json({ ok: true, creditos })
     } catch (err) { res.status(500).json({ ok: false, error: err.message }) }
