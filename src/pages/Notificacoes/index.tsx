@@ -875,13 +875,22 @@ export default function Notificacoes() {
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '12px' }}>
                       {midias.map(m => (
                         <div key={m.id} onClick={() => {
-                          updateRegra(modalMidiaRegra, 'midiaUrl', m.url)
-                          updateRegra(modalMidiaRegra, 'midiaTipo', m.tipo)
-                          updateRegra(modalMidiaRegra, 'midiaNome', m.nome)
-                          updateRegra(modalMidiaRegra, 'midiaStoragePath', m.storagePath)
-                          if (!(config.regras as any)[modalMidiaRegra]?.modoEnvio) {
-                            updateRegra(modalMidiaRegra, 'modoEnvio', 'junto')
-                          }
+                          if (!config || !modalMidiaRegra) return
+                          const regraAtual = config.regras[modalMidiaRegra as keyof typeof config.regras]
+                          setConfig({
+                            ...config,
+                            regras: {
+                              ...config.regras,
+                              [modalMidiaRegra]: {
+                                ...regraAtual,
+                                midiaUrl:         m.url,
+                                midiaTipo:        m.tipo,
+                                midiaNome:        m.nome,
+                                midiaStoragePath: m.storagePath,
+                                modoEnvio:        regraAtual?.modoEnvio || 'junto',
+                              }
+                            }
+                          })
                           setModalMidiaRegra(null)
                         }}
                           style={{ cursor: 'pointer', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', overflow: 'hidden', background: 'rgba(255,255,255,0.03)' }}>
