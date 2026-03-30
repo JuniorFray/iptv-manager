@@ -10,7 +10,7 @@ const API = 'https://iptv-manager-production.up.railway.app'
 interface Cliente { id: string; nome: string; telefone: string; servidor: string; tipo: string; status: string; vencimento: string; valor: string }
 interface ModeloMensagem { id: string; titulo: string; texto: string }
 interface LogEntry { id: string; clienteNome: string; telefone: string; gatilho: string; mensagem: string; status: string; data: string; hora: string }
-interface Regra { ativo: boolean; mensagem: string; horario?: string }
+interface Regra { ativo: boolean; mensagem: string; horario?: string; midiaUrl?: string; midiaTipo?: string; midiaNome?: string; midiaStoragePath?: string; modoEnvio?: 'junto' | 'separado' }
 interface Config {
   horario: string
   ativo: boolean
@@ -104,6 +104,7 @@ export default function Notificacoes() {
   const [modalMidias, setModalMidias]       = useState(false)
   const [modoEnvioMidia, setModoEnvioMidia] = useState<'junto' | 'separado'>('junto')
   const [uploadManualProg, setUploadManualProg] = useState(-1)
+  const [modalMidiaRegra, setModalMidiaRegra]   = useState<string | null>(null) // key da regra
   const [whatsReady, setWhatsReady]       = useState(false)
   const [qrCode, setQrCode]               = useState<string | null>(null)
   const [mostrarQR, setMostrarQR]         = useState(false)
@@ -727,9 +728,85 @@ export default function Notificacoes() {
                 </div>
                 <label style={{ color: 'rgba(255,255,255,0.6)', fontSize: '13px', display: 'block', marginBottom: '6px' }}>Mensagem</label>
                 <textarea value={regra.mensagem} onChange={e => updateRegra(key, 'mensagem', e.target.value)} rows={4} style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit', lineHeight: '1.5' }} />
+
+                {/* Mídia da regra */}
+                <div style={{ marginTop: '12px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', padding: '12px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: regra.midiaUrl ? '10px' : '0' }}>
+                    <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', fontWeight: '600' }}>📎 Mídia (opcional)</span>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button onClick={() => { carregarMidias(); setModalMidiaRegra(key) }} style={{ padding: '4px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', background: 'rgba(99,102,241,0.2)', border: '1px solid rgba(99,102,241,0.3)', color: '#a5b4fc' }}>
+                        🗂️ {regra.midiaUrl ? 'Trocar' : 'Selecionar'}
+                      </button>
+                      {regra.midiaUrl && (
+                        <button onClick={() => updateRegra(key, 'midiaUrl', '')} style={{ padding: '4px 8px', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171' }}>✕ Remover</button>
+                      )}
+                    </div>
+                  </div>
+                  {regra.midiaUrl && (
+                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                      {regra.midiaTipo === 'imagem' && <img src={regra.midiaUrl} style={{ width: '50px', height: '50px', objectFit: 'cover', borderRadius: '6px' }} alt="" />}
+                      {regra.midiaTipo === 'audio'  && <Music size={28} style={{ color: '#a78bfa', flexShrink: 0 }} />}
+                      {regra.midiaTipo === 'video'  && <video src={regra.midiaUrl} style={{ width: '50px', height: '50px', objectFit: 'cover', borderRadius: '6px' }} muted />}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '11px', margin: '0 0 6px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{regra.midiaNome}</p>
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          {(['junto', 'separado'] as const).map(modo => (
+                            <button key={modo} onClick={() => updateRegra(key, 'modoEnvio', modo)} style={{ padding: '3px 8px', borderRadius: '5px', cursor: 'pointer', fontSize: '11px', fontWeight: '600',
+                              background: (regra.modoEnvio ?? 'junto') === modo ? 'rgba(99,102,241,0.3)' : 'rgba(255,255,255,0.05)',
+                              border:     (regra.modoEnvio ?? 'junto') === modo ? '1px solid rgba(99,102,241,0.5)' : '1px solid rgba(255,255,255,0.1)',
+                              color:      (regra.modoEnvio ?? 'junto') === modo ? '#a5b4fc' : 'rgba(255,255,255,0.4)' }}>
+                              {modo === 'junto' ? '📎 Com legenda' : '✉️ Separado'}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             )
           })}
+
+          {/* Modal seleção mídia para regra */}
+          {modalMidiaRegra && (
+            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+              <div style={{ background: '#1a1a2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', padding: '24px', width: '100%', maxWidth: '700px', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                  <h3 style={{ color: 'white', margin: 0 }}>🗂️ Selecionar Mídia para Regra</h3>
+                  <button onClick={() => setModalMidiaRegra(null)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: '20px' }}>✕</button>
+                </div>
+                <div style={{ overflowY: 'auto', flex: 1 }}>
+                  {midias.length === 0 ? (
+                    <p style={{ color: 'rgba(255,255,255,0.3)', textAlign: 'center', padding: '40px 0' }}>Nenhuma mídia. Faça upload na aba Mídias primeiro.</p>
+                  ) : (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '12px' }}>
+                      {midias.map(m => (
+                        <div key={m.id} onClick={() => {
+                          updateRegra(modalMidiaRegra, 'midiaUrl', m.url)
+                          updateRegra(modalMidiaRegra, 'midiaTipo', m.tipo)
+                          updateRegra(modalMidiaRegra, 'midiaNome', m.nome)
+                          updateRegra(modalMidiaRegra, 'midiaStoragePath', m.storagePath)
+                          if (!(config.regras as any)[modalMidiaRegra]?.modoEnvio) {
+                            updateRegra(modalMidiaRegra, 'modoEnvio', 'junto')
+                          }
+                          setModalMidiaRegra(null)
+                        }}
+                          style={{ cursor: 'pointer', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', overflow: 'hidden', background: 'rgba(255,255,255,0.03)' }}>
+                          <div style={{ height: '90px', background: 'rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                            {m.tipo === 'imagem' && <img src={m.url} alt={m.nome} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+                            {m.tipo === 'audio'  && <Music size={28} style={{ color: '#a78bfa' }} />}
+                            {m.tipo === 'video'  && <video src={m.url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} muted />}
+                            {m.tipo === 'documento' && <FileText size={28} style={{ color: '#60a5fa' }} />}
+                          </div>
+                          <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '11px', margin: '6px 8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.nome}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
             <button onClick={salvarConfig} disabled={salvando} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: saved ? 'rgba(34,197,94,0.3)' : 'linear-gradient(135deg,#3b82f6,#6366f1)', border: saved ? '1px solid rgba(34,197,94,0.5)' : 'none', color: 'white', borderRadius: '12px', padding: '12px 28px', cursor: salvando ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '14px', opacity: salvando ? 0.6 : 1 }}>

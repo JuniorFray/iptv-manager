@@ -241,23 +241,27 @@ export default function createWhatsAppRouter(db, admin) {
     return !snap.empty
   }
 
-  const adicionarNaFila = async (cliente, gatilho, mensagem) => {
+  const adicionarNaFila = async (cliente, gatilho, mensagem, midia = {}) => {
     if (await jaEnviouHoje(cliente.id, gatilho)) {
       console.log(`Duplicata ignorada: ${cliente.nome} ${gatilho}`)
       return false
     }
     await db.collection('filaEnvios').add({
-      clienteId:       cliente.id,
-      clienteNome:     cliente.nome,
-      telefone:        cliente.telefone,
+      clienteId:        cliente.id,
+      clienteNome:      cliente.nome,
+      telefone:         cliente.telefone,
       mensagem, gatilho,
-      status:          'pendente',
-      tentativas:      0,
-      maxTentativas:   MAX_TENTATIVAS,
-      criadoEm:        admin.firestore.FieldValue.serverTimestamp(),
+      midiaUrl:         midia.midiaUrl  || null,
+      midiaTipo:        midia.midiaTipo || null,
+      midiaNome:        midia.midiaNome || null,
+      modoEnvio:        midia.modoEnvio || 'junto',
+      status:           'pendente',
+      tentativas:       0,
+      maxTentativas:    MAX_TENTATIVAS,
+      criadoEm:         admin.firestore.FieldValue.serverTimestamp(),
       proximaTentativa: admin.firestore.Timestamp.now(),
-      enviadoEm:       null,
-      erro:            null,
+      enviadoEm:        null,
+      erro:             null,
     })
     console.log(`Adicionado na fila: ${cliente.nome} ${gatilho}`)
     return true
@@ -286,7 +290,24 @@ export default function createWhatsAppRouter(db, admin) {
         await ref.update({ status: 'enviando' })
         try {
           const numero = normalizarTelefone(item.telefone)
-          await sock.sendMessage(numero, { text: item.mensagem })
+          if (item.midiaUrl && item.midiaTipo) {
+            // Envia com mídia
+            if (item.modoEnvio === 'separado' && item.mensagem?.trim()) {
+              await sock.sendMessage(numero, { text: item.mensagem })
+              await sleep(1000)
+            }
+            if (item.midiaTipo === 'imagem') {
+              await sock.sendMessage(numero, { image: { url: item.midiaUrl }, caption: item.modoEnvio !== 'separado' ? (item.mensagem || '') : '' })
+            } else if (item.midiaTipo === 'audio') {
+              await sock.sendMessage(numero, { audio: { url: item.midiaUrl }, mimetype: 'audio/ogg; codecs=opus', ptt: true })
+            } else if (item.midiaTipo === 'video') {
+              await sock.sendMessage(numero, { video: { url: item.midiaUrl }, caption: item.modoEnvio !== 'separado' ? (item.mensagem || '') : '' })
+            } else {
+              await sock.sendMessage(numero, { document: { url: item.midiaUrl }, fileName: item.midiaNome || 'arquivo' })
+            }
+          } else {
+            await sock.sendMessage(numero, { text: item.mensagem })
+          }
           await ref.update({
             status:    'enviado',
             enviadoEm: admin.firestore.FieldValue.serverTimestamp(),
@@ -346,7 +367,12 @@ export default function createWhatsAppRouter(db, admin) {
         const regra = config.regras?.[key]
         if (!regra?.ativo) continue
         const mensagem = formatarMensagem(regra.mensagem, cliente)
-        const adicionou = await adicionarNaFila(cliente, key, mensagem)
+        const adicionou = await adicionarNaFila(cliente, key, mensagem, {
+          midiaUrl:        regra.midiaUrl        || null,
+          midiaTipo:       regra.midiaTipo       || null,
+          midiaNome:       regra.midiaNome       || null,
+          modoEnvio:       regra.modoEnvio       || 'junto',
+        })
         if (adicionou) adicionados++
       }
     }
