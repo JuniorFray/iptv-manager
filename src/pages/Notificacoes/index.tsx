@@ -394,14 +394,38 @@ export default function Notificacoes() {
   }
 
   const enviarUm = async () => {
-    if (!clienteSel || !mensagem.trim()) return
+    if (!clienteSel) return
+    if (!mensagem.trim() && !midiaManual) return
+    const textoFinal = substituir(mensagem, clienteSel)
+    const phone = formatarTelefone(clienteSel.telefone)
     try {
-      const res = await fetch(`${API}/send`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: formatarTelefone(clienteSel.telefone), message: substituir(mensagem, clienteSel) }) })
-      const data = await res.json()
-      if (data.success) setResultado({ tipo: 'ok', msg: `Mensagem enviada para ${clienteSel.nome}!` })
-      else setResultado({ tipo: 'erro', msg: data.error || 'Erro ao enviar.' })
+      if (!midiaManual) {
+        // Só texto
+        const res = await fetch(`${API}/send`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, message: textoFinal }) })
+        const data = await res.json()
+        if (data.success) setResultado({ tipo: 'ok', msg: `Mensagem enviada para ${clienteSel.nome}!` })
+        else setResultado({ tipo: 'erro', msg: data.error || 'Erro ao enviar.' })
+      } else if (modoEnvioMidia === 'junto') {
+        // Mídia com legenda
+        const res = await fetch(`${API}/send-midia`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone, mediaUrl: midiaManual.url, mediaTipo: midiaManual.tipo, mediaNome: midiaManual.nome, caption: textoFinal }) })
+        const data = await res.json()
+        if (data.success) setResultado({ tipo: 'ok', msg: `Mensagem + mídia enviada para ${clienteSel.nome}!` })
+        else setResultado({ tipo: 'erro', msg: data.error || 'Erro ao enviar.' })
+      } else {
+        // Separado: texto depois mídia
+        if (mensagem.trim()) {
+          await fetch(`${API}/send`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, message: textoFinal }) })
+          await new Promise(r => setTimeout(r, 1000))
+        }
+        const res = await fetch(`${API}/send-midia`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone, mediaUrl: midiaManual.url, mediaTipo: midiaManual.tipo, mediaNome: midiaManual.nome, caption: '' }) })
+        const data = await res.json()
+        if (data.success) setResultado({ tipo: 'ok', msg: `Mensagem + mídia enviada para ${clienteSel.nome}!` })
+        else setResultado({ tipo: 'erro', msg: data.error || 'Erro ao enviar.' })
+      }
     } catch { setResultado({ tipo: 'erro', msg: 'Backend offline.' }) }
-    setTimeout(() => setResultado(null), 4000)
+    setTimeout(() => setResultado(null), 5000)
   }
 
   const enviarTodos = async () => {
