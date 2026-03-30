@@ -314,9 +314,9 @@ export default function createWhatsAppRouter(db, admin) {
             erro:      null
           })
           await db.collection('notificacoesEnviadas').add({
-            clienteId:   item.clienteId,
-            clienteNome: item.clienteNome,
-            gatilho:     item.gatilho,
+            clienteId:   item.clienteId   ?? item.telefone ?? 'sem-id',
+            clienteNome: item.clienteNome ?? item.nome     ?? '',
+            gatilho:     item.gatilho     ?? 'renovacao',
             data:        new Date().toISOString().split('T')[0],
             enviadoEm:   admin.firestore.FieldValue.serverTimestamp(),
           })
