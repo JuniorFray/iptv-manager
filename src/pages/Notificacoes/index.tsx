@@ -104,7 +104,11 @@ export default function Notificacoes() {
   const [modalMidias, setModalMidias]       = useState(false)
   const [modoEnvioMidia, setModoEnvioMidia] = useState<'junto' | 'separado'>('junto')
   const [uploadManualProg, setUploadManualProg] = useState(-1)
-  const [modalMidiaRegra, setModalMidiaRegra]   = useState<string | null>(null) // key da regra
+  const [modalMidiaRegra, setModalMidiaRegra]   = useState<string | null>(null)
+  const [templateRenovacao, setTemplateRenovacao] = useState('')
+  const [midiaRenovacao, setMidiaRenovacao]       = useState<Midia | null>(null)
+  const [modoEnvioRenovacao, setModoEnvioRenovacao] = useState<'junto' | 'separado'>('junto')
+  const [modalMidiaRenovacao, setModalMidiaRenovacao] = useState(false)
   const [whatsReady, setWhatsReady]       = useState(false)
   const [qrCode, setQrCode]               = useState<string | null>(null)
   const [mostrarQR, setMostrarQR]         = useState(false)
@@ -169,6 +173,21 @@ export default function Notificacoes() {
   useEffect(() => {
     axios.get(`${API}/config`).then(res => setConfig(res.data)).catch(() => {})
   }, [])
+
+  const carregarTemplateRenovacao = async () => {
+    try {
+      const snap = await getDocs(collection(db, 'config_whatsapp'))
+      const doc  = snap.docs.find(d => d.id === 'template_renovacao')
+      if (doc) {
+        const d = doc.data()
+        setTemplateRenovacao(d.mensagem || '')
+        if (d.midiaUrl) {
+          setMidiaRenovacao({ id: '', nome: d.midiaNome || '', url: d.midiaUrl, tipo: d.midiaTipo || 'imagem', tamanho: 0, storagePath: d.midiaStoragePath || '', criadoEm: null })
+        }
+        setModoEnvioRenovacao(d.modoEnvio || 'junto')
+      }
+    } catch (err) { console.error('Erro ao carregar template:', err) }
+  }
 
   const carregarMidias = useCallback(async () => {
     try {
@@ -473,7 +492,7 @@ export default function Notificacoes() {
           { key: 'log',    label: 'Histórico',        icon: <Clock size={15} />    },
           { key: 'midias', label: 'Mídias',            icon: <Image size={15} />    },
         ].map(a => (
-          <button key={a.key} onClick={() => { setAba(a.key as any); if (a.key === 'log') carregarLogs(); if (a.key === 'fila') carregarFila(); if (a.key === 'midias') carregarMidias() }} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px', background: aba === a.key ? 'rgba(99,102,241,0.3)' : 'rgba(255,255,255,0.05)', border: aba === a.key ? '1px solid rgba(99,102,241,0.5)' : '1px solid rgba(255,255,255,0.1)', color: aba === a.key ? 'white' : 'rgba(255,255,255,0.5)' }}>
+          <button key={a.key} onClick={() => { setAba(a.key as any); if (a.key === 'log') carregarLogs(); if (a.key === 'fila') carregarFila(); if (a.key === 'midias') carregarMidias(); if (a.key === 'auto') carregarTemplateRenovacao() }} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px', background: aba === a.key ? 'rgba(99,102,241,0.3)' : 'rgba(255,255,255,0.05)', border: aba === a.key ? '1px solid rgba(99,102,241,0.5)' : '1px solid rgba(255,255,255,0.1)', color: aba === a.key ? 'white' : 'rgba(255,255,255,0.5)' }}>
             {a.icon}{a.label}
           </button>
         ))}
@@ -792,6 +811,93 @@ export default function Notificacoes() {
                           setModalMidiaRegra(null)
                         }}
                           style={{ cursor: 'pointer', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', overflow: 'hidden', background: 'rgba(255,255,255,0.03)' }}>
+                          <div style={{ height: '90px', background: 'rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                            {m.tipo === 'imagem' && <img src={m.url} alt={m.nome} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+                            {m.tipo === 'audio'  && <Music size={28} style={{ color: '#a78bfa' }} />}
+                            {m.tipo === 'video'  && <video src={m.url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} muted />}
+                            {m.tipo === 'documento' && <FileText size={28} style={{ color: '#60a5fa' }} />}
+                          </div>
+                          <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '11px', margin: '6px 8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.nome}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── Template de Renovação ── */}
+          <div className="glass-card" style={{ padding: '24px', borderLeft: '3px solid rgba(34,197,94,0.6)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <span style={{ background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.3)', color: '#4ade80', padding: '4px 12px', borderRadius: '20px', fontSize: '13px', fontWeight: '600' }}>
+                🔄 Template de Renovação
+              </span>
+            </div>
+            <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '12px', margin: '0 0 12px' }}>
+              Variáveis: {'{usuario}'} {'{senha}'} {'{vencimento}'}
+            </p>
+            <label style={{ color: 'rgba(255,255,255,0.6)', fontSize: '13px', display: 'block', marginBottom: '6px' }}>Mensagem</label>
+            <textarea
+              value={templateRenovacao}
+              onChange={e => setTemplateRenovacao(e.target.value)}
+              rows={5}
+              placeholder="✅ *Renovação realizada!*&#10;&#10;Seus dados de acesso:&#10;👤 Usuário: *{usuario}*&#10;🔑 Senha: *{senha}*&#10;📅 Válido até: *{vencimento}*"
+              style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit', lineHeight: '1.5' }}
+            />
+
+            {/* Mídia do template */}
+            <div style={{ marginTop: '12px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', padding: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: midiaRenovacao ? '10px' : '0' }}>
+                <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', fontWeight: '600' }}>📎 Mídia (opcional)</span>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <button onClick={() => { carregarMidias(); setModalMidiaRenovacao(true) }} style={{ padding: '4px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', background: 'rgba(99,102,241,0.2)', border: '1px solid rgba(99,102,241,0.3)', color: '#a5b4fc' }}>
+                    🗂️ {midiaRenovacao ? 'Trocar' : 'Selecionar'}
+                  </button>
+                  {midiaRenovacao && (
+                    <button onClick={() => setMidiaRenovacao(null)} style={{ padding: '4px 8px', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171' }}>✕ Remover</button>
+                  )}
+                </div>
+              </div>
+              {midiaRenovacao && (
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                  {midiaRenovacao.tipo === 'imagem' && <img src={midiaRenovacao.url} style={{ width: '50px', height: '50px', objectFit: 'cover', borderRadius: '6px' }} alt="" />}
+                  {midiaRenovacao.tipo === 'audio'  && <Music size={28} style={{ color: '#a78bfa', flexShrink: 0 }} />}
+                  {midiaRenovacao.tipo === 'video'  && <video src={midiaRenovacao.url} style={{ width: '50px', height: '50px', objectFit: 'cover', borderRadius: '6px' }} muted />}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '11px', margin: '0 0 6px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{midiaRenovacao.nome}</p>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      {(['junto', 'separado'] as const).map(modo => (
+                        <button key={modo} onClick={() => setModoEnvioRenovacao(modo)} style={{ padding: '3px 8px', borderRadius: '5px', cursor: 'pointer', fontSize: '11px', fontWeight: '600',
+                          background: modoEnvioRenovacao === modo ? 'rgba(34,197,94,0.3)' : 'rgba(255,255,255,0.05)',
+                          border:     modoEnvioRenovacao === modo ? '1px solid rgba(34,197,94,0.5)' : '1px solid rgba(255,255,255,0.1)',
+                          color:      modoEnvioRenovacao === modo ? '#4ade80' : 'rgba(255,255,255,0.4)' }}>
+                          {modo === 'junto' ? '📎 Com legenda' : '✉️ Separado'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Modal mídia renovação */}
+          {modalMidiaRenovacao && (
+            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+              <div style={{ background: '#1a1a2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', padding: '24px', width: '100%', maxWidth: '700px', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                  <h3 style={{ color: 'white', margin: 0 }}>🗂️ Mídia para Renovação</h3>
+                  <button onClick={() => setModalMidiaRenovacao(false)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: '20px' }}>✕</button>
+                </div>
+                <div style={{ overflowY: 'auto', flex: 1 }}>
+                  {midias.length === 0 ? (
+                    <p style={{ color: 'rgba(255,255,255,0.3)', textAlign: 'center', padding: '40px 0' }}>Nenhuma mídia. Faça upload na aba Mídias primeiro.</p>
+                  ) : (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '12px' }}>
+                      {midias.map(m => (
+                        <div key={m.id} onClick={() => { setMidiaRenovacao(m); setModalMidiaRenovacao(false) }}
+                          style={{ cursor: 'pointer', border: midiaRenovacao?.id === m.id ? '2px solid #22c55e' : '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', overflow: 'hidden', background: 'rgba(255,255,255,0.03)' }}>
                           <div style={{ height: '90px', background: 'rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                             {m.tipo === 'imagem' && <img src={m.url} alt={m.nome} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
                             {m.tipo === 'audio'  && <Music size={28} style={{ color: '#a78bfa' }} />}

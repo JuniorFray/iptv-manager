@@ -539,16 +539,42 @@ export default function createWhatsAppRouter(db, admin) {
         .replace(/{senha}/g, dados.senha ?? '')
         .replace(/{vencimento}/g, dados.vencimento ?? '')
 
+      // Lê mídia do template se existir
+      const midiaUrl  = snap.exists ? (snap.data().midiaUrl  || null) : null
+      const midiaTipo = snap.exists ? (snap.data().midiaTipo || null) : null
+      const midiaNome = snap.exists ? (snap.data().midiaNome || null) : null
+      const modoEnvio = snap.exists ? (snap.data().modoEnvio || 'junto') : 'junto'
+
       if (clientReady && sock) {
         const numero = normalizarTelefone(telefone)
-        await sock.sendMessage(numero, { text: mensagem })
+        if (midiaUrl && midiaTipo) {
+          if (modoEnvio === 'separado' && mensagem.trim()) {
+            await sock.sendMessage(numero, { text: mensagem })
+            await sleep(1000)
+          }
+          if (midiaTipo === 'imagem') {
+            await sock.sendMessage(numero, { image: { url: midiaUrl }, caption: modoEnvio !== 'separado' ? mensagem : '' })
+          } else if (midiaTipo === 'audio') {
+            await sock.sendMessage(numero, { audio: { url: midiaUrl }, mimetype: 'audio/ogg; codecs=opus', ptt: true })
+          } else if (midiaTipo === 'video') {
+            await sock.sendMessage(numero, { video: { url: midiaUrl }, caption: modoEnvio !== 'separado' ? mensagem : '' })
+          } else {
+            await sock.sendMessage(numero, { document: { url: midiaUrl }, fileName: midiaNome || 'arquivo' })
+          }
+        } else {
+          await sock.sendMessage(numero, { text: mensagem })
+        }
         await salvarLog(dados.nome ?? '', telefone, 'renovacao', mensagem, 'enviado')
         console.log(`[WA] ✅ Renovação enviada para ${telefone}`)
       } else {
         await db.collection('filaEnvios').add({
-          nome: dados.nome ?? '', telefone, mensagem,
+          clienteNome: dados.nome ?? '', nome: dados.nome ?? '', telefone, mensagem,
+          midiaUrl, midiaTipo, midiaNome, modoEnvio,
           status: 'pendente', gatilho: 'renovacao',
-          tentativas: 0, criadoEm: new Date(),
+          tentativas: 0, maxTentativas: 3,
+          criadoEm: admin.firestore.FieldValue.serverTimestamp(),
+          proximaTentativa: admin.firestore.Timestamp.now(),
+          enviadoEm: null, erro: null,
         })
         console.log(`[WA] 📋 Renovação na fila (WA offline): ${dados.nome}`)
       }
