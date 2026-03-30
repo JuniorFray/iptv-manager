@@ -218,25 +218,17 @@ export default function createEliteRouter(enviarMensagemRenovacao) {
   router.get('/elite/saldo', async (req, res) => {
     try {
       if (!csrfToken || !cookieJar) await eliteLogin()
-      const { request: undiciRequest } = await import('undici')
-      const res2 = await undiciRequest('https://adminx.offo.dad/dashboard', {
+      const { request: undiciReq } = await import('undici')
+      const r = await undiciReq('https://adminx.offo.dad/dashboard', {
         method: 'GET',
-        headers: {
-          'Accept': 'text/html,application/xhtml+xml',
-          'Cookie': buildCookieHeader(cookieJar),
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        },
+        headers: { 'Accept': 'text/html', 'Cookie': buildCookieHeader(cookieJar), 'User-Agent': 'Mozilla/5.0' },
         dispatcher: eliteProxy,
-        headersTimeout: 30000,
-        bodyTimeout: 30000,
+        headersTimeout: 30000, bodyTimeout: 30000,
       })
-      const html = await res2.body.text()
-      // Extract #navbarCredits value from HTML
-      const match = html.match(/id=["']navbarCredits["'][^>]*>\s*([0-9.,]+)/)
-        ?? html.match(/navbarCredits[^>]*>[^<]*?([0-9]+[.,][0-9]+)/)
-        ?? html.match(/#navbarCredits[\s\S]{0,200}?([0-9]+[.,][0-9]+)/)
-      const creditos = match ? parseFloat(match[1].replace(',', '.')) : null
-      res.json({ ok: true, creditos })
+      const html = await r.body.text()
+      const idx = html.indexOf('navbarCredits')
+      const snippet = idx >= 0 ? html.substring(Math.max(0, idx-50), idx+200) : 'navbarCredits NOT FOUND'
+      res.json({ ok: true, snippet, htmlLength: html.length })
     } catch (err) { res.status(500).json({ ok: false, error: err.message }) }
   })
 
