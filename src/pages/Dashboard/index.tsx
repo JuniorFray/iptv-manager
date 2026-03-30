@@ -248,12 +248,12 @@ export default function Dashboard() {
                   <div>
                     <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', margin: '0 0 4px' }}>{emoji} {nome}</p>
                     {loadingCreditos ? (
-                      <div style={{ height: '32px', width: '80px', background: 'rgba(255,255,255,0.1)', borderRadius: '6px', animation: 'pulse 1.5s infinite' }} />
-                    ) : credits !== null && credits !== undefined ? (
+                      <div style={{ height: '32px', width: '80px', background: 'rgba(255,255,255,0.1)', borderRadius: '6px' }} />
+                    ) : (credits !== null && credits !== undefined) ? (
                       <h2 style={{ color: `rgb(${cor})`, fontSize: '28px', fontWeight: 'bold', margin: 0 }}>{typeof credits === 'number' ? credits.toFixed(2) : credits}</h2>
                     ) : (
-                      <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: '14px', margin: 0 }}>
-                        {info === null ? 'Erro ao buscar' : info?.error ? 'Indisponível' : 'N/A'}
+                      <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: '13px', margin: 0 }}>
+                        {info?.error ? `⚠️ ${String(info.error).substring(0,40)}` : '—'}
                       </p>
                     )}
                   </div>
@@ -316,6 +316,12 @@ export default function Dashboard() {
                         </div>
                       </div>
                     ))}
+                    <button onClick={() => {
+                        const txt = `Usuário: ${resultadoTeste.usuario}\nSenha: ${resultadoTeste.senha}\nExpira: ${resultadoTeste.expira ? new Date(resultadoTeste.expira).toLocaleString('pt-BR') : ''}`
+                        navigator.clipboard.writeText(txt)
+                      }} style={{ width: '100%', marginTop: '12px', padding: '12px', borderRadius: '10px', cursor: 'pointer', background: 'rgba(99,102,241,0.2)', border: '1px solid rgba(99,102,241,0.4)', color: '#a5b4fc', fontWeight: '700' }}>
+                      📋 Copiar tudo
+                    </button>
                     <button onClick={() => { setModalTeste(false); setResultadoTeste(null) }} style={{ width: '100%', marginTop: '8px', padding: '12px', borderRadius: '10px', cursor: 'pointer', background: 'rgba(34,197,94,0.2)', border: '1px solid rgba(34,197,94,0.3)', color: '#4ade80', fontWeight: '700' }}>
                       Fechar
                     </button>

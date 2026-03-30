@@ -222,8 +222,7 @@ export default function createEliteRouter(enviarMensagemRenovacao) {
       const r = await undiciReq('https://adminx.offo.dad/dashboard', {
         method: 'GET',
         headers: { 'Accept': 'text/html', 'Cookie': buildCookieHeader(cookieJar), 'User-Agent': 'Mozilla/5.0' },
-        dispatcher: eliteProxy,
-        headersTimeout: 30000, bodyTimeout: 30000,
+        dispatcher: eliteProxy, headersTimeout: 30000, bodyTimeout: 30000,
       })
       const html = await r.body.text()
       const match = html.match(/id="navbarCredits"[^>]*>[\s\S]*?([0-9]+[.,][0-9]+)[\s\S]*?<\/span>/)

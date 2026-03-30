@@ -196,11 +196,8 @@ export default function createWarezRouter(enviarMensagemRenovacao) {
     try {
       const { horas = 4 } = req.body
       const data = await wpFetch('/lines/test', 'POST', {
-        notes:          'TESTE SISTEMA',
-        package_p2p:    '5da17892133a1d61888029aa',
-        package_iptv:   '95',
-        testDuration:   Number(horas),
-        krator_package: '1',
+        notes: 'TESTE SISTEMA', package_p2p: '5da17892133a1d61888029aa',
+        package_iptv: '95', testDuration: Number(horas), krator_package: '1',
       })
       res.json({ ok: true, usuario: data.username, senha: data.password, expira: data.exp_date, id: data.id })
     } catch (err) { res.status(500).json({ ok: false, error: err.message }) }
