@@ -48,7 +48,7 @@ export default function Dashboard() {
     setCriandoTeste(true)
     try {
       const API = 'https://iptv-manager-production.up.railway.app'
-      const res = await fetch(`${API}/painel/teste`, {
+      const res = await fetch(`${API}/painel/criar-teste`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ horas: horasTeste }),
@@ -250,7 +250,7 @@ export default function Dashboard() {
                     {loadingCreditos ? (
                       <div style={{ height: '32px', width: '80px', background: 'rgba(255,255,255,0.1)', borderRadius: '6px', animation: 'pulse 1.5s infinite' }} />
                     ) : credits !== null && credits !== undefined ? (
-                      <h2 style={{ color: `rgb(${cor})`, fontSize: '32px', fontWeight: 'bold', margin: 0 }}>{credits}</h2>
+                      <h2 style={{ color: `rgb(${cor})`, fontSize: '28px', fontWeight: 'bold', margin: 0 }}>{typeof credits === 'number' ? credits.toFixed(2) : credits}</h2>
                     ) : (
                       <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: '14px', margin: 0 }}>
                         {info === null ? 'Erro ao buscar' : info?.error ? 'Indisponível' : 'N/A'}
