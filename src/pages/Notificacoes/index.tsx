@@ -610,6 +610,12 @@ export default function Notificacoes() {
                         ? clientes.filter(c => { const d = parseData(c.vencimento); return d ? diferencaDias(d) === 7 : false }).length
                         : f.id === 'vencidos'
                         ? clientes.filter(c => { const d = parseData(c.vencimento); return d ? diferencaDias(d) < 0 : false }).length
+                        : f.id === 'srv_warez'
+                        ? clientes.filter(c => c.telefone && c.servidor?.toUpperCase() === 'WAREZ').length
+                        : f.id === 'srv_elite'
+                        ? clientes.filter(c => c.telefone && c.servidor?.toUpperCase() === 'ELITE').length
+                        : f.id === 'srv_central'
+                        ? clientes.filter(c => c.telefone && c.servidor?.toUpperCase() === 'CENTRAL').length
                         : clientes.filter(c => c.telefone).length}
                     </span>
                   </button>
