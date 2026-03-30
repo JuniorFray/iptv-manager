@@ -188,17 +188,29 @@ export default function createWarezRouter(enviarMensagemRenovacao) {
   router.get('/painel/buscar-linha/:username', async (req, res) => {
     try {
       const username = decodeURIComponent(req.params.username)
-      // Try direct username search first
-      const data = await wpFetch(`/lines?username=${encodeURIComponent(username)}&limit=10`)
-      const items = data?.items ?? data?.data ?? (Array.isArray(data) ? data : [])
+      const data = await wpFetch(`/lines?page=1&quantityPerPage=10&trash=0&generalSearch=${encodeURIComponent(username)}`)
+      const items = data?.items ?? (Array.isArray(data) ? data : [])
       const linha = items.find(l => String(l.username) === String(username))
       if (linha) return res.json({ ok: true, id: linha.id, username: linha.username })
-      // Try search param
-      const data2 = await wpFetch(`/lines?search=${encodeURIComponent(username)}&limit=10`)
-      const items2 = data2?.items ?? data2?.data ?? (Array.isArray(data2) ? data2 : [])
-      const linha2 = items2.find(l => String(l.username) === String(username))
-      if (linha2) return res.json({ ok: true, id: linha2.id, username: linha2.username })
-      res.status(404).json({ ok: false, error: `Usuário "${username}" não encontrado` })
+      res.status(404).json({ ok: false, error: `Usuário "${username}" não encontrado no painel Warez.` })
+    } catch (err) { res.status(500).json({ ok: false, error: err.message }) }
+  })
+
+  router.get('/painel/saldo', async (req, res) => {
+    try {
+      const data = await wpFetch('/users/logged')
+      res.json({ ok: true, creditos: data?.credits ?? null })
+    } catch (err) { res.status(500).json({ ok: false, error: err.message }) }
+  })
+
+  router.post('/painel/criar-teste', async (req, res) => {
+    try {
+      const { horas = 4 } = req.body
+      const data = await wpFetch('/lines/test', 'POST', {
+        notes: 'TESTE SISTEMA', package_p2p: '5da17892133a1d61888029aa',
+        package_iptv: '95', testDuration: Number(horas), krator_package: '1',
+      })
+      res.json({ ok: true, usuario: data.username, senha: data.password, expira: data.exp_date, id: data.id })
     } catch (err) { res.status(500).json({ ok: false, error: err.message }) }
   })
 
