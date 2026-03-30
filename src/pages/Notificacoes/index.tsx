@@ -53,12 +53,15 @@ function diferencaDias(d: Date): number {
 }
 
 const filtros = [
-  { id: 'todos',    label: 'Todos os Clientes',    cor: '34d399', bg: 'rgba(52,211,153,0.15)',  border: 'rgba(52,211,153,0.3)'  },
-  { id: 'venchoje', label: 'Vencendo Hoje',        cor: 'f87171', bg: 'rgba(239,68,68,0.15)',   border: 'rgba(239,68,68,0.3)'   },
-  { id: 'venc4',    label: 'Vencendo em 4 dias',   cor: 'fbbf24', bg: 'rgba(245,158,11,0.15)',  border: 'rgba(245,158,11,0.3)'  },
-  { id: 'venc7',    label: 'Vencendo em 7 dias',   cor: '818cf8', bg: 'rgba(99,102,241,0.15)',  border: 'rgba(99,102,241,0.3)'  },
-  { id: 'vencidos', label: 'Vencidos',             cor: 'ef4444', bg: 'rgba(239,68,68,0.15)',   border: 'rgba(239,68,68,0.3)'   },
-  { id: 'manual',   label: 'Mensagem Manual',      cor: '60a5fa', bg: 'rgba(59,130,246,0.15)',  border: 'rgba(59,130,246,0.3)'  },
+  { id: 'todos',       label: 'Todos os Clientes',    cor: '34d399', bg: 'rgba(52,211,153,0.15)',  border: 'rgba(52,211,153,0.3)'  },
+  { id: 'venchoje',    label: 'Vencendo Hoje',        cor: 'f87171', bg: 'rgba(239,68,68,0.15)',   border: 'rgba(239,68,68,0.3)'   },
+  { id: 'venc4',       label: 'Vencendo em 4 dias',   cor: 'fbbf24', bg: 'rgba(245,158,11,0.15)',  border: 'rgba(245,158,11,0.3)'  },
+  { id: 'venc7',       label: 'Vencendo em 7 dias',   cor: '818cf8', bg: 'rgba(99,102,241,0.15)',  border: 'rgba(99,102,241,0.3)'  },
+  { id: 'vencidos',    label: 'Vencidos',             cor: 'ef4444', bg: 'rgba(239,68,68,0.15)',   border: 'rgba(239,68,68,0.3)'   },
+  { id: 'manual',      label: 'Mensagem Manual',      cor: '60a5fa', bg: 'rgba(59,130,246,0.15)',  border: 'rgba(59,130,246,0.3)'  },
+  { id: 'srv_warez',   label: '📡 Warez',             cor: '60a5fa', bg: 'rgba(59,130,246,0.15)',  border: 'rgba(59,130,246,0.3)'  },
+  { id: 'srv_elite',   label: '⚡ Elite',              cor: 'c084fc', bg: 'rgba(168,85,247,0.15)', border: 'rgba(168,85,247,0.3)'  },
+  { id: 'srv_central', label: '🌐 Central',           cor: '34d399', bg: 'rgba(52,211,153,0.15)',  border: 'rgba(52,211,153,0.3)'  },
 ]
 
 const intervalos = [
@@ -353,6 +356,10 @@ export default function Notificacoes() {
         return d ? diferencaDias(d) < 0 : false
       })
     }
+
+    if (filtro === 'srv_warez')   lista = lista.filter(c => c.servidor?.toUpperCase() === 'WAREZ')
+    if (filtro === 'srv_elite')   lista = lista.filter(c => c.servidor?.toUpperCase() === 'ELITE')
+    if (filtro === 'srv_central') lista = lista.filter(c => c.servidor?.toUpperCase() === 'CENTRAL')
 
     if (busca) {
       lista = lista.filter(
