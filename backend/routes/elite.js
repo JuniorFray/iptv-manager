@@ -217,9 +217,26 @@ export default function createEliteRouter(enviarMensagemRenovacao) {
 
   router.get('/elite/saldo', async (req, res) => {
     try {
-      // reseller/credits returns something - check raw response
-      const raw = await eliteFetch('reseller/credits', 'GET', null)
-      res.json({ ok: true, raw, type: typeof raw })
+      if (!csrfToken || !cookieJar) await eliteLogin()
+      const { request: undiciRequest } = await import('undici')
+      const res2 = await undiciRequest('https://adminx.offo.dad/dashboard', {
+        method: 'GET',
+        headers: {
+          'Accept': 'text/html,application/xhtml+xml',
+          'Cookie': buildCookieHeader(cookieJar),
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        },
+        dispatcher: eliteProxy,
+        headersTimeout: 30000,
+        bodyTimeout: 30000,
+      })
+      const html = await res2.body.text()
+      // Extract #navbarCredits value from HTML
+      const match = html.match(/id=["']navbarCredits["'][^>]*>\s*([0-9.,]+)/)
+        ?? html.match(/navbarCredits[^>]*>[^<]*?([0-9]+[.,][0-9]+)/)
+        ?? html.match(/#navbarCredits[\s\S]{0,200}?([0-9]+[.,][0-9]+)/)
+      const creditos = match ? parseFloat(match[1].replace(',', '.')) : null
+      res.json({ ok: true, creditos })
     } catch (err) { res.status(500).json({ ok: false, error: err.message }) }
   })
 

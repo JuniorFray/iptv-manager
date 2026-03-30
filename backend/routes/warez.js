@@ -187,10 +187,8 @@ export default function createWarezRouter(enviarMensagemRenovacao) {
 
   router.get('/painel/saldo', async (req, res) => {
     try {
-      const token = await getWpToken()
-      const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString('utf8'))
-      const creditos = payload?.credits ?? payload?.balance ?? payload?.credit ?? payload?.data?.credits ?? null
-      res.json({ ok: true, creditos, payload })
+      const data = await wpFetch('/config-autopay/master/status')
+      res.json({ ok: true, creditos: data?.credits ?? null })
     } catch (err) { res.status(500).json({ ok: false, error: err.message }) }
   })
 
