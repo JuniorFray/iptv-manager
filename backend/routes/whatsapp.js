@@ -314,9 +314,9 @@ export default function createWhatsAppRouter(db, admin) {
             erro:      null
           })
           await db.collection('notificacoesEnviadas').add({
-            clienteId:   item.clienteId   ?? item.telefone ?? 'sem-id',
-            clienteNome: item.clienteNome ?? item.nome     ?? '',
-            gatilho:     item.gatilho     ?? 'renovacao',
+            clienteId:   item.clienteId,
+            clienteNome: item.clienteNome,
+            gatilho:     item.gatilho,
             data:        new Date().toISOString().split('T')[0],
             enviadoEm:   admin.firestore.FieldValue.serverTimestamp(),
           })
@@ -461,6 +461,31 @@ export default function createWhatsAppRouter(db, admin) {
     const snap = await db.collection('filaEnvios')
       .orderBy('criadoEm', 'desc').limit(200).get()
     res.json(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  })
+
+  router.post('/fila/adicionar', async (req, res) => {
+    try {
+      const { clienteId, clienteNome, telefone, mensagem, gatilho, midiaUrl, midiaTipo, midiaNome, modoEnvio } = req.body
+      if (!telefone || !mensagem) return res.status(400).json({ error: 'telefone e mensagem obrigatórios' })
+      await db.collection('filaEnvios').add({
+        clienteId:        clienteId        ?? telefone,
+        clienteNome:      clienteNome      ?? '',
+        telefone, mensagem,
+        gatilho:          gatilho          ?? 'manual',
+        midiaUrl:         midiaUrl         ?? null,
+        midiaTipo:        midiaTipo        ?? null,
+        midiaNome:        midiaNome        ?? null,
+        modoEnvio:        modoEnvio        ?? 'junto',
+        status:           'pendente',
+        tentativas:       0,
+        maxTentativas:    3,
+        criadoEm:         admin.firestore.FieldValue.serverTimestamp(),
+        proximaTentativa: admin.firestore.Timestamp.now(),
+        enviadoEm:        null,
+        erro:             null,
+      })
+      res.json({ ok: true })
+    } catch (err) { res.status(500).json({ error: err.message }) }
   })
 
   router.post('/fila/:id/retry', async (req, res) => {

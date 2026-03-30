@@ -104,6 +104,7 @@ export default function Notificacoes() {
   const [modalMidias, setModalMidias]       = useState(false)
   const [modoEnvioMidia, setModoEnvioMidia] = useState<'junto' | 'separado'>('junto')
   const [uploadManualProg, setUploadManualProg] = useState(-1)
+  const cancelarEnvioRef = useRef(false)
   const [modalMidiaRegra, setModalMidiaRegra]   = useState<string | null>(null)
   const [templateRenovacao, setTemplateRenovacao] = useState('')
   const [midiaRenovacao, setMidiaRenovacao]       = useState<Midia | null>(null)
@@ -431,34 +432,45 @@ export default function Notificacoes() {
   const enviarTodos = async () => {
     if (enviando || clientesFiltrados.length === 0) return
     if (!mensagem.trim() && !midiaManual) return
+    cancelarEnvioRef.current = false
     setEnviando(true); setProgresso(0)
     const base = template || mensagem
+    let adicionados = 0
     for (let i = 0; i < clientesFiltrados.length; i++) {
+      if (cancelarEnvioRef.current) break
       const c = clientesFiltrados[i]
-      const phone = formatarTelefone(c.telefone)
+      if (!c.telefone) { setProgresso(i + 1); continue }
       const textoFinal = substituir(base, c)
       try {
-        if (!midiaManual) {
-          await fetch(`${API}/send`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, message: textoFinal }) })
-        } else if (modoEnvioMidia === 'junto') {
-          await fetch(`${API}/send-midia`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ phone, mediaUrl: midiaManual.url, mediaTipo: midiaManual.tipo, mediaNome: midiaManual.nome, caption: textoFinal }) })
-        } else {
-          if (textoFinal.trim()) {
-            await fetch(`${API}/send`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, message: textoFinal }) })
-            await new Promise(r => setTimeout(r, 1000))
-          }
-          await fetch(`${API}/send-midia`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ phone, mediaUrl: midiaManual.url, mediaTipo: midiaManual.tipo, mediaNome: midiaManual.nome, caption: '' }) })
-        }
+        await fetch(`${API}/fila/adicionar`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            clienteId:   c.id,
+            clienteNome: c.nome,
+            telefone:    c.telefone,
+            mensagem:    textoFinal,
+            gatilho:     'manual',
+            midiaUrl:    midiaManual?.url    ?? null,
+            midiaTipo:   midiaManual?.tipo   ?? null,
+            midiaNome:   midiaManual?.nome   ?? null,
+            modoEnvio:   midiaManual ? modoEnvioMidia : 'junto',
+          })
+        })
+        adicionados++
       } catch {}
       setProgresso(i + 1)
-      await new Promise(r => setTimeout(r, intervalo))
     }
     setEnviando(false)
-    setResultado({ tipo: 'ok', msg: 'Envio concluído!' })
-    setTimeout(() => setResultado(null), 4000)
+    if (cancelarEnvioRef.current) {
+      setResultado({ tipo: 'erro', msg: `Cancelado. ${adicionados} já na fila.` })
+    } else {
+      setResultado({ tipo: 'ok', msg: `${adicionados} mensagens adicionadas na fila!` })
+    }
+    setTimeout(() => setResultado(null), 5000)
   }
+
+  const pararEnvio = () => { cancelarEnvioRef.current = true }
 
   const salvarConfig = async () => {
     if (!config) return
@@ -752,9 +764,16 @@ export default function Notificacoes() {
                   </div>
                 </div>
               )}
-              <button onClick={enviarTodos} disabled={enviando || clientesFiltrados.length === 0 || !mensagem.trim() || !whatsReady} style={{ width: '100%', padding: '13px', borderRadius: '12px', border: `1px solid ${filtroAtual.border}`, background: enviando || !whatsReady ? 'rgba(255,255,255,0.05)' : filtroAtual.bg, color: enviando || !whatsReady ? 'rgba(255,255,255,0.3)' : `#${filtroAtual.cor}`, cursor: enviando || !whatsReady ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                <Send size={16} /> {enviando ? 'Enviando...' : `Enviar para todos (${clientesFiltrados.length})`}
-              </button>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button onClick={enviarTodos} disabled={enviando || clientesFiltrados.length === 0 || (!mensagem.trim() && !midiaManual) || !whatsReady} style={{ flex: 1, padding: '13px', borderRadius: '12px', border: `1px solid ${filtroAtual.border}`, background: enviando || !whatsReady ? 'rgba(255,255,255,0.05)' : filtroAtual.bg, color: enviando || !whatsReady ? 'rgba(255,255,255,0.3)' : `#${filtroAtual.cor}`, cursor: enviando || !whatsReady ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                  <Send size={16} /> {enviando ? `Adicionando... ${progresso}/${clientesFiltrados.length}` : `Enviar todos (${clientesFiltrados.length})`}
+                </button>
+                {enviando && (
+                  <button onClick={pararEnvio} style={{ padding: '13px 18px', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px', background: 'rgba(239,68,68,0.2)', border: '1px solid rgba(239,68,68,0.5)', color: '#f87171', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    ⏹ Parar
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -875,22 +894,13 @@ export default function Notificacoes() {
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '12px' }}>
                       {midias.map(m => (
                         <div key={m.id} onClick={() => {
-                          if (!config || !modalMidiaRegra) return
-                          const regraAtual = config.regras[modalMidiaRegra as keyof typeof config.regras]
-                          setConfig({
-                            ...config,
-                            regras: {
-                              ...config.regras,
-                              [modalMidiaRegra]: {
-                                ...regraAtual,
-                                midiaUrl:         m.url,
-                                midiaTipo:        m.tipo,
-                                midiaNome:        m.nome,
-                                midiaStoragePath: m.storagePath,
-                                modoEnvio:        regraAtual?.modoEnvio || 'junto',
-                              }
-                            }
-                          })
+                          updateRegra(modalMidiaRegra, 'midiaUrl', m.url)
+                          updateRegra(modalMidiaRegra, 'midiaTipo', m.tipo)
+                          updateRegra(modalMidiaRegra, 'midiaNome', m.nome)
+                          updateRegra(modalMidiaRegra, 'midiaStoragePath', m.storagePath)
+                          if (!(config.regras as any)[modalMidiaRegra]?.modoEnvio) {
+                            updateRegra(modalMidiaRegra, 'modoEnvio', 'junto')
+                          }
                           setModalMidiaRegra(null)
                         }}
                           style={{ cursor: 'pointer', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', overflow: 'hidden', background: 'rgba(255,255,255,0.03)' }}>
