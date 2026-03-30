@@ -217,12 +217,9 @@ export default function createEliteRouter(enviarMensagemRenovacao) {
 
   router.get('/elite/saldo', async (req, res) => {
     try {
-      const endpoints = ['reseller/credits', 'credits', 'api/credits', 'dashboard/credits']
-      const out = {}
-      for (const p of endpoints) {
-        try { out[p] = await eliteFetch(p) } catch (e) { out[p] = e.message?.substring(0, 100) }
-      }
-      res.json(out)
+      // reseller/credits returns something - check raw response
+      const raw = await eliteFetch('reseller/credits', 'GET', null)
+      res.json({ ok: true, raw, type: typeof raw })
     } catch (err) { res.status(500).json({ ok: false, error: err.message }) }
   })
 

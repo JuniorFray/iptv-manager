@@ -189,7 +189,7 @@ export default function createWarezRouter(enviarMensagemRenovacao) {
     try {
       const token = await getWpToken()
       const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString('utf8'))
-      const creditos = payload?.credits ?? payload?.balance ?? payload?.credit ?? null
+      const creditos = payload?.credits ?? payload?.balance ?? payload?.credit ?? payload?.data?.credits ?? null
       res.json({ ok: true, creditos, payload })
     } catch (err) { res.status(500).json({ ok: false, error: err.message }) }
   })
