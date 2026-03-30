@@ -429,12 +429,29 @@ export default function Notificacoes() {
   }
 
   const enviarTodos = async () => {
-    if (enviando || clientesFiltrados.length === 0 || !mensagem.trim()) return
+    if (enviando || clientesFiltrados.length === 0) return
+    if (!mensagem.trim() && !midiaManual) return
     setEnviando(true); setProgresso(0)
     const base = template || mensagem
     for (let i = 0; i < clientesFiltrados.length; i++) {
       const c = clientesFiltrados[i]
-      try { await fetch(`${API}/send`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: formatarTelefone(c.telefone), message: substituir(base, c) }) }) } catch {}
+      const phone = formatarTelefone(c.telefone)
+      const textoFinal = substituir(base, c)
+      try {
+        if (!midiaManual) {
+          await fetch(`${API}/send`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, message: textoFinal }) })
+        } else if (modoEnvioMidia === 'junto') {
+          await fetch(`${API}/send-midia`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phone, mediaUrl: midiaManual.url, mediaTipo: midiaManual.tipo, mediaNome: midiaManual.nome, caption: textoFinal }) })
+        } else {
+          if (textoFinal.trim()) {
+            await fetch(`${API}/send`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, message: textoFinal }) })
+            await new Promise(r => setTimeout(r, 1000))
+          }
+          await fetch(`${API}/send-midia`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phone, mediaUrl: midiaManual.url, mediaTipo: midiaManual.tipo, mediaNome: midiaManual.nome, caption: '' }) })
+        }
+      } catch {}
       setProgresso(i + 1)
       await new Promise(r => setTimeout(r, intervalo))
     }
@@ -446,8 +463,28 @@ export default function Notificacoes() {
   const salvarConfig = async () => {
     if (!config) return
     setSalvando(true)
-    try { await axios.post(`${API}/config`, config); setSaved(true); setTimeout(() => setSaved(false), 3000) }
-    finally { setSalvando(false) }
+    try {
+      await axios.post(`${API}/config`, config)
+      // Salva template renovação com mídia no Firestore
+      const { setDoc, doc: fsDoc } = await import('firebase/firestore')
+      const renovDoc: any = { mensagem: templateRenovacao }
+      if (midiaRenovacao?.url) {
+        renovDoc.midiaUrl         = midiaRenovacao.url
+        renovDoc.midiaTipo        = midiaRenovacao.tipo
+        renovDoc.midiaNome        = midiaRenovacao.nome
+        renovDoc.midiaStoragePath = midiaRenovacao.storagePath
+        renovDoc.modoEnvio        = modoEnvioRenovacao
+      } else {
+        renovDoc.midiaUrl = null; renovDoc.midiaTipo = null
+        renovDoc.midiaNome = null; renovDoc.modoEnvio = 'junto'
+      }
+      await setDoc(fsDoc(db, 'config_whatsapp', 'template_renovacao'), renovDoc, { merge: true })
+      setSaved(true); setTimeout(() => setSaved(false), 3000)
+    } catch (err: any) {
+      alert('Erro ao salvar: ' + err.message)
+    } finally {
+      setSalvando(false)
+    }
   }
 
   const dispararAgora = async () => {
