@@ -237,9 +237,9 @@ export default function Dashboard() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '16px' }}>
           {[
             { key: 'warez',   nome: 'WWPanel / Warez',  cor: '59,130,246',  emoji: '📡', teste: true },
-            { key: 'elite',   nome: 'Elite',            cor: '168,85,247',  emoji: '⚡' },
-            { key: 'central', nome: 'Central',          cor: '34,197,94',   emoji: '🌐' },
-          ].map(({ key, nome, cor, emoji }) => {
+            { key: 'elite',   nome: 'Elite',            cor: '168,85,247',  emoji: '⚡', teste: false },
+            { key: 'central', nome: 'Central',          cor: '34,197,94',   emoji: '🌐', teste: false },
+          ].map(({ key, nome, cor, emoji, teste }) => {
             const info = creditos[key]
             const credits = info?.creditos
             return (
@@ -264,7 +264,7 @@ export default function Dashboard() {
                 {info?.ok === false && (
                   <p style={{ color: 'rgba(255,100,100,0.7)', fontSize: '11px', margin: 0 }}>⚠️ {info.error?.substring(0, 60)}</p>
                 )}
-                {(item as any).teste && (
+                {teste && (
                   <button onClick={() => { setResultadoTeste(null); setModalTeste(true) }} style={{ marginTop: '12px', width: '100%', padding: '8px', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: '600', background: 'rgba(59,130,246,0.2)', border: '1px solid rgba(59,130,246,0.4)', color: '#60a5fa' }}>
                     🧪 Criar Teste
                   </button>
