@@ -200,7 +200,7 @@ export default function Notificacoes() {
 
   const uploadMidia = async (file: File) => {
     if (!file) return
-    const maxSize = 50 * 1024 * 1024 // 50MB
+    const maxSize = 50 * 1024 * 1024
     if (file.size > maxSize) { setUploadError('Arquivo muito grande. Máximo: 50MB'); return }
     setUploadError('')
     const ext  = file.name.split('.').pop()?.toLowerCase() || ''
@@ -214,15 +214,28 @@ export default function Notificacoes() {
     setUploadProgress(0)
     task.on('state_changed',
       snap => setUploadProgress(Math.round(snap.bytesTransferred / snap.totalBytes * 100)),
-      err  => { setUploadError(err.message); setUploadProgress(-1) },
-      async () => {
-        const url = await getDownloadURL(task.snapshot.ref)
-        await addDoc(collection(db, 'midias'), {
-          nome: file.name, url, tipo, tamanho: file.size,
-          storagePath: path, criadoEm: new Date()
-        })
+      err  => {
+        console.error('[Upload] Erro storage:', err.code, err.message)
+        setUploadError(`Erro: ${err.message}`)
         setUploadProgress(-1)
-        carregarMidias()
+      },
+      async () => {
+        try {
+          const url = await getDownloadURL(task.snapshot.ref)
+          const nova = {
+            nome: file.name, url, tipo,
+            tamanho: file.size, storagePath: path,
+            criadoEm: new Date()
+          }
+          const docRef = await addDoc(collection(db, 'midias'), nova)
+          console.log('[Upload] Salvo no Firestore:', docRef.id)
+          setMidias(prev => [{ id: docRef.id, ...nova }, ...prev])
+          setUploadProgress(-1)
+        } catch (err: any) {
+          console.error('[Upload] Erro ao salvar no Firestore:', err)
+          setUploadError(`Upload OK mas erro ao salvar: ${err.message}`)
+          setUploadProgress(-1)
+        }
       }
     )
   }
