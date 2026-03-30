@@ -244,12 +244,10 @@ export default function createCentralRouter(db, admin, enviarMensagemRenovacao) 
   })
 
   router.get('/central/saldo', async (req, res) => {
-    const paths = ['/me', '/reseller/me', '/reseller', '/profile', '/account']
-    const out = {}
-    for (const p of paths) {
-      try { out[p] = await centralFetch(p) } catch (e) { out[p] = { erro: e.message } }
-    }
-    res.json(out)
+    try {
+      const data = await centralFetch('/profile')
+      res.json({ ok: true, creditos: data?.credits ?? null, usuario: data?.username ?? null })
+    } catch (err) { res.status(500).json({ ok: false, error: err.message }) }
   })
 
   return { router }

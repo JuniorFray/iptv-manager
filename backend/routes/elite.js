@@ -216,12 +216,14 @@ export default function createEliteRouter(enviarMensagemRenovacao) {
   })
 
   router.get('/elite/saldo', async (req, res) => {
-    const paths = ['reseller/profile', 'reseller/me', 'me', 'account', 'profile']
-    const out = {}
-    for (const p of paths) {
-      try { out[p] = await eliteFetch(p) } catch (e) { out[p] = { erro: e.message } }
-    }
-    res.json(out)
+    try {
+      const endpoints = ['reseller/credits', 'credits', 'api/credits', 'dashboard/credits']
+      const out = {}
+      for (const p of endpoints) {
+        try { out[p] = await eliteFetch(p) } catch (e) { out[p] = e.message?.substring(0, 100) }
+      }
+      res.json(out)
+    } catch (err) { res.status(500).json({ ok: false, error: err.message }) }
   })
 
   return { router }
