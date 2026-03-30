@@ -225,7 +225,7 @@ export default function Dashboard() {
                     {loadingCreditos ? (
                       <div style={{ height: '32px', width: '80px', background: 'rgba(255,255,255,0.1)', borderRadius: '6px', animation: 'pulse 1.5s infinite' }} />
                     ) : credits !== null && credits !== undefined ? (
-                      <h2 style={{ color: `rgb(${cor})`, fontSize: '32px', fontWeight: 'bold', margin: 0 }}>{credits}</h2>
+                      <h2 style={{ color: `rgb(${cor})`, fontSize: '32px', fontWeight: 'bold', margin: 0 }}>{typeof credits === 'number' ? credits.toFixed(2) : credits}</h2>
                     ) : (
                       <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: '14px', margin: 0 }}>
                         {info === null ? 'Erro ao buscar' : info?.error ? 'Indisponível' : 'N/A'}

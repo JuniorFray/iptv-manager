@@ -226,9 +226,9 @@ export default function createEliteRouter(enviarMensagemRenovacao) {
         headersTimeout: 30000, bodyTimeout: 30000,
       })
       const html = await r.body.text()
-      const idx = html.indexOf('navbarCredits')
-      const snippet = idx >= 0 ? html.substring(Math.max(0, idx-50), idx+200) : 'navbarCredits NOT FOUND'
-      res.json({ ok: true, snippet, htmlLength: html.length })
+      const match = html.match(/id="navbarCredits"[^>]*>\s*([0-9]+[.,][0-9]+)/)
+      const creditos = match ? parseFloat(match[1].replace(',', '.')) : null
+      res.json({ ok: true, creditos })
     } catch (err) { res.status(500).json({ ok: false, error: err.message }) }
   })
 

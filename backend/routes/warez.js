@@ -188,7 +188,7 @@ export default function createWarezRouter(enviarMensagemRenovacao) {
   router.get('/painel/saldo', async (req, res) => {
     try {
       const data = await wpFetch('/config-autopay/master/status')
-      res.json({ ok: true, creditos: data?.credits ?? null, raw: data })
+      res.json({ ok: true, creditos: data?.credits ?? null })
     } catch (err) { res.status(500).json({ ok: false, error: err.message }) }
   })
 
