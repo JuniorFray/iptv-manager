@@ -32,6 +32,10 @@ export default function Dashboard() {
 
   const [creditos, setCreditos] = useState<Record<string, any>>({})
   const [loadingCreditos, setLoadingCreditos] = useState(true)
+  const [modalTeste, setModalTeste]           = useState(false)
+  const [horasTeste, setHorasTeste]           = useState(4)
+  const [criandoTeste, setCriandoTeste]       = useState(false)
+  const [resultadoTeste, setResultadoTeste]   = useState<any>(null)
 
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'clientes'), snapshot => {
@@ -39,6 +43,27 @@ export default function Dashboard() {
     })
     return unsub
   }, [])
+
+  const criarTesteWarez = async () => {
+    setCriandoTeste(true)
+    try {
+      const API = 'https://iptv-manager-production.up.railway.app'
+      const res = await fetch(`${API}/painel/teste`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ horas: horasTeste }),
+      })
+      const data = await res.json()
+      if (data.ok) {
+        setResultadoTeste(data)
+      } else {
+        alert('Erro: ' + (data.error || 'Falha ao criar teste'))
+      }
+    } catch {
+      alert('Backend offline.')
+    }
+    setCriandoTeste(false)
+  }
 
   useEffect(() => {
     const fetchCreditos = async () => {
@@ -211,7 +236,7 @@ export default function Dashboard() {
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '16px' }}>
           {[
-            { key: 'warez',   nome: 'WWPanel / Warez',  cor: '59,130,246',  emoji: '📡' },
+            { key: 'warez',   nome: 'WWPanel / Warez',  cor: '59,130,246',  emoji: '📡', teste: true },
             { key: 'elite',   nome: 'Elite',            cor: '168,85,247',  emoji: '⚡' },
             { key: 'central', nome: 'Central',          cor: '34,197,94',   emoji: '🌐' },
           ].map(({ key, nome, cor, emoji }) => {
@@ -225,7 +250,7 @@ export default function Dashboard() {
                     {loadingCreditos ? (
                       <div style={{ height: '32px', width: '80px', background: 'rgba(255,255,255,0.1)', borderRadius: '6px', animation: 'pulse 1.5s infinite' }} />
                     ) : credits !== null && credits !== undefined ? (
-                      <h2 style={{ color: `rgb(${cor})`, fontSize: '32px', fontWeight: 'bold', margin: 0 }}>{typeof credits === 'number' ? credits.toFixed(2) : credits}</h2>
+                      <h2 style={{ color: `rgb(${cor})`, fontSize: '32px', fontWeight: 'bold', margin: 0 }}>{credits}</h2>
                     ) : (
                       <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: '14px', margin: 0 }}>
                         {info === null ? 'Erro ao buscar' : info?.error ? 'Indisponível' : 'N/A'}
@@ -239,9 +264,66 @@ export default function Dashboard() {
                 {info?.ok === false && (
                   <p style={{ color: 'rgba(255,100,100,0.7)', fontSize: '11px', margin: 0 }}>⚠️ {info.error?.substring(0, 60)}</p>
                 )}
+                {(item as any).teste && (
+                  <button onClick={() => { setResultadoTeste(null); setModalTeste(true) }} style={{ marginTop: '12px', width: '100%', padding: '8px', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: '600', background: 'rgba(59,130,246,0.2)', border: '1px solid rgba(59,130,246,0.4)', color: '#60a5fa' }}>
+                    🧪 Criar Teste
+                  </button>
+                )}
               </div>
             )
           })}
+
+          {/* Modal Criar Teste Warez */}
+          {modalTeste && (
+            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+              <div style={{ background: '#1a1a2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', padding: '28px', width: '100%', maxWidth: '420px' }}>
+                {!resultadoTeste ? (
+                  <>
+                    <h3 style={{ color: 'white', margin: '0 0 20px', fontSize: '18px' }}>🧪 Criar Teste — WWPanel</h3>
+                    <label style={{ color: 'rgba(255,255,255,0.6)', fontSize: '13px', display: 'block', marginBottom: '8px' }}>Duração do teste</label>
+                    <div style={{ display: 'flex', gap: '8px', marginBottom: '24px' }}>
+                      {[1, 2, 3, 4].map(h => (
+                        <button key={h} onClick={() => setHorasTeste(h)} style={{ flex: 1, padding: '10px', borderRadius: '10px', cursor: 'pointer', fontWeight: '700', fontSize: '14px',
+                          background: horasTeste === h ? 'rgba(59,130,246,0.3)' : 'rgba(255,255,255,0.05)',
+                          border:     horasTeste === h ? '1px solid rgba(59,130,246,0.6)' : '1px solid rgba(255,255,255,0.1)',
+                          color:      horasTeste === h ? '#60a5fa' : 'rgba(255,255,255,0.5)' }}>
+                          {h}h
+                        </button>
+                      ))}
+                    </div>
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                      <button onClick={() => setModalTeste(false)} style={{ flex: 1, padding: '12px', borderRadius: '10px', cursor: 'pointer', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.5)', fontWeight: '600' }}>
+                        Cancelar
+                      </button>
+                      <button onClick={criarTesteWarez} disabled={criandoTeste} style={{ flex: 2, padding: '12px', borderRadius: '10px', cursor: criandoTeste ? 'not-allowed' : 'pointer', background: 'linear-gradient(135deg,#3b82f6,#6366f1)', border: 'none', color: 'white', fontWeight: '700', fontSize: '14px', opacity: criandoTeste ? 0.6 : 1 }}>
+                        {criandoTeste ? 'Criando...' : '✅ Criar Teste'}
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <h3 style={{ color: '#4ade80', margin: '0 0 20px', fontSize: '18px' }}>✅ Teste criado!</h3>
+                    {[
+                      { label: '👤 Usuário', value: resultadoTeste.usuario },
+                      { label: '🔑 Senha',   value: resultadoTeste.senha },
+                      { label: '⏱️ Expira',  value: resultadoTeste.expira ? new Date(resultadoTeste.expira).toLocaleString('pt-BR') : '' },
+                    ].map(({ label, value }) => (
+                      <div key={label} style={{ marginBottom: '12px' }}>
+                        <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', margin: '0 0 4px' }}>{label}</p>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <code style={{ flex: 1, background: 'rgba(255,255,255,0.08)', padding: '8px 12px', borderRadius: '8px', color: 'white', fontSize: '15px', fontWeight: '700', letterSpacing: '1px' }}>{value}</code>
+                          <button onClick={() => navigator.clipboard.writeText(value)} style={{ padding: '8px 10px', borderRadius: '8px', cursor: 'pointer', background: 'rgba(99,102,241,0.2)', border: '1px solid rgba(99,102,241,0.3)', color: '#a5b4fc', fontSize: '12px' }}>📋</button>
+                        </div>
+                      </div>
+                    ))}
+                    <button onClick={() => { setModalTeste(false); setResultadoTeste(null) }} style={{ width: '100%', marginTop: '8px', padding: '12px', borderRadius: '10px', cursor: 'pointer', background: 'rgba(34,197,94,0.2)', border: '1px solid rgba(34,197,94,0.3)', color: '#4ade80', fontWeight: '700' }}>
+                      Fechar
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
