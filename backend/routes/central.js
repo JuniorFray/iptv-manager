@@ -243,5 +243,13 @@ export default function createCentralRouter(db, admin, enviarMensagemRenovacao) 
     }
   })
 
+  router.get('/central/saldo', async (req, res) => {
+    try {
+      const data = await centralFetch('/reseller/me')
+      const credits = data?.credits ?? data?.balance ?? data?.data?.credits ?? null
+      res.json({ ok: true, creditos: credits, raw: data })
+    } catch (err) { res.status(500).json({ ok: false, error: err.message }) }
+  })
+
   return { router }
 }

@@ -215,5 +215,13 @@ export default function createEliteRouter(enviarMensagemRenovacao) {
     }
   })
 
+  router.get('/elite/saldo', async (req, res) => {
+    try {
+      const data = await eliteFetch('reseller/profile')
+      const credits = data?.credits ?? data?.balance ?? data?.data?.credits ?? null
+      res.json({ ok: true, creditos: credits, raw: data })
+    } catch (err) { res.status(500).json({ ok: false, error: err.message }) }
+  })
+
   return { router }
 }

@@ -185,5 +185,12 @@ export default function createWarezRouter(enviarMensagemRenovacao) {
     } catch (err) { res.status(500).json({ error: err.message }) }
   })
 
+  router.get('/painel/saldo', async (req, res) => {
+    try {
+      const data = await wpFetch('/reseller/me')
+      res.json({ ok: true, creditos: data?.credits ?? data?.balance ?? data?.credit ?? null, raw: data })
+    } catch (err) { res.status(500).json({ ok: false, error: err.message }) }
+  })
+
   return { router }
 }

@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { collection, onSnapshot } from 'firebase/firestore'
 import { db } from '../../firebase'
 import { Users, CheckCircle, XCircle, Server, AlertTriangle, TrendingUp, Clock } from 'lucide-react'
@@ -30,11 +30,30 @@ function diferencaDias(data: Date): number {
 export default function Dashboard() {
   const [clientes, setClientes] = useState<Cliente[]>([])
 
+  const [creditos, setCreditos] = useState<Record<string, any>>({})
+  const [loadingCreditos, setLoadingCreditos] = useState(true)
+
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'clientes'), snapshot => {
       setClientes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Cliente)))
     })
     return unsub
+  }, [])
+
+  useEffect(() => {
+    const fetchCreditos = async () => {
+      setLoadingCreditos(true)
+      const API = 'https://iptv-manager-production.up.railway.app'
+      const results: Record<string, any> = {}
+      await Promise.allSettled([
+        fetch(`${API}/painel/saldo`).then(r => r.json()).then(d => { results.warez   = d }).catch(() => { results.warez   = null }),
+        fetch(`${API}/elite/saldo`).then(r => r.json()).then(d => { results.elite   = d }).catch(() => { results.elite   = null }),
+        fetch(`${API}/central/saldo`).then(r => r.json()).then(d => { results.central = d }).catch(() => { results.central = null }),
+      ])
+      setCreditos(results)
+      setLoadingCreditos(false)
+    }
+    fetchCreditos()
   }, [])
 
   const total = clientes.length
@@ -168,6 +187,61 @@ export default function Dashboard() {
               </div>
             </div>
           ))}
+        </div>
+      </div>
+      {/* Créditos dos Servidores */}
+      <div className="glass-card" style={{ padding: '24px', marginTop: '20px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <Server size={20} color="#818cf8" />
+            <h3 style={{ color: 'white', margin: 0, fontSize: '16px' }}>Créditos dos Servidores</h3>
+          </div>
+          <button onClick={() => {
+            setLoadingCreditos(true)
+            const API = 'https://iptv-manager-production.up.railway.app'
+            const results: Record<string, any> = {}
+            Promise.allSettled([
+              fetch(`${API}/painel/saldo`).then(r => r.json()).then(d => { results.warez   = d }).catch(() => { results.warez   = null }),
+              fetch(`${API}/elite/saldo`).then(r => r.json()).then(d => { results.elite   = d }).catch(() => { results.elite   = null }),
+              fetch(`${API}/central/saldo`).then(r => r.json()).then(d => { results.central = d }).catch(() => { results.central = null }),
+            ]).then(() => { setCreditos(results); setLoadingCreditos(false) })
+          }} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.6)', borderRadius: '8px', padding: '6px 14px', cursor: 'pointer', fontSize: '13px' }}>
+            🔄 Atualizar
+          </button>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '16px' }}>
+          {[
+            { key: 'warez',   nome: 'WWPanel / Warez',  cor: '59,130,246',  emoji: '📡' },
+            { key: 'elite',   nome: 'Elite',            cor: '168,85,247',  emoji: '⚡' },
+            { key: 'central', nome: 'Central',          cor: '34,197,94',   emoji: '🌐' },
+          ].map(({ key, nome, cor, emoji }) => {
+            const info = creditos[key]
+            const credits = info?.creditos
+            return (
+              <div key={key} style={{ background: `rgba(${cor},0.08)`, border: `1px solid rgba(${cor},0.2)`, borderRadius: '12px', padding: '20px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+                  <div>
+                    <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', margin: '0 0 4px' }}>{emoji} {nome}</p>
+                    {loadingCreditos ? (
+                      <div style={{ height: '32px', width: '80px', background: 'rgba(255,255,255,0.1)', borderRadius: '6px', animation: 'pulse 1.5s infinite' }} />
+                    ) : credits !== null && credits !== undefined ? (
+                      <h2 style={{ color: `rgb(${cor})`, fontSize: '32px', fontWeight: 'bold', margin: 0 }}>{credits}</h2>
+                    ) : (
+                      <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: '14px', margin: 0 }}>
+                        {info === null ? 'Erro ao buscar' : info?.error ? 'Indisponível' : 'N/A'}
+                      </p>
+                    )}
+                  </div>
+                  <span style={{ background: `rgba(${cor},0.15)`, border: `1px solid rgba(${cor},0.3)`, color: `rgb(${cor})`, padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '600' }}>
+                    créditos
+                  </span>
+                </div>
+                {info?.ok === false && (
+                  <p style={{ color: 'rgba(255,100,100,0.7)', fontSize: '11px', margin: 0 }}>⚠️ {info.error?.substring(0, 60)}</p>
+                )}
+              </div>
+            )
+          })}
         </div>
       </div>
     </div>
