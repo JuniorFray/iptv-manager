@@ -48,7 +48,7 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
               failure: `${process.env.FRONTEND_URL ?? 'https://sistema-tv.up.railway.app'}/dashboard`,
             },
             auto_return:          'approved',
-            statement_descriptor: 'Sistema TV',
+            statement_descriptor: 'IPTV SERVICE',
             payment_methods: {
               excluded_payment_types: [
                 { id: 'credit_card' },
@@ -127,17 +127,23 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
             vencimento = ren.vencimento ?? null
           }
         } else if (servidor.toUpperCase() === 'ELITE') {
-          const ren = await fetch(`${BACKEND}/elite/renovar`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: usuario, meses: plano.meses, nome: cliente?.nome, telefone, usuario, senha })
-          }).then(r => r.json())
-          vencimento = ren.vencimento ?? null
+          const buscar = await fetch(`${BACKEND}/elite/buscar-linha/${encodeURIComponent(usuario)}`).then(r => r.json())
+          if (buscar.ok) {
+            const ren = await fetch(`${BACKEND}/elite/renovar`, {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id: buscar.id, tipo: buscar.tipo, meses: plano.meses, nome: cliente?.nome, telefone, usuario, senha })
+            }).then(r => r.json())
+            vencimento = ren.vencimento ?? null
+          } else { console.error('[WEBHOOK] Elite buscar-linha falhou:', buscar.error) }
         } else if (servidor.toUpperCase() === 'CENTRAL') {
-          const ren = await fetch(`${BACKEND}/central/renovar`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: usuario, meses: plano.meses, nome: cliente?.nome, telefone, usuario, senha })
-          }).then(r => r.json())
-          vencimento = ren.vencimento ?? null
+          const buscar = await fetch(`${BACKEND}/central/buscar-linha/${encodeURIComponent(usuario)}`).then(r => r.json())
+          if (buscar.ok) {
+            const ren = await fetch(`${BACKEND}/central/renovar`, {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id: buscar.id, meses: plano.meses, nome: cliente?.nome, telefone, usuario, senha })
+            }).then(r => r.json())
+            vencimento = ren.vencimento ?? null
+          } else { console.error('[WEBHOOK] Central buscar-linha falhou:', buscar.error) }
         }
       } catch (e) { console.error('[WEBHOOK] renovar erro:', e.message) }
 

@@ -250,5 +250,17 @@ export default function createCentralRouter(db, admin, enviarMensagemRenovacao) 
     } catch (err) { res.status(500).json({ ok: false, error: err.message }) }
   })
 
+  router.get('/central/buscar-linha/:username', async (req, res) => {
+    try {
+      const username = decodeURIComponent(req.params.username)
+      const reseller = process.env.CENTRAL_USERNAME
+      const data = await centralFetch(`/users?page=1&per=20&reseller=${reseller}&search=${encodeURIComponent(username)}`)
+      const items = data?.data ?? []
+      const item = items.find(l => l.username === username)
+      if (item) return res.json({ ok: true, id: item.id, username })
+      res.status(404).json({ ok: false, error: `Usuário "${username}" não encontrado no Central` })
+    } catch (err) { res.status(500).json({ ok: false, error: err.message }) }
+  })
+
   return { router }
 }
