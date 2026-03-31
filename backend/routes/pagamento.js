@@ -49,6 +49,16 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
             },
             auto_return:          'approved',
             statement_descriptor: 'IPTV SERVICE',
+            payment_methods: {
+              excluded_payment_types: [
+                { id: 'credit_card' },
+                { id: 'debit_card' },
+                { id: 'prepaid_card' },
+                { id: 'ticket' },
+                { id: 'atm' },
+              ],
+              installments: 1,
+            },
             expires:              true,
             expiration_date_to:   new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
           }
