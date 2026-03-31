@@ -268,14 +268,12 @@ export default function Clientes() {
       const data = await res.json()
       if (data.ok && data.link) {
         await navigator.clipboard.writeText(data.link)
-        setErro(null)
-        setMensagemSucesso(`Link copiado! ${cliente.nome}`)
-        setTimeout(() => setMensagemSucesso(null), 3000)
+        mostrarMsgPainel('ok', `✅ Link copiado! (${cliente.nome})`)
       } else {
-        setErro(`Erro ao gerar link: ${data.error ?? 'Falha'}`)
+        mostrarMsgPainel('erro', `Erro ao gerar link: ${data.error ?? 'Falha'}`)
       }
     } catch {
-      setErro('Backend offline.')
+      mostrarMsgPainel('erro', 'Backend offline.')
     }
     setGerandoLinkId(null)
   }
