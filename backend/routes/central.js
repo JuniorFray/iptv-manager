@@ -252,17 +252,26 @@ export default function createCentralRouter(db, admin, enviarMensagemRenovacao) 
 
   router.get('/central/buscar-linha/:username', async (req, res) => {
     try {
-      const username = decodeURIComponent(req.params.username)
+      const username = decodeURIComponent(req.params.username).toLowerCase()
       const reseller = process.env.CENTRAL_USERNAME
-      console.log(`[Central] buscar-linha: "${username}" reseller=${reseller}`)
-      const data = await centralFetch(`/users?page=1&per=20&reseller=${reseller}&search=${encodeURIComponent(username)}`)
-      console.log(`[Central] buscar-linha resposta:`, JSON.stringify(data?.data?.slice(0,2)))
-      const items = data?.data ?? []
-      const item = items.find(l => l.username?.toLowerCase() === username.toLowerCase())
-      if (item) {
-        console.log(`[Central] buscar-linha encontrado: id=${item.id} username=${item.username}`)
-        return res.json({ ok: true, id: item.id, username: item.username })
+      console.log(`[Central] buscar-linha: "${username}"`)
+
+      // Busca paginando até encontrar o username exato
+      let page = 1
+      while (page <= 10) {
+        const data = await centralFetch(`/users?page=${page}&per=100&reseller=${reseller}&search=${encodeURIComponent(username)}`)
+        const items = data?.data ?? []
+        const totalPages = data?.meta?.pages ?? 1
+
+        const item = items.find(l => l.username?.toLowerCase() === username)
+        if (item) {
+          console.log(`[Central] buscar-linha encontrado: id=${item.id} username=${item.username} (página ${page})`)
+          return res.json({ ok: true, id: item.id, username: item.username })
+        }
+        if (page >= totalPages) break
+        page++
       }
+
       console.log(`[Central] buscar-linha NÃO encontrado para "${username}"`)
       res.status(404).json({ ok: false, error: `Usuário "${username}" não encontrado no Central` })
     } catch (err) {
