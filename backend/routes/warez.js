@@ -187,36 +187,37 @@ export default function createWarezRouter(enviarMensagemRenovacao) {
 
   router.get('/painel/buscar-linha/:username', async (req, res) => {
     try {
-      const username = decodeURIComponent(req.params.username)
-      // Busca nas linhas normais
-      const data = await wpFetch(`/lines?page=1&quantityPerPage=10&trash=0&generalSearch=${encodeURIComponent(username)}`)
-      const items = data?.items ?? (Array.isArray(data) ? data : [])
-      const linha = items.find(l => String(l.username) === String(username))
-      if (linha) return res.json({ ok: true, id: linha.id, username: linha.username, isTrial: false })
+      const username = String(decodeURIComponent(req.params.username))
+      console.log(`[Warez] buscar-linha: "${username}"`)
+
+      // Busca nas linhas normais com paginação
+      let page = 1
+      while (page <= 10) {
+        const data = await wpFetch(`/lines?page=${page}&quantityPerPage=100&trash=0&generalSearch=${encodeURIComponent(username)}`)
+        const items = data?.items ?? (Array.isArray(data) ? data : [])
+        const total = data?.total ?? items.length
+        const pagesQty = data?.pagesQuantity ?? Math.ceil(total / 100) ?? 1
+
+        const linha = items.find(l => String(l.username) === username)
+        if (linha) {
+          console.log(`[Warez] buscar-linha encontrado: id=${linha.id} (página ${page})`)
+          return res.json({ ok: true, id: linha.id, username: linha.username, isTrial: false })
+        }
+        if (page >= pagesQty) break
+        page++
+      }
+
       // Busca nos testes (is_trial=1)
-      const dataTest = await wpFetch(`/lines/test?page=1&quantityPerPage=10&is_trial=1&trash=0&generalSearch=${encodeURIComponent(username)}`)
+      const dataTest = await wpFetch(`/lines/test?page=1&quantityPerPage=100&is_trial=1&trash=0&generalSearch=${encodeURIComponent(username)}`)
       const itemsTest = dataTest?.items ?? (Array.isArray(dataTest) ? dataTest : [])
-      const linhaTeste = itemsTest.find(l => String(l.username) === String(username))
-      if (linhaTeste) return res.json({ ok: true, id: linhaTeste.id, username: linhaTeste.username, isTrial: true })
+      const linhaTeste = itemsTest.find(l => String(l.username) === username)
+      if (linhaTeste) {
+        console.log(`[Warez] buscar-linha encontrado em testes: id=${linhaTeste.id}`)
+        return res.json({ ok: true, id: linhaTeste.id, username: linhaTeste.username, isTrial: true })
+      }
+
+      console.log(`[Warez] buscar-linha NÃO encontrado para "${username}"`)
       res.status(404).json({ ok: false, error: `Usuário "${username}" não encontrado no painel Warez.` })
-    } catch (err) { res.status(500).json({ ok: false, error: err.message }) }
-  })
-
-  router.get('/painel/saldo', async (req, res) => {
-    try {
-      const data = await wpFetch('/users/logged')
-      res.json({ ok: true, creditos: data?.credits ?? null })
-    } catch (err) { res.status(500).json({ ok: false, error: err.message }) }
-  })
-
-  router.post('/painel/criar-teste', async (req, res) => {
-    try {
-      const { horas = 4 } = req.body
-      const data = await wpFetch('/lines/test', 'POST', {
-        notes: 'TESTE SISTEMA', package_p2p: '5da17892133a1d61888029aa',
-        package_iptv: '95', testDuration: Number(horas), krator_package: '1',
-      })
-      res.json({ ok: true, usuario: data.username, senha: data.password, expira: data.exp_date, id: data.id })
     } catch (err) { res.status(500).json({ ok: false, error: err.message }) }
   })
 
