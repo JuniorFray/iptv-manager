@@ -34,8 +34,11 @@ export default function Dashboard() {
   const [loadingCreditos, setLoadingCreditos] = useState(true)
   const [modalTeste, setModalTeste]           = useState(false)
   const [horasTeste, setHorasTeste]           = useState(4)
+  const [nomeCliente, setNomeCliente]         = useState('')
+  const [telefoneCliente, setTelefoneCliente] = useState('')
   const [criandoTeste, setCriandoTeste]       = useState(false)
   const [resultadoTeste, setResultadoTeste]   = useState<any>(null)
+  const [cadastrandoTeste, setCadastrandoTeste] = useState(false)
 
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'clientes'), snapshot => {
@@ -45,6 +48,7 @@ export default function Dashboard() {
   }, [])
 
   const criarTesteWarez = async () => {
+    if (!nomeCliente.trim()) { alert('Informe o nome do cliente.'); return }
     setCriandoTeste(true)
     try {
       const API = 'https://iptv-manager-production.up.railway.app'
@@ -55,7 +59,7 @@ export default function Dashboard() {
       })
       const data = await res.json()
       if (data.ok) {
-        setResultadoTeste(data)
+        setResultadoTeste({ ...data, nomeCliente: nomeCliente.trim(), telefoneCliente: telefoneCliente.trim() })
       } else {
         alert('Erro: ' + (data.error || 'Falha ao criar teste'))
       }
@@ -63,6 +67,60 @@ export default function Dashboard() {
       alert('Backend offline.')
     }
     setCriandoTeste(false)
+  }
+
+  const cadastrarEEnviarTeste = async () => {
+    if (!resultadoTeste) return
+    setCadastrandoTeste(true)
+    try {
+      const API = 'https://iptv-manager-production.up.railway.app'
+      const { addDoc, collection: fsCol } = await import('firebase/firestore')
+
+      // Cadastra cliente no Firestore
+      const novoCliente = {
+        nome:       resultadoTeste.nomeCliente,
+        telefone:   resultadoTeste.telefoneCliente,
+        usuario:    resultadoTeste.usuario,
+        senha:      resultadoTeste.senha,
+        servidor:   'WAREZ',
+        tipo:       'IPTV',
+        status:     'inativo',
+        vencimento: resultadoTeste.expira ? new Date(resultadoTeste.expira).toLocaleDateString('pt-BR') : '',
+        valor:      '35,00',
+        obs:        'USUÁRIO TESTE',
+        criadoEm:   new Date().toISOString(),
+      }
+      const docRef = await addDoc(fsCol(db, 'clientes'), novoCliente)
+
+      // Gera links de pagamento e envia WA se tiver telefone
+      if (resultadoTeste.telefoneCliente) {
+        const linkRes = await fetch(`${API}/pagamento/criar`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            clienteId:   docRef.id,
+            clienteNome: novoCliente.nome,
+            telefone:    novoCliente.telefone,
+            servidor:    'WAREZ',
+            usuario:     novoCliente.usuario,
+            senha:       novoCliente.senha,
+          })
+        }).then(r => r.json())
+
+        if (linkRes.ok) {
+          const linksTexto = linkRes.links.map((l: any) => `${l.plano} - R$ ${l.valor.toFixed(2).replace('.', ',')}\n${l.link}`).join('\n\n')
+          const msg = `Olá *${novoCliente.nome}*! 🎉\n\nSeu teste foi criado com sucesso!\n\n👤 Usuário: *${novoCliente.usuario}*\n🔑 Senha: *${novoCliente.senha}*\n⏱️ Expira: *${novoCliente.vencimento}*\n\n💳 *Para ativar seu plano, escolha uma opção:*\n\n${linksTexto}`
+          await fetch(`${API}/send`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phone: novoCliente.telefone, message: msg })
+          })
+        }
+      }
+      alert(`✅ Cliente cadastrado${resultadoTeste.telefoneCliente ? ' e mensagem enviada!' : '!'}`)
+      setModalTeste(false); setResultadoTeste(null); setNomeCliente(''); setTelefoneCliente('')
+    } catch (e: any) {
+      alert('Erro: ' + e.message)
+    }
+    setCadastrandoTeste(false)
   }
 
   useEffect(() => {
@@ -280,6 +338,10 @@ export default function Dashboard() {
                 {!resultadoTeste ? (
                   <>
                     <h3 style={{ color: 'white', margin: '0 0 20px', fontSize: '18px' }}>🧪 Criar Teste — WWPanel</h3>
+                    <label style={{ color: 'rgba(255,255,255,0.6)', fontSize: '13px', display: 'block', marginBottom: '6px' }}>Nome do cliente *</label>
+                    <input value={nomeCliente} onChange={e => setNomeCliente(e.target.value)} placeholder="Ex: João Silva" style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.06)', color: 'white', fontSize: '14px', marginBottom: '14px', boxSizing: 'border-box' }} />
+                    <label style={{ color: 'rgba(255,255,255,0.6)', fontSize: '13px', display: 'block', marginBottom: '6px' }}>Telefone (WhatsApp)</label>
+                    <input value={telefoneCliente} onChange={e => setTelefoneCliente(e.target.value)} placeholder="Ex: 5519999999999" style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.06)', color: 'white', fontSize: '14px', marginBottom: '14px', boxSizing: 'border-box' }} />
                     <label style={{ color: 'rgba(255,255,255,0.6)', fontSize: '13px', display: 'block', marginBottom: '8px' }}>Duração do teste</label>
                     <div style={{ display: 'flex', gap: '8px', marginBottom: '24px' }}>
                       {[1, 2, 3, 4].map(h => (
@@ -322,8 +384,11 @@ export default function Dashboard() {
                       }} style={{ width: '100%', marginTop: '12px', padding: '12px', borderRadius: '10px', cursor: 'pointer', background: 'rgba(99,102,241,0.2)', border: '1px solid rgba(99,102,241,0.4)', color: '#a5b4fc', fontWeight: '700' }}>
                       📋 Copiar tudo
                     </button>
-                    <button onClick={() => { setModalTeste(false); setResultadoTeste(null) }} style={{ width: '100%', marginTop: '8px', padding: '12px', borderRadius: '10px', cursor: 'pointer', background: 'rgba(34,197,94,0.2)', border: '1px solid rgba(34,197,94,0.3)', color: '#4ade80', fontWeight: '700' }}>
-                      Fechar
+                    <button onClick={cadastrarEEnviarTeste} disabled={cadastrandoTeste} style={{ width: '100%', marginTop: '12px', padding: '12px', borderRadius: '10px', cursor: cadastrandoTeste ? 'not-allowed' : 'pointer', background: 'linear-gradient(135deg,#3b82f6,#6366f1)', border: 'none', color: 'white', fontWeight: '700', fontSize: '14px', opacity: cadastrandoTeste ? 0.6 : 1 }}>
+                      {cadastrandoTeste ? 'Cadastrando...' : resultadoTeste?.telefoneCliente ? '✅ Cadastrar + Enviar Link WA' : '✅ Cadastrar Cliente'}
+                    </button>
+                    <button onClick={() => { setModalTeste(false); setResultadoTeste(null); setNomeCliente(''); setTelefoneCliente('') }} style={{ width: '100%', marginTop: '8px', padding: '12px', borderRadius: '10px', cursor: 'pointer', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.5)', fontWeight: '600' }}>
+                      Fechar sem cadastrar
                     </button>
                   </>
                 )}
