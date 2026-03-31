@@ -254,12 +254,21 @@ export default function createCentralRouter(db, admin, enviarMensagemRenovacao) 
     try {
       const username = decodeURIComponent(req.params.username)
       const reseller = process.env.CENTRAL_USERNAME
+      console.log(`[Central] buscar-linha: "${username}" reseller=${reseller}`)
       const data = await centralFetch(`/users?page=1&per=20&reseller=${reseller}&search=${encodeURIComponent(username)}`)
+      console.log(`[Central] buscar-linha resposta:`, JSON.stringify(data?.data?.slice(0,2)))
       const items = data?.data ?? []
-      const item = items.find(l => l.username === username)
-      if (item) return res.json({ ok: true, id: item.id, username })
+      const item = items.find(l => l.username?.toLowerCase() === username.toLowerCase())
+      if (item) {
+        console.log(`[Central] buscar-linha encontrado: id=${item.id} username=${item.username}`)
+        return res.json({ ok: true, id: item.id, username: item.username })
+      }
+      console.log(`[Central] buscar-linha NÃO encontrado para "${username}"`)
       res.status(404).json({ ok: false, error: `Usuário "${username}" não encontrado no Central` })
-    } catch (err) { res.status(500).json({ ok: false, error: err.message }) }
+    } catch (err) {
+      console.error('[Central] buscar-linha err:', err.message)
+      res.status(500).json({ ok: false, error: err.message })
+    }
   })
 
   return { router }
