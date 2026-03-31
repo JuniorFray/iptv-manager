@@ -3,9 +3,9 @@ import express from 'express'
 import { MercadoPagoConfig, Preference, Payment } from 'mercadopago'
 
 const PLANOS = [
-  { id: '1mes',   label: '1 Mês',    valor: 35.00, meses: 1, creditos: 1 },
-  { id: '2meses', label: '2 Meses',  valor: 70.00, meses: 2, creditos: 2 },
-  { id: '6meses', label: '6 Meses',  valor: 170.00, meses: 6, creditos: 6 },
+  { id: '1mes',   label: '1 Mês',   valor: 35.00,  meses: 1, creditos: 1 },
+  { id: '2meses', label: '2 Meses', valor: 70.00,  meses: 2, creditos: 2 },
+  { id: '6meses', label: '6 Meses', valor: 170.00, meses: 6, creditos: 6 },
 ]
 
 export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao) {
@@ -17,61 +17,68 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
     return new MercadoPagoConfig({ accessToken: token })
   }
 
-  // ── Criar preferência de pagamento ──
+  // ── Criar 3 links (um por plano) ──
   router.post('/pagamento/criar', async (req, res) => {
     try {
       const { clienteId, clienteNome, telefone, servidor, usuario, senha } = req.body
       if (!clienteId || !clienteNome || !servidor || !usuario) {
-        return res.status(400).json({ error: 'Campos obrigatórios: clienteId, clienteNome, servidor, usuario' })
+        return res.status(400).json({ error: 'Campos obrigatórios faltando' })
       }
 
       const client     = getMpClient()
       const preference = new Preference(client)
-      const externalRef = `${clienteId}|${servidor}|${usuario}|${telefone ?? ''}|${senha ?? ''}`
+      const links      = []
 
-      const result = await preference.create({
-        body: {
-          items: PLANOS.map(p => ({
-            id:          p.id,
-            title:       `IPTV ${p.label}`,
-            quantity:    1,
-            unit_price:  p.valor,
-            currency_id: 'BRL',
-          })),
-          payer:               { name: clienteNome },
-          external_reference:  externalRef,
-          back_urls: {
-            success: `${process.env.FRONTEND_URL ?? 'https://sistema-tv.up.railway.app'}/dashboard`,
-            failure: `${process.env.FRONTEND_URL ?? 'https://sistema-tv.up.railway.app'}/dashboard`,
-          },
-          auto_return:          'approved',
-          statement_descriptor: 'IPTV SERVICE',
-          expires:              true,
-          expiration_date_to:   new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-        }
-      })
+      for (const plano of PLANOS) {
+        const externalRef = `${clienteId}|${servidor}|${usuario}|${telefone ?? ''}|${senha ?? ''}|${plano.id}`
 
-      await db.collection('pagamentos').add({
-        clienteId, clienteNome, telefone: telefone ?? '', servidor,
-        usuario, senha: senha ?? '',
-        mpPreferenceId: result.id,
-        mpPaymentId:    null,
-        valor:          null,
-        plano:          null,
-        status:         'pendente',
-        link:           result.init_point,
-        renovadoEm:     null,
-        criadoEm:       admin.firestore.FieldValue.serverTimestamp(),
-      })
+        const result = await preference.create({
+          body: {
+            items: [{
+              id:          plano.id,
+              title:       `IPTV ${plano.label} — ${clienteNome}`,
+              quantity:    1,
+              unit_price:  plano.valor,
+              currency_id: 'BRL',
+            }],
+            payer:               { name: clienteNome },
+            external_reference:  externalRef,
+            back_urls: {
+              success: `${process.env.FRONTEND_URL ?? 'https://sistema-tv.up.railway.app'}/dashboard`,
+              failure: `${process.env.FRONTEND_URL ?? 'https://sistema-tv.up.railway.app'}/dashboard`,
+            },
+            auto_return:          'approved',
+            statement_descriptor: 'IPTV SERVICE',
+            expires:              true,
+            expiration_date_to:   new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+          }
+        })
 
-      res.json({ ok: true, link: result.init_point, preferenceId: result.id })
+        links.push({ plano: plano.label, valor: plano.valor, link: result.init_point, preferenceId: result.id })
+
+        // Salva cada preferência
+        await db.collection('pagamentos').add({
+          clienteId, clienteNome, telefone: telefone ?? '', servidor,
+          usuario, senha: senha ?? '',
+          mpPreferenceId: result.id,
+          mpPaymentId:    null,
+          valor:          null,
+          plano:          plano.label,
+          status:         'pendente',
+          link:           result.init_point,
+          renovadoEm:     null,
+          criadoEm:       admin.firestore.FieldValue.serverTimestamp(),
+        })
+      }
+
+      res.json({ ok: true, links })
     } catch (err) {
       console.error('[PAGAMENTO] criar erro:', err.message)
       res.status(500).json({ ok: false, error: err.message })
     }
   })
 
-  // ── Webhook Mercado Pago ──
+  // ── Webhook ──
   router.post('/pagamento/webhook', async (req, res) => {
     try {
       const { type, data } = req.body
@@ -85,14 +92,11 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
 
       const ref   = mp.external_reference ?? ''
       const parts = ref.split('|')
-      if (parts.length < 3) {
-        console.error('[WEBHOOK] external_reference inválido:', ref)
-        return res.sendStatus(200)
-      }
+      if (parts.length < 3) return res.sendStatus(200)
 
-      const [clienteId, servidor, usuario, telefone, senha] = parts
+      const [clienteId, servidor, usuario, telefone, senha, planoId] = parts
       const valorPago = mp.transaction_amount
-      const plano     = PLANOS.find(p => Math.abs(p.valor - valorPago) < 1) ?? PLANOS[0]
+      const plano     = PLANOS.find(p => p.id === planoId) ?? PLANOS.find(p => Math.abs(p.valor - valorPago) < 1) ?? PLANOS[0]
 
       console.log(`[WEBHOOK] Aprovado — ${clienteId} ${servidor} R$${valorPago} plano=${plano.label}`)
 
@@ -127,7 +131,7 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
         }
       } catch (e) { console.error('[WEBHOOK] renovar erro:', e.message) }
 
-      // Atualiza Firestore
+      // Atualiza pagamento no Firestore
       const pagSnap = await db.collection('pagamentos')
         .where('mpPreferenceId', '==', mp.metadata?.preference_id ?? '___')
         .limit(1).get()
@@ -135,7 +139,7 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
       if (!pagSnap.empty) {
         await pagSnap.docs[0].ref.update({
           mpPaymentId: String(mp.id), valor: valorPago,
-          plano: plano.label, status: 'aprovado',
+          status: 'aprovado',
           renovadoEm: admin.firestore.FieldValue.serverTimestamp(),
         })
       } else {
@@ -153,9 +157,8 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
       // Notifica WA
       if (telefone && enviarMensagemRenovacao) {
         await enviarMensagemRenovacao(telefone, {
-          nome:       cliente?.nome ?? usuario,
-          usuario,
-          senha:      senha || cliente?.senha || '',
+          nome: cliente?.nome ?? usuario, usuario,
+          senha: senha || cliente?.senha || '',
           vencimento: vencimento ?? 'Atualizado',
         })
       }
@@ -170,8 +173,7 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
   // ── Histórico ──
   router.get('/pagamento/historico', async (req, res) => {
     try {
-      const snap = await db.collection('pagamentos')
-        .orderBy('criadoEm', 'desc').limit(200).get()
+      const snap = await db.collection('pagamentos').orderBy('criadoEm', 'desc').limit(200).get()
       const docs = snap.docs.map(d => ({
         id: d.id, ...d.data(),
         criadoEm:   d.data().criadoEm?.toDate?.()?.toISOString()  ?? null,
