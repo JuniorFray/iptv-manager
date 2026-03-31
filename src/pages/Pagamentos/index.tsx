@@ -1,6 +1,4 @@
 import { useEffect, useState } from 'react'
-import { collection, onSnapshot } from 'firebase/firestore'
-import { db } from '../../firebase'
 import { CreditCard, CheckCircle, Clock, XCircle, RefreshCw } from 'lucide-react'
 
 const API = 'https://iptv-manager-production.up.railway.app'
