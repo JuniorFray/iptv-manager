@@ -1,4 +1,4 @@
-﻿import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import Login from "./pages/Login";
 import Layout from "./pages/Layout";
@@ -7,6 +7,7 @@ import Clientes from "./pages/Clientes";
 import Servidores from "./pages/Servidores";
 import Notificacoes from "./pages/Notificacoes";
 import DashboardFinanceiro from "./pages/DashboardFinanceiro";
+import Pagamentos from "./pages/Pagamentos";
 
 function RotasProtegidas({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
@@ -30,6 +31,7 @@ function App() {
             <Route path="servidores" element={<Servidores />} />
             <Route path="notificacoes" element={<Notificacoes />} />
             <Route path="financeiro" element={<DashboardFinanceiro />} />
+            <Route path="pagamentos" element={<Pagamentos />} />
           </Route>
           <Route path="*" element={<Navigate to="/login" />} />
         </Routes>

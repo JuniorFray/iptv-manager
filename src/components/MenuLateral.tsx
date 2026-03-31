@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, Users, MessageSquare, LogOut, Tv, Server, TrendingUp } from 'lucide-react'
+import { LayoutDashboard, Users, MessageSquare, LogOut, Tv, Server, TrendingUp, CreditCard } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 
 const menus = [
@@ -8,6 +8,7 @@ const menus = [
   { path: 'servidores',   icon: <Server size={18} />,          label: 'Servidores' },
   { path: 'financeiro',   icon: <TrendingUp size={18} />,      label: 'Financeiro' },
   { path: 'notificacoes', icon: <MessageSquare size={18} />,   label: 'WhatsApp'   },
+  { path: 'pagamentos',   icon: <CreditCard size={18} />,      label: 'Pagamentos' },
 ]
 
 export default function MenuLateral() {

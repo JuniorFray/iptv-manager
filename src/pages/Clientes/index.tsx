@@ -45,7 +45,8 @@ export default function Clientes() {
   const [modalAberto, setModalAberto] = useState(false)
   const [clienteEditando, setClienteEditando] = useState<Omit<Cliente, 'id'> & { id?: string }>(clienteVazio)
   const [carregando, setCarregando] = useState(false)
-  const [renovandoId, setRenovandoId] = useState<string | null>(null)
+  const [renovandoId, setRenovandoId]       = useState<string | null>(null)
+  const [gerandoLinkId, setGerandoLinkId]   = useState<string | null>(null)
   const [importandoId, setImportandoId] = useState<string | null>(null)
   const [menuAbertoId, setMenuAbertoId] = useState<string | null>(null)
   const [msgPainel, setMsgPainel] = useState<{ tipo: 'ok' | 'erro'; msg: string } | null>(null)
@@ -249,6 +250,36 @@ export default function Clientes() {
   }
 
   // ---- Renovar Warez ----
+  const gerarLinkPagamento = async (cliente: Cliente) => {
+    setGerandoLinkId(cliente.id)
+    try {
+      const res = await fetch(`${BACKEND_URL}/pagamento/criar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clienteId:   cliente.id,
+          clienteNome: cliente.nome,
+          telefone:    cliente.telefone,
+          servidor:    cliente.servidor,
+          usuario:     cliente.usuario,
+          senha:       cliente.senha,
+        }),
+      })
+      const data = await res.json()
+      if (data.ok && data.link) {
+        await navigator.clipboard.writeText(data.link)
+        setErro(null)
+        setMensagemSucesso(`Link copiado! ${cliente.nome}`)
+        setTimeout(() => setMensagemSucesso(null), 3000)
+      } else {
+        setErro(`Erro ao gerar link: ${data.error ?? 'Falha'}`)
+      }
+    } catch {
+      setErro('Backend offline.')
+    }
+    setGerandoLinkId(null)
+  }
+
   const renovarClienteWarez = async (cliente: Cliente, credits: number = 1) => {
     setRenovandoId(cliente.id)
     try {
@@ -794,6 +825,23 @@ export default function Clientes() {
                         </button>
 
                         {/* Excluir */}
+                        {/* Gerar Link Pagamento */}
+                        <button
+                          onClick={() => { setMenuAbertoId(null); gerarLinkPagamento(c) }}
+                          disabled={gerandoLinkId === c.id}
+                          style={{
+                            width: '100%', padding: '9px 12px', borderRadius: '7px', border: 'none',
+                            cursor: 'pointer', background: 'transparent', textAlign: 'left',
+                            color: '#34d399', fontSize: '13px', fontWeight: '600',
+                            display: 'flex', alignItems: 'center', gap: '8px',
+                            opacity: gerandoLinkId === c.id ? 0.5 : 1,
+                          }}
+                          onMouseEnter={e => (e.currentTarget.style.background = 'rgba(52,211,153,0.1)')}
+                          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                        >
+                          💳 {gerandoLinkId === c.id ? 'Gerando...' : 'Gerar Link'}
+                        </button>
+
                         <button
                           onClick={() => { setMenuAbertoId(null); excluirCliente(c.id) }}
                           style={{
