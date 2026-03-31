@@ -4,7 +4,7 @@ import { MercadoPagoConfig, Preference, Payment } from 'mercadopago'
 
 const PLANOS = [
   { id: '1mes',   label: '1 Mês',   valor: 35.00,  meses: 1, creditos: 1 },
-  { id: '2meses', label: '2 Meses', valor: 70.00,  meses: 2, creditos: 2 },
+  { id: '3meses', label: '3 Meses', valor: 95.00,  meses: 3, creditos: 3 },
   { id: '6meses', label: '6 Meses', valor: 170.00, meses: 6, creditos: 6 },
 ]
 
@@ -36,7 +36,7 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
           body: {
             items: [{
               id:          plano.id,
-              title:       `IPTV ${plano.label} — ${clienteNome}`,
+            title:       `Sistema ${plano.label}`,
               quantity:    1,
               unit_price:  plano.valor,
               currency_id: 'BRL',
@@ -48,7 +48,7 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
               failure: `${process.env.FRONTEND_URL ?? 'https://sistema-tv.up.railway.app'}/dashboard`,
             },
             auto_return:          'approved',
-            statement_descriptor: 'IPTV SERVICE',
+            statement_descriptor: 'Sistema TV',
             payment_methods: {
               excluded_payment_types: [
                 { id: 'credit_card' },
