@@ -119,6 +119,7 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
       try {
         if (servidor.toUpperCase() === 'WAREZ') {
           const buscar = await fetch(`${BACKEND}/painel/buscar-linha/${encodeURIComponent(usuario)}`).then(r => r.json())
+          console.log('[WEBHOOK] Warez buscar-linha resultado:', JSON.stringify(buscar))
           if (buscar.ok) {
             const ren = await fetch(`${BACKEND}/painel/renovar/${buscar.id}`, {
               method: 'POST', headers: { 'Content-Type': 'application/json' },

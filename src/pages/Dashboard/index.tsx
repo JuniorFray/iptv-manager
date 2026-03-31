@@ -32,12 +32,12 @@ export default function Dashboard() {
 
   const [creditos, setCreditos] = useState<Record<string, any>>({})
   const [loadingCreditos, setLoadingCreditos] = useState(true)
-  const [modalTeste, setModalTeste]           = useState(false)
-  const [horasTeste, setHorasTeste]           = useState(4)
-  const [nomeCliente, setNomeCliente]         = useState('')
-  const [telefoneCliente, setTelefoneCliente] = useState('')
-  const [criandoTeste, setCriandoTeste]       = useState(false)
-  const [resultadoTeste, setResultadoTeste]   = useState<any>(null)
+  const [modalTeste, setModalTeste]             = useState(false)
+  const [horasTeste, setHorasTeste]             = useState(4)
+  const [nomeCliente, setNomeCliente]           = useState('')
+  const [telefoneCliente, setTelefoneCliente]   = useState('')
+  const [criandoTeste, setCriandoTeste]         = useState(false)
+  const [resultadoTeste, setResultadoTeste]     = useState<any>(null)
   const [cadastrandoTeste, setCadastrandoTeste] = useState(false)
 
   useEffect(() => {
@@ -53,19 +53,13 @@ export default function Dashboard() {
     try {
       const API = 'https://iptv-manager-production.up.railway.app'
       const res = await fetch(`${API}/painel/criar-teste`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ horas: horasTeste }),
       })
       const data = await res.json()
-      if (data.ok) {
-        setResultadoTeste({ ...data, nomeCliente: nomeCliente.trim(), telefoneCliente: telefoneCliente.trim() })
-      } else {
-        alert('Erro: ' + (data.error || 'Falha ao criar teste'))
-      }
-    } catch {
-      alert('Backend offline.')
-    }
+      if (data.ok) setResultadoTeste({ ...data, nomeCliente: nomeCliente.trim(), telefoneCliente: telefoneCliente.trim() })
+      else alert('Erro: ' + (data.error || 'Falha ao criar teste'))
+    } catch { alert('Backend offline.') }
     setCriandoTeste(false)
   }
 
@@ -75,40 +69,31 @@ export default function Dashboard() {
     try {
       const API = 'https://iptv-manager-production.up.railway.app'
       const { addDoc, collection: fsCol } = await import('firebase/firestore')
-
-      // Cadastra cliente no Firestore
       const novoCliente = {
         nome:       resultadoTeste.nomeCliente,
         telefone:   resultadoTeste.telefoneCliente,
         usuario:    resultadoTeste.usuario,
         senha:      resultadoTeste.senha,
         servidor:   'WAREZ',
-        tipo:       'IPTV',
+        tipo:       'P2P',
         status:     'inativo',
         vencimento: resultadoTeste.expira ? new Date(resultadoTeste.expira).toLocaleDateString('pt-BR') : '',
         valor:      '35,00',
         obs:        'USUÁRIO TESTE',
-        criadoEm:   new Date().toISOString(),
       }
       const docRef = await addDoc(fsCol(db, 'clientes'), novoCliente)
-
-      // Gera links de pagamento e envia WA se tiver telefone
       if (resultadoTeste.telefoneCliente) {
         const linkRes = await fetch(`${API}/pagamento/criar`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            clienteId:   docRef.id,
-            clienteNome: novoCliente.nome,
-            telefone:    novoCliente.telefone,
-            servidor:    'WAREZ',
-            usuario:     novoCliente.usuario,
-            senha:       novoCliente.senha,
+            clienteId: docRef.id, clienteNome: novoCliente.nome,
+            telefone: novoCliente.telefone, servidor: 'WAREZ',
+            usuario: novoCliente.usuario, senha: novoCliente.senha,
           })
         }).then(r => r.json())
-
         if (linkRes.ok) {
           const linksTexto = linkRes.links.map((l: any) => `${l.plano} - R$ ${l.valor.toFixed(2).replace('.', ',')}\n${l.link}`).join('\n\n')
-          const msg = `Olá *${novoCliente.nome}*! 🎉\n\nSeu teste foi criado com sucesso!\n\n👤 Usuário: *${novoCliente.usuario}*\n🔑 Senha: *${novoCliente.senha}*\n⏱️ Expira: *${novoCliente.vencimento}*\n\n💳 *Para ativar seu plano, escolha uma opção:*\n\n${linksTexto}`
+          const msg = `Olá *${novoCliente.nome}*! 🎉\n\nSeu teste foi criado!\n\n👤 Usuário: *${novoCliente.usuario}*\n🔑 Senha: *${novoCliente.senha}*\n⏱️ Expira: *${novoCliente.vencimento}*\n\n💳 *Para ativar seu plano:*\n\n${linksTexto}`
           await fetch(`${API}/send`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ phone: novoCliente.telefone, message: msg })
@@ -117,9 +102,7 @@ export default function Dashboard() {
       }
       alert(`✅ Cliente cadastrado${resultadoTeste.telefoneCliente ? ' e mensagem enviada!' : '!'}`)
       setModalTeste(false); setResultadoTeste(null); setNomeCliente(''); setTelefoneCliente('')
-    } catch (e: any) {
-      alert('Erro: ' + e.message)
-    }
+    } catch (e: any) { alert('Erro: ' + e.message) }
     setCadastrandoTeste(false)
   }
 
