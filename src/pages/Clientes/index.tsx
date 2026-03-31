@@ -45,7 +45,9 @@ export default function Clientes() {
   const [modalAberto, setModalAberto] = useState(false)
   const [clienteEditando, setClienteEditando] = useState<Omit<Cliente, 'id'> & { id?: string }>(clienteVazio)
   const [carregando, setCarregando] = useState(false)
-  const [renovandoId, setRenovandoId] = useState<string | null>(null)
+  const [renovandoId, setRenovandoId]     = useState<string | null>(null)
+  const [gerandoLinkId, setGerandoLinkId] = useState<string | null>(null)
+  const [linksModal, setLinksModal]       = useState<{clienteNome: string, links: {plano: string, valor: number, link: string}[]} | null>(null)
   const [importandoId, setImportandoId] = useState<string | null>(null)
   const [menuAbertoId, setMenuAbertoId] = useState<string | null>(null)
   const [msgPainel, setMsgPainel] = useState<{ tipo: 'ok' | 'erro'; msg: string } | null>(null)
@@ -249,6 +251,24 @@ export default function Clientes() {
   }
 
   // ---- Renovar Warez ----
+  const gerarLinkPagamento = async (cliente: Cliente) => {
+    setGerandoLinkId(cliente.id)
+    try {
+      const res = await fetch(`${BACKEND_URL}/pagamento/criar`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clienteId: cliente.id, clienteNome: cliente.nome,
+          telefone: cliente.telefone, servidor: cliente.servidor,
+          usuario: cliente.usuario, senha: cliente.senha,
+        }),
+      })
+      const data = await res.json()
+      if (data.ok && data.links) setLinksModal({ clienteNome: cliente.nome, links: data.links })
+      else mostrarMsgPainel('erro', `Erro: ${data.error ?? 'Falha ao gerar links'}`)
+    } catch { mostrarMsgPainel('erro', 'Backend offline.') }
+    setGerandoLinkId(null)
+  }
+
   const renovarClienteWarez = async (cliente: Cliente, credits: number = 1) => {
     setRenovandoId(cliente.id)
     try {
@@ -797,13 +817,17 @@ export default function Clientes() {
 
                         {/* Excluir */}
                         <button
+                          onClick={() => { setMenuAbertoId(null); gerarLinkPagamento(c) }}
+                          disabled={gerandoLinkId === c.id}
+                          style={{ width: '100%', padding: '9px 12px', borderRadius: '7px', border: 'none', cursor: 'pointer', background: 'transparent', textAlign: 'left', color: '#34d399', fontSize: '13px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px', opacity: gerandoLinkId === c.id ? 0.5 : 1 }}
+                          onMouseEnter={e => (e.currentTarget.style.background = 'rgba(52,211,153,0.1)')}
+                          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                        >
+                          💳 {gerandoLinkId === c.id ? 'Gerando...' : 'Gerar Links'}
+                        </button>
+                        <button
                           onClick={() => { setMenuAbertoId(null); excluirCliente(c.id) }}
-                          style={{
-                            width: '100%', padding: '9px 12px', borderRadius: '7px', border: 'none',
-                            cursor: 'pointer', background: 'transparent', textAlign: 'left',
-                            color: '#f87171', fontSize: '13px', fontWeight: '600',
-                            display: 'flex', alignItems: 'center', gap: '8px',
-                          }}
+                          style={{ width: '100%', padding: '9px 12px', borderRadius: '7px', border: 'none', cursor: 'pointer', background: 'transparent', textAlign: 'left', color: '#f87171', fontSize: '13px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px' }}
                           onMouseEnter={e => (e.currentTarget.style.background = 'rgba(239,68,68,0.1)')}
                           onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                         >
@@ -934,6 +958,33 @@ export default function Clientes() {
                 <Check size={16} /> {carregando ? 'Salvando...' : 'Salvar'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Links Pagamento */}
+      {linksModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+          <div style={{ background: '#1a1a2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', padding: '28px', width: '100%', maxWidth: '420px' }}>
+            <h3 style={{ color: 'white', margin: '0 0 6px', fontSize: '18px' }}>💳 Links de Pagamento</h3>
+            <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '13px', margin: '0 0 20px' }}>{linksModal.clienteNome}</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
+              {linksModal.links.map(({ plano, valor, link }) => (
+                <div key={plano} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', padding: '12px 16px' }}>
+                  <div>
+                    <span style={{ color: 'white', fontWeight: '700', fontSize: '15px' }}>{plano}</span>
+                    <span style={{ color: '#4ade80', fontWeight: '700', fontSize: '14px', marginLeft: '12px' }}>R$ {valor.toFixed(2).replace('.', ',')}</span>
+                  </div>
+                  <button onClick={() => { navigator.clipboard.writeText(link); mostrarMsgPainel('ok', `Link ${plano} copiado!`) }}
+                    style={{ padding: '6px 14px', borderRadius: '8px', cursor: 'pointer', background: 'rgba(99,102,241,0.2)', border: '1px solid rgba(99,102,241,0.4)', color: '#818cf8', fontSize: '12px', fontWeight: '700' }}>
+                    📋 Copiar
+                  </button>
+                </div>
+              ))}
+            </div>
+            <button onClick={() => setLinksModal(null)} style={{ width: '100%', padding: '12px', borderRadius: '10px', cursor: 'pointer', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.5)', fontWeight: '600' }}>
+              Fechar
+            </button>
           </div>
         </div>
       )}
