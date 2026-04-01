@@ -173,17 +173,60 @@ export default function createWhatsAppRouter(db, admin) {
     return Math.round((data.getTime() - hoje.getTime()) / 86400000)
   }
 
-  const formatarMensagem = (template, cliente) => {
-    return template
+  const encurtarUrl = async (url) => {
+    try {
+      const res = await fetch(`https://tinyurl.com/api-create.php?url=${encodeURIComponent(url)}`)
+      if (res.ok) { const short = await res.text(); if (short.startsWith('http')) return short.trim() }
+    } catch { /* usa url original */ }
+    return url
+  }
+
+  const gerarLinksCliente = async (cliente) => {
+    try {
+      const BACKEND = 'https://iptv-manager-production.up.railway.app'
+      const res = await fetch(`${BACKEND}/pagamento/criar`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clienteId: cliente.id, clienteNome: cliente.nome,
+          telefone: cliente.telefone, servidor: cliente.servidor,
+          usuario: cliente.usuario, senha: cliente.senha,
+        })
+      })
+      const data = await res.json()
+      if (!data.ok) { console.log('[Links] pagamento/criar falhou:', data.error); return null }
+      const links = {}
+      for (const l of data.links) {
+        const short = await encurtarUrl(l.link)
+        if      (l.plano.includes('1')) links['1mes']   = short
+        else if (l.plano.includes('3')) links['3meses'] = short
+        else if (l.plano.includes('6')) links['6meses'] = short
+      }
+      console.log('[Links] gerados para', cliente.nome, links)
+      return links
+    } catch (err) { console.error('[Links] Erro:', err.message); return null }
+  }
+
+  const formatarMensagem = async (template, cliente) => {
+    let msg = template
+      .replace(/\{NOME\}/gi,       cliente.nome       || '')
+      .replace(/\{VENCIMENTO\}/gi, cliente.vencimento  || '')
+      .replace(/\{SERVIDOR\}/gi,   cliente.servidor    || '')
+      .replace(/\{VALOR\}/gi,      cliente.valor ? `R$ ${parseFloat(cliente.valor).toFixed(2).replace('.', ',')}` : '')
       .replace(/NOME/gi,       cliente.nome       || '')
       .replace(/VENCIMENTO/gi, cliente.vencimento  || '')
       .replace(/SERVIDOR/gi,   cliente.servidor    || '')
-      .replace(
-        /VALOR/gi,
-        cliente.valor
-          ? `R$ ${parseFloat(cliente.valor).toFixed(2).replace('.', ',')}`
-          : ''
-      )
+      .replace(/VALOR/gi,      cliente.valor ? `R$ ${parseFloat(cliente.valor).toFixed(2).replace('.', ',')}` : '')
+
+    if (/\{LINK_(1MES|3MESES|6MESES)\}/i.test(msg)) {
+      console.log('[Links] Detectado link no template para', cliente.nome)
+      const links = await gerarLinksCliente(cliente)
+      const fallback = '(link indisponível)'
+      msg = msg
+        .replace(/\{LINK_1MES\}/gi,   links?.['1mes']   || fallback)
+        .replace(/\{LINK_3MESES\}/gi, links?.['3meses'] || fallback)
+        .replace(/\{LINK_6MESES\}/gi, links?.['6meses'] || fallback)
+    }
+    return msg
   }
 
   const normalizarTelefone = tel => {
@@ -345,7 +388,7 @@ export default function createWhatsAppRouter(db, admin) {
 
   const executarEnvioAutomatico = async () => {
     console.log('Iniciando envio automático...')
-    // Não bloqueia por WA offline — adiciona na fila e processarFila envia quando reconectar
+    // WA pode estar offline — adiciona na fila e processarFila envia quando reconectar
     const config = await getConfig()
     if (!config.ativo) { console.log('Envio automático desativado.'); return }
     const snapshot = await db.collection('clientes').get()
@@ -377,7 +420,7 @@ export default function createWhatsAppRouter(db, admin) {
       }
     }
     console.log(`${adicionados} mensagens adicionadas na fila.`)
-    if (clientReady) processarFila()
+    processarFila()
   }
 
   // ---- Crons ----
@@ -409,10 +452,11 @@ export default function createWhatsAppRouter(db, admin) {
   })
 
   router.post('/send', async (req, res) => {
-    const { phone, message } = req.body
+    const { phone, message, cliente } = req.body
     if (!clientReady || !sock) return res.status(503).json({ error: 'WhatsApp não conectado' })
     try {
-      await sock.sendMessage(normalizarTelefone(phone), { text: message })
+      const msg = cliente ? await formatarMensagem(message, cliente) : message
+      await sock.sendMessage(normalizarTelefone(phone), { text: msg })
       res.json({ success: true })
     } catch (err) { res.status(500).json({ error: err.message }) }
   })
@@ -465,12 +509,13 @@ export default function createWhatsAppRouter(db, admin) {
 
   router.post('/fila/adicionar', async (req, res) => {
     try {
-      const { clienteId, clienteNome, telefone, mensagem, gatilho, midiaUrl, midiaTipo, midiaNome, modoEnvio } = req.body
+      const { clienteId, clienteNome, telefone, mensagem, gatilho, midiaUrl, midiaTipo, midiaNome, modoEnvio, cliente } = req.body
       if (!telefone || !mensagem) return res.status(400).json({ error: 'telefone e mensagem obrigatórios' })
+      const mensagemFinal = cliente ? await formatarMensagem(mensagem, cliente) : mensagem
       await db.collection('filaEnvios').add({
         clienteId:        clienteId        ?? telefone,
         clienteNome:      clienteNome      ?? '',
-        telefone, mensagem,
+        telefone, mensagem: mensagemFinal,
         gatilho:          gatilho          ?? 'manual',
         midiaUrl:         midiaUrl         ?? null,
         midiaTipo:        midiaTipo        ?? null,
