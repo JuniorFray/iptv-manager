@@ -9,12 +9,11 @@ export default function Layout() {
         className="main-content"
         style={{
           flex: 1,
-          marginLeft: '176px',
           padding: '28px 24px',
           minHeight: '100vh',
           overflowX: 'hidden',
-          maxWidth: 'calc(100vw - 176px)',
           boxSizing: 'border-box',
+          width: '100%',
         }}
       >
         <Outlet />
