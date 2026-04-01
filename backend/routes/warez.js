@@ -165,7 +165,10 @@ export default function createWarezRouter(enviarMensagemRenovacao) {
         }
       }
       if (enviarMensagemRenovacao && telefone) {
-        enviarMensagemRenovacao(telefone, { nome, usuario, senha, vencimento })
+        console.log(`[Warez] Chamando enviarMensagemRenovacao para ${telefone} nome=${nome}`)
+        await enviarMensagemRenovacao(telefone, { nome, usuario, senha, vencimento })
+      } else {
+        console.log(`[Warez] enviarMensagemRenovacao NÃO chamada: telefone=${telefone} fn=${!!enviarMensagemRenovacao}`)
       }
       res.json(data)
     } catch (err) { res.status(500).json({ error: err.message }) }
