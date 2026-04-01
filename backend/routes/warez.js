@@ -161,7 +161,7 @@ export default function createWarezRouter(enviarMensagemRenovacao) {
       if (expRaw) {
         const d = new Date(expRaw)
         if (!isNaN(d.getTime())) {
-          vencimento = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`
+          vencimento = d.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })
         }
       }
       if (enviarMensagemRenovacao && telefone) {

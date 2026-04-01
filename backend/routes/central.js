@@ -162,7 +162,7 @@ export default function createCentralRouter(db, admin, enviarMensagemRenovacao) 
   const tsParaBR = (ts) => {
     if (!ts) return null
     const d = new Date(ts * 1000)
-    return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`
+    return d.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })
   }
 
   // ---- Rotas ----

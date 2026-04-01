@@ -197,8 +197,8 @@ export default function createWhatsAppRouter(db, admin) {
     await db.collection('logswhatsapp').add({
       clienteNome, telefone, gatilho, mensagem, status,
       enviadoEm: admin.firestore.FieldValue.serverTimestamp(),
-      data: new Date().toLocaleDateString('pt-BR'),
-      hora: new Date().toLocaleTimeString('pt-BR'),
+      data: new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }),
+      hora: new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' }),
     })
   }
 

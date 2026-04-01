@@ -146,10 +146,10 @@ export default function Pagamentos() {
                     </td>
                     <td style={{ padding: '12px' }}>{statusBadge(p.status)}</td>
                     <td style={{ padding: '12px', color: 'rgba(255,255,255,0.5)', fontSize: '12px' }}>
-                      {p.criadoEm ? new Date(p.criadoEm).toLocaleString('pt-BR') : '—'}
+                      {p.criadoEm ? new Date(p.criadoEm).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : '—'}
                     </td>
                     <td style={{ padding: '12px', color: 'rgba(255,255,255,0.5)', fontSize: '12px' }}>
-                      {p.renovadoEm ? new Date(p.renovadoEm).toLocaleString('pt-BR') : '—'}
+                      {p.renovadoEm ? new Date(p.renovadoEm).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : '—'}
                     </td>
                   </tr>
                 ))}
