@@ -81,7 +81,7 @@ const REGRAS_INFO = [
   { key: 'pos3',  label: '3 dias após vencer',   cor: '239,68,68'  },
 ]
 
-const VARIAVEIS = ['NOME', 'VENCIMENTO', 'SERVIDOR', 'VALOR']
+const VARIAVEIS = ['{NOME}', '{VENCIMENTO}', '{SERVIDOR}', '{VALOR}', '{LINK_1MES}', '{LINK_3MESES}', '{LINK_6MESES}']
 
 export default function Notificacoes() {
   const [clientes, setClientes]           = useState<Cliente[]>([])
@@ -541,30 +541,30 @@ export default function Notificacoes() {
   return (
     <div>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
-        <div style={{ minWidth: 0 }}>
-          <h1 style={{ color: 'white', fontSize: '24px', fontWeight: 'bold', margin: 0 }}>WhatsApp</h1>
-          <p style={{ color: 'rgba(255,255,255,0.5)', marginTop: '4px', fontSize: '13px', margin: '4px 0 0' }}>Envie notificações para seus clientes</p>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+        <div>
+          <h1 style={{ color: 'white', fontSize: '28px', fontWeight: 'bold', margin: 0 }}>WhatsApp</h1>
+          <p style={{ color: 'rgba(255,255,255,0.5)', marginTop: '4px', fontSize: '14px' }}>Envie notificações para seus clientes</p>
         </div>
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-          <div onClick={() => setMostrarQR(true)} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 12px', borderRadius: '10px', cursor: 'pointer', background: whatsReady ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)', border: whatsReady ? '1px solid rgba(34,197,94,0.3)' : '1px solid rgba(239,68,68,0.3)', maxWidth: '220px', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <div onClick={() => setMostrarQR(true)} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', borderRadius: '12px', cursor: 'pointer', background: whatsReady ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)', border: whatsReady ? '1px solid rgba(34,197,94,0.3)' : '1px solid rgba(239,68,68,0.3)' }}>
             {whatsReady ? (
               <>
-                <Wifi size={14} color="#4ade80" style={{ flexShrink: 0 }} />
-                <span style={{ color: '#4ade80', fontSize: '12px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  Conectado: <strong>{(numero || 'Detectando...').split('@')[0]}</strong>
+                <Wifi size={16} color="#4ade80" />
+                <span style={{ color: '#4ade80', fontSize: '13px', fontWeight: 600 }}>
+                  Conectado: <strong>{numero || 'Detectando...'}</strong>
                 </span>
               </>
             ) : (
               <>
-                <WifiOff size={14} color="#f87171" />
-                <span style={{ color: '#f87171', fontSize: '12px', fontWeight: '600' }}>Desconectado</span>
-                <QrCode size={13} color="#f87171" />
+                <WifiOff size={16} color="#f87171" />
+                <span style={{ color: '#f87171', fontSize: '13px', fontWeight: '600' }}>Desconectado</span>
+                <QrCode size={14} color="#f87171" />
               </>
             )}
           </div>
-          <button onClick={() => setModalModelo(true)} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'linear-gradient(135deg,#3b82f6,#6366f1)', color: 'white', border: 'none', borderRadius: '10px', padding: '8px 14px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px', whiteSpace: 'nowrap' }}>
-            <Plus size={14} /> Novo Modelo
+          <button onClick={() => setModalModelo(true)} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'linear-gradient(135deg,#3b82f6,#6366f1)', color: 'white', border: 'none', borderRadius: '12px', padding: '10px 18px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px' }}>
+            <Plus size={16} /> Novo Modelo
           </button>
         </div>
       </div>
@@ -577,15 +577,15 @@ export default function Notificacoes() {
       )}
 
       {/* Abas */}
-      <div style={{ display: 'flex', gap: '6px', marginBottom: '20px', overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: '4px', msOverflowStyle: 'none', scrollbarWidth: 'none' }}>
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap' }}>
         {[
-          { key: 'manual', label: 'Envio Manual',     icon: <Send size={14} />     },
-          { key: 'auto',   label: 'Envio Automático', icon: <Settings size={14} /> },
-          { key: 'fila',   label: 'Fila',             icon: <RefreshCw size={14} /> },
-          { key: 'log',    label: 'Histórico',        icon: <Clock size={14} />    },
-          { key: 'midias', label: 'Mídias',            icon: <Image size={14} />    },
+          { key: 'manual', label: 'Envio Manual',     icon: <Send size={15} />     },
+          { key: 'auto',   label: 'Envio Automático', icon: <Settings size={15} /> },
+          { key: 'fila',   label: 'Fila',             icon: <RefreshCw size={15} /> },
+          { key: 'log',    label: 'Histórico',        icon: <Clock size={15} />    },
+          { key: 'midias', label: 'Mídias',            icon: <Image size={15} />    },
         ].map(a => (
-          <button key={a.key} onClick={() => { setAba(a.key as any); if (a.key === 'log') carregarLogs(); if (a.key === 'fila') carregarFila(); if (a.key === 'midias') carregarMidias(); if (a.key === 'auto') carregarTemplateRenovacao() }} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '9px 14px', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px', whiteSpace: 'nowrap', flexShrink: 0, background: aba === a.key ? 'rgba(99,102,241,0.3)' : 'rgba(255,255,255,0.05)', border: aba === a.key ? '1px solid rgba(99,102,241,0.5)' : '1px solid rgba(255,255,255,0.1)', color: aba === a.key ? 'white' : 'rgba(255,255,255,0.5)' }}>
+          <button key={a.key} onClick={() => { setAba(a.key as any); if (a.key === 'log') carregarLogs(); if (a.key === 'fila') carregarFila(); if (a.key === 'midias') carregarMidias(); if (a.key === 'auto') carregarTemplateRenovacao() }} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px', background: aba === a.key ? 'rgba(99,102,241,0.3)' : 'rgba(255,255,255,0.05)', border: aba === a.key ? '1px solid rgba(99,102,241,0.5)' : '1px solid rgba(255,255,255,0.1)', color: aba === a.key ? 'white' : 'rgba(255,255,255,0.5)' }}>
             {a.icon}{a.label}
           </button>
         ))}
@@ -593,7 +593,7 @@ export default function Notificacoes() {
 
       {/* ── ABA MANUAL ── */}
       {aba === 'manual' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'min(300px, 100%) 1fr', gap: '16px' }} className="wa-manual-grid">
+        <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '20px' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div className="glass-card" style={{ padding: '20px' }}>
               <h3 style={{ color: 'white', margin: '0 0 14px', fontSize: '15px' }}>Filtrar Clientes</h3>
@@ -662,7 +662,13 @@ export default function Notificacoes() {
 
             <div className="glass-card" style={{ padding: '20px' }}>
               <h3 style={{ color: 'white', margin: '0 0 14px', fontSize: '15px' }}>Editar Mensagem</h3>
-              <textarea value={mensagem} onChange={e => { setMensagem(e.target.value); setTemplate(e.target.value) }} placeholder="Selecione um modelo ou escreva sua mensagem. Use NOME, VENCIMENTO, SERVIDOR, VALOR." rows={5} style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit', lineHeight: '1.6' }} />
+              <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginBottom: '8px' }}>
+                {VARIAVEIS.map(v => (
+                  <span key={v} onClick={() => setMensagem(m => m + v)}
+                    style={{ background: 'rgba(99,102,241,0.2)', border: '1px solid rgba(99,102,241,0.3)', color: '#a5b4fc', padding: '2px 7px', borderRadius: '5px', fontSize: '11px', fontFamily: 'monospace', cursor: 'pointer' }} title="Clique para inserir">{v}</span>
+                ))}
+              </div>
+              <textarea value={mensagem} onChange={e => { setMensagem(e.target.value); setTemplate(e.target.value) }} placeholder="Selecione um modelo ou escreva sua mensagem." rows={5} style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit', lineHeight: '1.6' }} />
               {/* ── Mídia Manual ── */}
               <div style={{ marginTop: '12px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', padding: '12px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
@@ -851,7 +857,15 @@ export default function Notificacoes() {
                     ))}
                   </div>
                 </div>
-                <label style={{ color: 'rgba(255,255,255,0.6)', fontSize: '13px', display: 'block', marginBottom: '6px' }}>Mensagem</label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px', gap: '8px', flexWrap: 'wrap' }}>
+                  <label style={{ color: 'rgba(255,255,255,0.6)', fontSize: '13px' }}>Mensagem</label>
+                  <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                    {VARIAVEIS.map(v => (
+                      <span key={v} onClick={() => updateRegra(key, 'mensagem', (regra.mensagem || '') + v)}
+                        style={{ background: 'rgba(99,102,241,0.2)', border: '1px solid rgba(99,102,241,0.3)', color: '#a5b4fc', padding: '2px 7px', borderRadius: '5px', fontSize: '11px', fontFamily: 'monospace', cursor: 'pointer' }} title="Clique para inserir">{v}</span>
+                    ))}
+                  </div>
+                </div>
                 <textarea value={regra.mensagem} onChange={e => updateRegra(key, 'mensagem', e.target.value)} rows={4} style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit', lineHeight: '1.5' }} />
 
                 {/* Mídia da regra */}

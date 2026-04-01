@@ -173,17 +173,58 @@ export default function createWhatsAppRouter(db, admin) {
     return Math.round((data.getTime() - hoje.getTime()) / 86400000)
   }
 
-  const formatarMensagem = (template, cliente) => {
-    return template
+  const encurtarUrl = async (url) => {
+    try {
+      const res = await fetch(`https://tinyurl.com/api-create.php?url=${encodeURIComponent(url)}`)
+      if (res.ok) { const short = await res.text(); if (short.startsWith('http')) return short.trim() }
+    } catch { /* usa url original */ }
+    return url
+  }
+
+  const gerarLinksCliente = async (cliente) => {
+    try {
+      const BACKEND = 'https://iptv-manager-production.up.railway.app'
+      const res = await fetch(`${BACKEND}/pagamento/criar`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clienteId: cliente.id, clienteNome: cliente.nome,
+          telefone: cliente.telefone, servidor: cliente.servidor,
+          usuario: cliente.usuario, senha: cliente.senha,
+        })
+      })
+      const data = await res.json()
+      if (!data.ok) return null
+      const links = {}
+      for (const l of data.links) {
+        const short = await encurtarUrl(l.link)
+        if      (l.plano.includes('1')) links['1mes']   = short
+        else if (l.plano.includes('3')) links['3meses'] = short
+        else if (l.plano.includes('6')) links['6meses'] = short
+      }
+      return links
+    } catch (err) { console.error('[Links] Erro:', err.message); return null }
+  }
+
+  const formatarMensagem = async (template, cliente) => {
+    let msg = template
+      .replace(/\{NOME\}/gi,       cliente.nome       || '')
+      .replace(/\{VENCIMENTO\}/gi, cliente.vencimento  || '')
+      .replace(/\{SERVIDOR\}/gi,   cliente.servidor    || '')
+      .replace(/\{VALOR\}/gi,      cliente.valor ? `R$ ${parseFloat(cliente.valor).toFixed(2).replace('.', ',')}` : '')
       .replace(/NOME/gi,       cliente.nome       || '')
       .replace(/VENCIMENTO/gi, cliente.vencimento  || '')
       .replace(/SERVIDOR/gi,   cliente.servidor    || '')
-      .replace(
-        /VALOR/gi,
-        cliente.valor
-          ? `R$ ${parseFloat(cliente.valor).toFixed(2).replace('.', ',')}`
-          : ''
-      )
+      .replace(/VALOR/gi,      cliente.valor ? `R$ ${parseFloat(cliente.valor).toFixed(2).replace('.', ',')}` : '')
+
+    if (/\{LINK_(1MES|3MESES|6MESES)\}/i.test(msg)) {
+      const links = await gerarLinksCliente(cliente)
+      const fallback = '(link indisponível)'
+      msg = msg
+        .replace(/\{LINK_1MES\}/gi,   links?.['1mes']   || fallback)
+        .replace(/\{LINK_3MESES\}/gi, links?.['3meses'] || fallback)
+        .replace(/\{LINK_6MESES\}/gi, links?.['6meses'] || fallback)
+    }
+    return msg
   }
 
   const normalizarTelefone = tel => {
@@ -197,8 +238,8 @@ export default function createWhatsAppRouter(db, admin) {
     await db.collection('logswhatsapp').add({
       clienteNome, telefone, gatilho, mensagem, status,
       enviadoEm: admin.firestore.FieldValue.serverTimestamp(),
-      data: new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }),
-      hora: new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' }),
+      data: new Date().toLocaleDateString('pt-BR'),
+      hora: new Date().toLocaleTimeString('pt-BR'),
     })
   }
 
@@ -366,7 +407,7 @@ export default function createWhatsAppRouter(db, admin) {
         if (diff !== diffAlvo) continue
         const regra = config.regras?.[key]
         if (!regra?.ativo) continue
-        const mensagem = formatarMensagem(regra.mensagem, cliente)
+        const mensagem = await formatarMensagem(regra.mensagem, cliente)
         const adicionou = await adicionarNaFila(cliente, key, mensagem, {
           midiaUrl:        regra.midiaUrl        || null,
           midiaTipo:       regra.midiaTipo       || null,
@@ -409,10 +450,12 @@ export default function createWhatsAppRouter(db, admin) {
   })
 
   router.post('/send', async (req, res) => {
-    const { phone, message } = req.body
+    const { phone, message, cliente } = req.body
     if (!clientReady || !sock) return res.status(503).json({ error: 'WhatsApp não conectado' })
     try {
-      await sock.sendMessage(normalizarTelefone(phone), { text: message })
+      // Substitui variáveis se cliente fornecido
+      const msg = cliente ? await formatarMensagem(message, cliente) : message
+      await sock.sendMessage(normalizarTelefone(phone), { text: msg })
       res.json({ success: true })
     } catch (err) { res.status(500).json({ error: err.message }) }
   })
