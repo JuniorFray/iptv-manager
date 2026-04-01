@@ -148,6 +148,17 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
         }
       } catch (e) { console.error('[WEBHOOK] renovar erro:', e.message) }
 
+      // Atualiza vencimento do cliente no Firestore
+      if (vencimento && clienteId && clienteSnap.exists) {
+        try {
+          await db.collection('clientes').doc(clienteId).update({
+            vencimento,
+            status: 'ativo',
+          })
+          console.log(`[WEBHOOK] Cliente ${clienteId} atualizado no Firestore: vencimento=${vencimento}`)
+        } catch (e) { console.error('[WEBHOOK] Erro ao atualizar cliente:', e.message) }
+      }
+
       // Atualiza pagamento no Firestore
       const pagSnap = await db.collection('pagamentos')
         .where('mpPreferenceId', '==', mp.metadata?.preference_id ?? '___')
