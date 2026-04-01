@@ -1,4 +1,4 @@
-﻿@tailwind base;
+@tailwind base;
 @tailwind components;
 @tailwind utilities;
 
@@ -88,7 +88,7 @@ body {
 }
 
 .main-content {
-  margin-left: 240px;
+  margin-left: 176px;
   padding: 32px;
   min-height: 100vh;
 }
@@ -101,47 +101,196 @@ body {
 /* ===== MEDIA QUERY MOBILE ===== */
 
 @media (max-width: 768px) {
-  .sidebar-desktop {
-    display: none !important;
-  }
-
-  .bottom-nav-mobile {
-    display: flex !important;
-  }
-
-  .mobile-header {
-    display: flex !important;
-  }
+  /* Layout */
+  .sidebar-desktop { display: none !important; }
+  .bottom-nav-mobile { display: flex !important; }
+  .mobile-header { display: flex !important; }
+  .hide-mobile { display: none !important; }
 
   .main-content {
     margin-left: 0 !important;
-    padding: 16px !important;
-    padding-top: 72px !important;
-    padding-bottom: 90px !important;
+    padding: 12px !important;
+    padding-top: 68px !important;
+    padding-bottom: 80px !important;
+    width: 100% !important;
+    overflow-x: hidden !important;
   }
 
-  .hide-mobile {
-    display: none !important;
-  }
+  /* Typography */
+  .page-title { font-size: 20px !important; }
 
-  .page-title {
-    font-size: 22px !important;
-  }
-
+  /* Headers das páginas */
   .page-header {
     flex-direction: column !important;
-    align-items: flex-start !important;
-    gap: 12px !important;
+    align-items: stretch !important;
+    gap: 10px !important;
   }
 
   .page-header-actions {
     width: 100% !important;
     flex-wrap: wrap !important;
+    gap: 8px !important;
   }
 
   .page-header-actions button {
     flex: 1 !important;
-    min-width: 120px !important;
+    min-width: 100px !important;
     justify-content: center !important;
+    font-size: 12px !important;
+    padding: 10px 8px !important;
+  }
+
+  /* Cards do Dashboard */
+  .dashboard-cards {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+  }
+
+  .dashboard-card {
+    padding: 16px !important;
+  }
+
+  .dashboard-card .card-value {
+    font-size: 22px !important;
+  }
+
+  /* Tabela de clientes — card list no mobile */
+  .clientes-table-wrap { display: none !important; }
+  .clientes-cards-mobile { display: flex !important; }
+
+  /* Cards de cliente no mobile */
+  .cliente-card-mobile {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    padding: 14px;
+    margin-bottom: 10px;
+  }
+
+  .cliente-card-mobile .row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+    gap: 8px;
+  }
+
+  .cliente-card-mobile .label {
+    color: rgba(255,255,255,0.4);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    min-width: 70px;
+  }
+
+  .cliente-card-mobile .value {
+    color: white;
+    font-size: 13px;
+    text-align: right;
+    word-break: break-all;
+  }
+
+  /* Filtros de clientes */
+  .clientes-search-row {
+    flex-direction: column !important;
+    gap: 8px !important;
+  }
+
+  .clientes-filters-row {
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+  }
+
+  .clientes-filters-row select,
+  .clientes-filters-row input {
+    flex: 1 !important;
+    min-width: 130px !important;
+    font-size: 13px !important;
+  }
+
+  /* Abas do WhatsApp */
+  .wa-tabs {
+    overflow-x: auto !important;
+    flex-wrap: nowrap !important;
+    -webkit-overflow-scrolling: touch !important;
+    padding-bottom: 4px !important;
+    gap: 6px !important;
+  }
+
+  .wa-tabs button {
+    flex-shrink: 0 !important;
+    font-size: 12px !important;
+    padding: 8px 12px !important;
+    white-space: nowrap !important;
+  }
+
+  /* Modais */
+  .modal-content {
+    max-width: 100% !important;
+    width: 100% !important;
+    margin: 0 10px !important;
+    max-height: 90vh !important;
+    overflow-y: auto !important;
+  }
+
+  /* Inputs dentro de modais */
+  .modal-content input,
+  .modal-content select,
+  .modal-content textarea {
+    font-size: 16px !important; /* evita zoom no iOS */
+  }
+
+  /* Bottom nav labels */
+  .bottom-nav-mobile span {
+    font-size: 9px !important;
+  }
+
+  /* Servidores */
+  .servidores-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Pagamentos tabela */
+  .pagamentos-table th:nth-child(n+4),
+  .pagamentos-table td:nth-child(n+4) {
+    display: none !important;
+  }
+
+  /* Botões de ação */
+  .btn-action-group {
+    flex-direction: column !important;
+    gap: 8px !important;
+  }
+
+  .btn-action-group button {
+    width: 100% !important;
+  }
+
+  /* Evita overflow horizontal */
+  * {
+    max-width: 100vw;
+  }
+
+  img, video, iframe {
+    max-width: 100% !important;
+  }
+}
+
+/* Telas muito pequenas */
+@media (max-width: 380px) {
+  .main-content {
+    padding: 8px !important;
+    padding-top: 64px !important;
+    padding-bottom: 76px !important;
+  }
+
+  .dashboard-cards {
+    grid-template-columns: 1fr !important;
+  }
+
+  .page-header-actions button {
+    font-size: 11px !important;
+    padding: 9px 6px !important;
   }
 }

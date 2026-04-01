@@ -843,6 +843,55 @@ export default function Clientes() {
         </table>
       </div>
 
+
+      {/* ── MOBILE CARDS ── */}
+      <div className="clientes-cards-mobile" style={{ display: 'none', flexDirection: 'column' }}>
+        {clientesFiltrados.map(c => (
+          <div key={c.id} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', padding: '14px', marginBottom: '10px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+              <div>
+                <div style={{ color: 'white', fontWeight: '700', fontSize: '15px' }}>{c.nome}</div>
+                <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '12px', marginTop: '2px' }}>{c.telefone}</div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '700',
+                  background: c.status === 'ativo' ? 'rgba(34,197,94,0.15)' : c.status === 'suspenso' ? 'rgba(251,191,36,0.15)' : 'rgba(239,68,68,0.15)',
+                  color: c.status === 'ativo' ? '#4ade80' : c.status === 'suspenso' ? '#fbbf24' : '#f87171',
+                  border: `1px solid ${c.status === 'ativo' ? 'rgba(34,197,94,0.3)' : c.status === 'suspenso' ? 'rgba(251,191,36,0.3)' : 'rgba(239,68,68,0.3)'}`,
+                }}>{c.status}</span>
+                <button onClick={() => setMenuAbertoId(menuAbertoId === c.id ? null : c.id)}
+                  style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '8px', padding: '6px 10px', cursor: 'pointer', color: 'white', fontSize: '16px' }}>
+                  ⋮
+                </button>
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginBottom: menuAbertoId === c.id ? '10px' : '0' }}>
+              {([['Servidor', c.servidor], ['Tipo', c.tipo], ['Usuário', c.usuario], ['Senha', c.senha], ['Vencimento', c.vencimento], ['Valor', c.valor ? `R$ ${c.valor}` : '—']] as [string,string][]).map(([label, val]) => (
+                <div key={label} style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '8px', padding: '8px 10px' }}>
+                  <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '10px', fontWeight: '600', textTransform: 'uppercase' as const, marginBottom: '2px' }}>{label}</div>
+                  <div style={{ color: 'white', fontSize: '12px', wordBreak: 'break-all' as const }}>{val || '—'}</div>
+                </div>
+              ))}
+            </div>
+            {menuAbertoId === c.id && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                {([
+                  { label: '✏️ Editar', action: () => { setMenuAbertoId(null); abrirModal(c) }, color: 'white' },
+                  { label: '🔄 Renovar', action: () => { setMenuAbertoId(null); setClienteParaRenovar(c); setModalRenovar(true) }, color: '#60a5fa' },
+                  { label: '💳 Gerar Links', action: () => { setMenuAbertoId(null); gerarLinkPagamento(c) }, color: '#34d399' },
+                  { label: '🗑️ Excluir', action: () => { setMenuAbertoId(null); excluirCliente(c.id) }, color: '#f87171' },
+                ] as {label:string,action:()=>void,color:string}[]).map(({ label, action, color }) => (
+                  <button key={label} onClick={action}
+                    style={{ padding: '10px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color, fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
       {/* ===== MODAL PERÍODO DE RENOVAÇÃO ===== */}
       {modalRenovar && clienteParaRenovar && (
         <div
