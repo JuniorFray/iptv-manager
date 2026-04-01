@@ -508,12 +508,14 @@ export default function createWhatsAppRouter(db, admin) {
 
   router.post('/fila/adicionar', async (req, res) => {
     try {
-      const { clienteId, clienteNome, telefone, mensagem, gatilho, midiaUrl, midiaTipo, midiaNome, modoEnvio } = req.body
+      const { clienteId, clienteNome, telefone, mensagem, gatilho, midiaUrl, midiaTipo, midiaNome, modoEnvio, cliente } = req.body
       if (!telefone || !mensagem) return res.status(400).json({ error: 'telefone e mensagem obrigatórios' })
+      // Resolve variáveis incluindo links de pagamento
+      const mensagemFinal = cliente ? await formatarMensagem(mensagem, cliente) : mensagem
       await db.collection('filaEnvios').add({
         clienteId:        clienteId        ?? telefone,
         clienteNome:      clienteNome      ?? '',
-        telefone, mensagem,
+        telefone, mensagem: mensagemFinal,
         gatilho:          gatilho          ?? 'manual',
         midiaUrl:         midiaUrl         ?? null,
         midiaTipo:        midiaTipo        ?? null,

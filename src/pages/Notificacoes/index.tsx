@@ -409,14 +409,14 @@ export default function Notificacoes() {
     try {
       if (!midiaManual) {
         // Só texto
-        const res = await fetch(`${API}/send`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, message: textoFinal }) })
+        const res = await fetch(`${API}/send`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, message: mensagem, cliente: clienteSel }) })
         const data = await res.json()
         if (data.success) setResultado({ tipo: 'ok', msg: `Mensagem enviada para ${clienteSel.nome}!` })
         else setResultado({ tipo: 'erro', msg: data.error || 'Erro ao enviar.' })
       } else if (modoEnvioMidia === 'junto') {
         // Mídia com legenda
         const res = await fetch(`${API}/send-midia`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phone, mediaUrl: midiaManual.url, mediaTipo: midiaManual.tipo, mediaNome: midiaManual.nome, caption: textoFinal }) })
+          body: JSON.stringify({ phone, mediaUrl: midiaManual.url, mediaTipo: midiaManual.tipo, mediaNome: midiaManual.nome, caption: mensagem, cliente: clienteSel }) })
         const data = await res.json()
         if (data.success) setResultado({ tipo: 'ok', msg: `Mensagem + mídia enviada para ${clienteSel.nome}!` })
         else setResultado({ tipo: 'erro', msg: data.error || 'Erro ao enviar.' })
@@ -447,7 +447,6 @@ export default function Notificacoes() {
       if (cancelarEnvioRef.current) break
       const c = clientesFiltrados[i]
       if (!c.telefone) { setProgresso(i + 1); continue }
-      const textoFinal = substituir(base, c)
       try {
         await fetch(`${API}/fila/adicionar`, {
           method: 'POST',
@@ -456,7 +455,8 @@ export default function Notificacoes() {
             clienteId:   c.id,
             clienteNome: c.nome,
             telefone:    c.telefone,
-            mensagem:    textoFinal,
+            mensagem:    base,
+            cliente:     c,
             gatilho:     'manual',
             midiaUrl:    midiaManual?.url    ?? null,
             midiaTipo:   midiaManual?.tipo   ?? null,
