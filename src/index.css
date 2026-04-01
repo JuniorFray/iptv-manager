@@ -225,6 +225,11 @@ body {
     white-space: nowrap !important;
   }
 
+  /* WhatsApp manual grid - stack columns on mobile */
+  .wa-manual-grid {
+    grid-template-columns: 1fr !important;
+  }
+
   /* Modais */
   .modal-content {
     max-width: 100% !important;
