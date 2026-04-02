@@ -165,10 +165,7 @@ export default function createWarezRouter(enviarMensagemRenovacao) {
         }
       }
       if (enviarMensagemRenovacao && telefone) {
-        console.log(`[Warez] Chamando enviarMensagemRenovacao para ${telefone} nome=${nome}`)
-        await enviarMensagemRenovacao(telefone, { nome, usuario, senha, vencimento })
-      } else {
-        console.log(`[Warez] enviarMensagemRenovacao NÃO chamada: telefone=${telefone} fn=${!!enviarMensagemRenovacao}`)
+        enviarMensagemRenovacao(telefone, { nome, usuario, senha, vencimento })
       }
       res.json(data)
     } catch (err) { res.status(500).json({ error: err.message }) }
@@ -193,24 +190,38 @@ export default function createWarezRouter(enviarMensagemRenovacao) {
       const username = String(decodeURIComponent(req.params.username))
       console.log(`[Warez] buscar-linha: "${username}"`)
 
-      // Busca nas linhas normais com paginação
+      // Estratégia 1: busca por generalSearch (nome/notas) — rápida
       let page = 1
       while (page <= 10) {
         const data = await wpFetch(`/lines?page=${page}&quantityPerPage=100&trash=0&generalSearch=${encodeURIComponent(username)}`)
         const items = data?.items ?? (Array.isArray(data) ? data : [])
-        const total = data?.total ?? items.length
-        const pagesQty = data?.pagesQuantity ?? Math.ceil(total / 100) ?? 1
-
+        const pagesQty = data?.pagesQuantity ?? Math.ceil((data?.total ?? items.length) / 100) ?? 1
         const linha = items.find(l => String(l.username) === username)
         if (linha) {
-          console.log(`[Warez] buscar-linha encontrado: id=${linha.id} (página ${page})`)
+          console.log(`[Warez] buscar-linha encontrado (generalSearch): id=${linha.id} (página ${page})`)
           return res.json({ ok: true, id: linha.id, username: linha.username, isTrial: false })
         }
         if (page >= pagesQty) break
         page++
       }
 
-      // Busca nos testes (is_trial=1)
+      // Estratégia 2: busca sem filtro paginando tudo (generalSearch pode não filtrar por username)
+      console.log(`[Warez] generalSearch não encontrou "${username}", paginando sem filtro...`)
+      page = 1
+      while (page <= 50) {
+        const data = await wpFetch(`/lines?page=${page}&quantityPerPage=100&trash=0`)
+        const items = data?.items ?? (Array.isArray(data) ? data : [])
+        const pagesQty = data?.pagesQuantity ?? Math.ceil((data?.total ?? items.length) / 100) ?? 1
+        const linha = items.find(l => String(l.username) === username)
+        if (linha) {
+          console.log(`[Warez] buscar-linha encontrado (full scan): id=${linha.id} (página ${page})`)
+          return res.json({ ok: true, id: linha.id, username: linha.username, isTrial: false })
+        }
+        if (items.length === 0 || page >= pagesQty) break
+        page++
+      }
+
+      // Estratégia 3: busca nos testes
       const dataTest = await wpFetch(`/lines/test?page=1&quantityPerPage=100&is_trial=1&trash=0&generalSearch=${encodeURIComponent(username)}`)
       const itemsTest = dataTest?.items ?? (Array.isArray(dataTest) ? dataTest : [])
       const linhaTeste = itemsTest.find(l => String(l.username) === username)
