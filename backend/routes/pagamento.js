@@ -151,11 +151,8 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
       // Atualiza vencimento do cliente no Firestore
       if (vencimento && clienteId && clienteSnap.exists) {
         try {
-          await db.collection('clientes').doc(clienteId).update({
-            vencimento,
-            status: 'ativo',
-          })
-          console.log(`[WEBHOOK] Cliente ${clienteId} atualizado no Firestore: vencimento=${vencimento}`)
+          await db.collection('clientes').doc(clienteId).update({ vencimento, status: 'ativo' })
+          console.log(`[WEBHOOK] Cliente ${clienteId} atualizado: vencimento=${vencimento}`)
         } catch (e) { console.error('[WEBHOOK] Erro ao atualizar cliente:', e.message) }
       }
 

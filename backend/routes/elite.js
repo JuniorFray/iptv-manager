@@ -234,14 +234,38 @@ export default function createEliteRouter(enviarMensagemRenovacao) {
   router.get('/elite/buscar-linha/:username', async (req, res) => {
     try {
       const username = decodeURIComponent(req.params.username)
-      // Search in IPTV
-      const iptvData = await eliteFetch(`dashboard/iptv?draw=1&search[value]=${encodeURIComponent(username)}&start=0&length=10`)
-      const iptvItem = (iptvData?.data ?? []).find(l => l.username === username)
-      if (iptvItem) return res.json({ ok: true, id: iptvItem.id, tipo: 'IPTV', username })
-      // Search in P2P
-      const p2pData = await eliteFetch(`dashboard/p2p?draw=1&search[value]=${encodeURIComponent(username)}&start=0&length=10`)
-      const p2pItem = (p2pData?.data ?? []).find(l => l.username === username)
-      if (p2pItem) return res.json({ ok: true, id: p2pItem.id, tipo: 'P2P', username })
+
+      // IPTV — full scan (search[value] não filtra na API Elite)
+      console.log(`[Elite] buscar-linha IPTV: "${username}"`)
+      let start = 0
+      while (true) {
+        const iptvData = await eliteFetch(`dashboard/iptv?draw=1&start=${start}&length=100`)
+        const items = iptvData?.data ?? []
+        const found = items.find(l => l.username === username)
+        if (found) {
+          console.log(`[Elite] buscar-linha encontrado IPTV: id=${found.id}`)
+          return res.json({ ok: true, id: found.id, tipo: 'IPTV', username })
+        }
+        if (items.length < 100) break
+        start += 100
+      }
+
+      // P2P — full scan
+      console.log(`[Elite] buscar-linha P2P: "${username}"`)
+      start = 0
+      while (true) {
+        const p2pData = await eliteFetch(`dashboard/p2p?draw=1&start=${start}&length=100`)
+        const items = p2pData?.data ?? []
+        const found = items.find(l => l.username === username)
+        if (found) {
+          console.log(`[Elite] buscar-linha encontrado P2P: id=${found.id}`)
+          return res.json({ ok: true, id: found.id, tipo: 'P2P', username })
+        }
+        if (items.length < 100) break
+        start += 100
+      }
+
+      console.log(`[Elite] buscar-linha NÃO encontrado: "${username}"`)
       res.status(404).json({ ok: false, error: `Usuário "${username}" não encontrado no Elite` })
     } catch (err) { res.status(500).json({ ok: false, error: err.message }) }
   })
