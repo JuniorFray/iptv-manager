@@ -731,6 +731,32 @@ export default function createWhatsAppRouter(db, admin) {
       }
     } catch (err) {
       console.error('[WA] Erro msg renovação:', err.message)
+      // Fallback: adiciona na fila se der erro de conexão
+      try {
+        const snap2   = await db.collection('config_whatsapp').doc('template_renovacao').get()
+        const midiaUrl2  = snap2.exists ? (snap2.data().midiaUrl  || null) : null
+        const midiaTipo2 = snap2.exists ? (snap2.data().midiaTipo || null) : null
+        const midiaNome2 = snap2.exists ? (snap2.data().midiaNome || null) : null
+        const modoEnvio2 = snap2.exists ? (snap2.data().modoEnvio || 'junto') : 'junto'
+        const template2  = snap2.exists ? snap2.data().mensagem : ''
+        const mensagem2  = template2
+          .replace(/{nome}/g, dados.nome ?? '')
+          .replace(/{usuario}/g, dados.usuario ?? '')
+          .replace(/{senha}/g, dados.senha ?? '')
+          .replace(/{vencimento}/g, dados.vencimento ?? '')
+        await db.collection('filaEnvios').add({
+          clienteNome: dados.nome ?? '', nome: dados.nome ?? '', telefone, mensagem: mensagem2,
+          midiaUrl: midiaUrl2, midiaTipo: midiaTipo2, midiaNome: midiaNome2, modoEnvio: modoEnvio2,
+          status: 'pendente', gatilho: 'renovacao',
+          tentativas: 0, maxTentativas: 3,
+          criadoEm: admin.firestore.FieldValue.serverTimestamp(),
+          proximaTentativa: admin.firestore.Timestamp.now(),
+          enviadoEm: null, erro: null,
+        })
+        console.log(`[WA] 📋 Renovação na fila (erro conexão): ${dados.nome}`)
+      } catch (err2) {
+        console.error('[WA] Erro ao colocar renovação na fila:', err2.message)
+      }
     }
   }
 
