@@ -521,6 +521,31 @@ export default function Clientes() {
   }
 
   // ---- JSX ----
+
+  const exportarCSV = () => {
+    const cols = ['Nome','Telefone','Tipo','Servidor','Usuário','Senha','Vencimento','Valor','Status','Obs']
+    const rows = clientes.map(c => [
+      c.nome    ?? '',
+      c.telefone ?? '',
+      c.tipo    ?? '',
+      c.servidor ?? '',
+      c.usuario  ?? '',
+      c.senha    ?? '',
+      c.vencimento ?? '',
+      c.valor   ?? '',
+      c.status  ?? '',
+      c.obs     ?? '',
+    ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
+    const csv = [cols.join(','), ...rows].join('\n')
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
+    const url  = URL.createObjectURL(blob)
+    const a    = document.createElement('a')
+    a.href = url
+    a.download = `clientes_${new Date().toLocaleDateString('pt-BR').replace(/\//g,'-')}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div>
       {/* Header */}
@@ -572,6 +597,16 @@ export default function Clientes() {
           }}>
             <RefreshCw size={18} style={{ animation: sincronizandoElite ? 'spin 1s linear infinite' : 'none' }} />
             {sincronizandoElite ? 'Sincronizando...' : 'Sincronizar Elite'}
+          </button>
+
+          {/* Exportar CSV */}
+          <button onClick={exportarCSV} style={{
+            display: 'flex', alignItems: 'center', gap: '8px',
+            background: 'rgba(34,197,94,0.15)', color: '#4ade80',
+            border: '1px solid rgba(34,197,94,0.3)', borderRadius: '12px',
+            padding: '12px 20px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px',
+          }}>
+            <Download size={18} /> Exportar CSV
           </button>
 
           {/* Novo Cliente */}
