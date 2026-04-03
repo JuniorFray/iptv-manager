@@ -210,8 +210,8 @@ export default function createWhatsAppRouter(db, admin) {
   const formatarMensagem = async (template, cliente) => {
     const fmtValor = (v) => v ? `R$ ${parseFloat(String(v).replace(',','.')).toFixed(2).replace('.', ',')}` : ''
     // Valores padrão se não cadastrados
-    const v3 = cliente.valor3meses || (cliente.valor ? (parseFloat(String(cliente.valor).replace(',','.')) * 3).toFixed(2) : '95.00')
-    const v6 = cliente.valor6meses || (cliente.valor ? (parseFloat(String(cliente.valor).replace(',','.')) * 6).toFixed(2) : '170.00')
+    const v3 = cliente.valor3meses || '95.00'
+    const v6 = cliente.valor6meses || '170.00'
     let msg = template
       .replace(/\{NOME\}/gi,         cliente.nome        || '')
       .replace(/\{VENCIMENTO\}/gi,   cliente.vencimento   || '')
