@@ -208,7 +208,8 @@ export default function createEliteRouter(enviarMensagemRenovacao) {
       if (enviarMensagemRenovacao && telefone) {
         enviarMensagemRenovacao(telefone, { nome, usuario, senha, vencimento })
       }
-      res.json(data)
+      console.log('[Elite] vencimento extraido: ' + vencimento)
+      res.json({ ...data, vencimento })
     } catch (err) {
       console.error('[Elite] renovar erro:', err.message)
       res.status(500).json({ error: err.message })
