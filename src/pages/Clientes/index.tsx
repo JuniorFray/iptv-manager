@@ -17,11 +17,14 @@ interface Cliente {
   valor: string
   status: string
   obs: string
+  responsavel?: string  // telefone do responsável pelo pagamento (para múltiplos pontos)
+  valor3meses?: string
+  valor6meses?: string
 }
 
 const clienteVazio: Omit<Cliente, 'id'> = {
   nome: '', telefone: '', tipo: 'IPTV', servidor: '', usuario: '',
-  senha: '', vencimento: '', valor: '', status: 'ativo', obs: '',
+  senha: '', vencimento: '', valor: '', status: 'ativo', obs: '', responsavel: '', valor3meses: '', valor6meses: '',
 }
 
 // Converte "YYYY-MM-DD" ou "YYYY-MM-DD HH:mm:ss" → "DD/MM/YYYY"
@@ -47,7 +50,7 @@ export default function Clientes() {
   const [carregando, setCarregando] = useState(false)
   const [renovandoId, setRenovandoId]     = useState<string | null>(null)
   const [gerandoLinkId, setGerandoLinkId] = useState<string | null>(null)
-  const [linksModal, setLinksModal]       = useState<{clienteNome: string, links: {plano: string, valor: number, link: string}[]} | null>(null)
+  const [linksModal, setLinksModal]       = useState<{clienteNome: string, links: {ponto?: string, plano: string, valor: number, link: string}[], pontos?: boolean} | null>(null)
   const [importandoId, setImportandoId] = useState<string | null>(null)
   const [menuAbertoId, setMenuAbertoId] = useState<string | null>(null)
   const [msgPainel, setMsgPainel] = useState<{ tipo: 'ok' | 'erro'; msg: string } | null>(null)
@@ -254,17 +257,30 @@ export default function Clientes() {
   const gerarLinkPagamento = async (cliente: Cliente) => {
     setGerandoLinkId(cliente.id)
     try {
-      const res = await fetch(`${BACKEND_URL}/pagamento/criar`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          clienteId: cliente.id, clienteNome: cliente.nome,
-          telefone: cliente.telefone, servidor: cliente.servidor,
-          usuario: cliente.usuario, senha: cliente.senha,
-        }),
-      })
-      const data = await res.json()
-      if (data.ok && data.links) setLinksModal({ clienteNome: cliente.nome, links: data.links })
-      else mostrarMsgPainel('erro', `Erro: ${data.error ?? 'Falha ao gerar links'}`)
+      // Agrupa pontos pelo responsável (ou pelo próprio telefone)
+      const telResp = cliente.responsavel?.trim() || cliente.telefone
+      const pontos = clientes.filter(c =>
+        (c.responsavel?.trim() || c.telefone) === telResp && c.status === 'ativo'
+      )
+      // Gera links para cada ponto separadamente
+      const allLinks: { ponto: string; plano: string; valor: number; link: string }[] = []
+      for (const ponto of pontos) {
+        const res = await fetch(`${BACKEND_URL}/pagamento/criar`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            clienteId: ponto.id, clienteNome: ponto.nome,
+            telefone: telResp, servidor: ponto.servidor,
+            usuario: ponto.usuario, senha: ponto.senha,
+            valor: ponto.valor, valor3meses: ponto.valor3meses, valor6meses: ponto.valor6meses,
+          }),
+        })
+        const data = await res.json()
+        if (data.ok && data.links) {
+          data.links.forEach((l: any) => allLinks.push({ ponto: ponto.nome, ...l }))
+        }
+      }
+      if (allLinks.length > 0) setLinksModal({ clienteNome: cliente.nome, links: allLinks, pontos: pontos.length > 1 })
+      else mostrarMsgPainel('erro', 'Falha ao gerar links')
     } catch { mostrarMsgPainel('erro', 'Backend offline.') }
     setGerandoLinkId(null)
   }
@@ -1005,8 +1021,11 @@ export default function Clientes() {
                 { label: 'Vencimento (DD/MM/AAAA)', field: 'vencimento', type: 'text' },
                 { label: 'Usuário', field: 'usuario', type: 'text' },
                 { label: 'Senha', field: 'senha', type: 'text' },
-                { label: 'Valor (R$)', field: 'valor', type: 'number' },
                 { label: 'Obs.', field: 'obs', type: 'text' },
+                { label: 'Valor 1 Mês (R$)', field: 'valor', type: 'number' },
+                { label: 'Valor 3 Meses (R$)', field: 'valor3meses', type: 'number' },
+                { label: 'Valor 6 Meses (R$)', field: 'valor6meses', type: 'number' },
+                { label: 'Responsável (tel.)', field: 'responsavel', type: 'text' },
               ] as { label: string; field: keyof Omit<Cliente, 'id'>; type: string }[]).map(({ label, field, type }) => (
                 <div key={field} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   <label style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</label>
@@ -1053,18 +1072,44 @@ export default function Clientes() {
             <h3 style={{ color: 'white', margin: '0 0 6px', fontSize: '18px' }}>💳 Links de Pagamento</h3>
             <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '13px', margin: '0 0 20px' }}>{linksModal.clienteNome}</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
-              {linksModal.links.map(({ plano, valor, link }) => (
-                <div key={plano} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', padding: '12px 16px' }}>
-                  <div>
-                    <span style={{ color: 'white', fontWeight: '700', fontSize: '15px' }}>{plano}</span>
-                    <span style={{ color: '#4ade80', fontWeight: '700', fontSize: '14px', marginLeft: '12px' }}>R$ {valor.toFixed(2).replace('.', ',')}</span>
-                  </div>
-                  <button onClick={() => { navigator.clipboard.writeText(link); mostrarMsgPainel('ok', `Link ${plano} copiado!`) }}
-                    style={{ padding: '6px 14px', borderRadius: '8px', cursor: 'pointer', background: 'rgba(99,102,241,0.2)', border: '1px solid rgba(99,102,241,0.4)', color: '#818cf8', fontSize: '12px', fontWeight: '700' }}>
-                    📋 Copiar
-                  </button>
-                </div>
-              ))}
+              {linksModal.pontos
+                ? /* Agrupado por ponto */
+                  (() => {
+                    const pontoNames = [...new Set(linksModal.links.map(l => l.ponto))]
+                    return pontoNames.map(pontoNome => (
+                      <div key={pontoNome} style={{ marginBottom: '12px' }}>
+                        <div style={{ color: '#818cf8', fontWeight: '700', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '6px', paddingLeft: '4px' }}>
+                          📺 {pontoNome}
+                        </div>
+                        {linksModal.links.filter(l => l.ponto === pontoNome).map(({ plano, valor, link }) => (
+                          <div key={`${pontoNome}-${plano}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', padding: '10px 14px', marginBottom: '6px' }}>
+                            <div>
+                              <span style={{ color: 'white', fontWeight: '700', fontSize: '14px' }}>{plano}</span>
+                              <span style={{ color: '#4ade80', fontWeight: '700', fontSize: '13px', marginLeft: '10px' }}>R$ {typeof valor === 'number' ? valor.toFixed(2).replace('.', ',') : valor}</span>
+                            </div>
+                            <button onClick={() => { navigator.clipboard.writeText(link); mostrarMsgPainel('ok', `Link ${plano} copiado!`) }}
+                              style={{ padding: '5px 12px', borderRadius: '8px', cursor: 'pointer', background: 'rgba(99,102,241,0.2)', border: '1px solid rgba(99,102,241,0.4)', color: '#818cf8', fontSize: '12px', fontWeight: '700' }}>
+                              📋
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ))
+                  })()
+                : /* Ponto único */
+                  linksModal.links.map(({ plano, valor, link }) => (
+                    <div key={plano} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', padding: '12px 16px' }}>
+                      <div>
+                        <span style={{ color: 'white', fontWeight: '700', fontSize: '15px' }}>{plano}</span>
+                        <span style={{ color: '#4ade80', fontWeight: '700', fontSize: '14px', marginLeft: '12px' }}>R$ {typeof valor === 'number' ? valor.toFixed(2).replace('.', ',') : valor}</span>
+                      </div>
+                      <button onClick={() => { navigator.clipboard.writeText(link); mostrarMsgPainel('ok', `Link ${plano} copiado!`) }}
+                        style={{ padding: '6px 14px', borderRadius: '8px', cursor: 'pointer', background: 'rgba(99,102,241,0.2)', border: '1px solid rgba(99,102,241,0.4)', color: '#818cf8', fontSize: '12px', fontWeight: '700' }}>
+                        📋 Copiar
+                      </button>
+                    </div>
+                  ))
+              }
             </div>
             <button onClick={() => setLinksModal(null)} style={{ width: '100%', padding: '12px', borderRadius: '10px', cursor: 'pointer', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.5)', fontWeight: '600' }}>
               Fechar

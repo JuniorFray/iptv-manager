@@ -20,7 +20,7 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
   // ── Criar 3 links (um por plano) ──
   router.post('/pagamento/criar', async (req, res) => {
     try {
-      const { clienteId, clienteNome, telefone, servidor, usuario, senha } = req.body
+      const { clienteId, clienteNome, telefone, servidor, usuario, senha, valor, valor3meses, valor6meses } = req.body
       if (!clienteId || !clienteNome || !servidor || !usuario) {
         return res.status(400).json({ error: 'Campos obrigatórios faltando' })
       }
@@ -29,7 +29,18 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
       const preference = new Preference(client)
       const links      = []
 
-      for (const plano of PLANOS) {
+      // Usa valores individuais do cliente, fallback para PLANOS padrão
+      const parseValor = (v) => v ? parseFloat(String(v).replace(',', '.')) : null
+      const v1 = parseValor(valor)
+      const v3 = parseValor(valor3meses)
+      const v6 = parseValor(valor6meses)
+      const planosCliente = [
+        { id: '1mes',   label: '1 Mês',   valor: v1 && v1 > 0 ? v1 : PLANOS[0].valor, meses: 1, creditos: 1 },
+        { id: '3meses', label: '3 Meses', valor: v3 && v3 > 0 ? v3 : PLANOS[1].valor, meses: 3, creditos: 3 },
+        { id: '6meses', label: '6 Meses', valor: v6 && v6 > 0 ? v6 : PLANOS[2].valor, meses: 6, creditos: 6 },
+      ]
+
+      for (const plano of planosCliente) {
         const externalRef = `${clienteId}|${servidor}|${usuario}|${telefone ?? ''}|${senha ?? ''}|${plano.id}`
 
         const result = await preference.create({
