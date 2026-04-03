@@ -392,11 +392,15 @@ export default function createWhatsAppRouter(db, admin) {
 
   // ---- Envio Automático ----
 
+  let cronRodando = false
+
   const executarEnvioAutomatico = async () => {
+    if (cronRodando) { console.log('Envio automático já em execução, ignorando disparo duplicado.'); return }
+    cronRodando = true
     console.log('Iniciando envio automático...')
     // WA pode estar offline — adiciona na fila e processarFila envia quando reconectar
     const config = await getConfig()
-    if (!config.ativo) { console.log('Envio automático desativado.'); return }
+    if (!config.ativo) { console.log('Envio automático desativado.'); cronRodando = false; return }
     const snapshot = await db.collection('clientes').get()
     const clientes = snapshot.docs.map(d => ({ id: d.id, ...d.data() }))
     const regrasMap = [
