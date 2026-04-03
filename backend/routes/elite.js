@@ -1,10 +1,6 @@
 import express from 'express'
 import { ProxyAgent, request as undiciRequest } from 'undici'
 
-/**
- * Módulo Elite — adminx.offo.dad
- * Parâmetros DataTables completos copiados do Network do browser.
- */
 export default function createEliteRouter(enviarMensagemRenovacao) {
   const router = express.Router()
 
@@ -12,13 +8,12 @@ export default function createEliteRouter(enviarMensagemRenovacao) {
     ? new ProxyAgent(process.env.PROXY_URL)
     : undefined
 
-  // Parâmetros exatos que o DataTables envia — sem eles o servidor retorna 500
   const IPTV_PARAMS = 'draw=1&columns%5B0%5D%5Bdata%5D=&columns%5B0%5D%5Bname%5D=&columns%5B0%5D%5Bsearchable%5D=false&columns%5B0%5D%5Borderable%5D=false&columns%5B0%5D%5Bsearch%5D%5Bvalue%5D=&columns%5B0%5D%5Bsearch%5D%5Bregex%5D=false&columns%5B1%5D%5Bdata%5D=id&columns%5B1%5D%5Bname%5D=&columns%5B1%5D%5Bsearchable%5D=true&columns%5B1%5D%5Borderable%5D=true&columns%5B1%5D%5Bsearch%5D%5Bvalue%5D=&columns%5B1%5D%5Bsearch%5D%5Bregex%5D=false&columns%5B2%5D%5Bdata%5D=&columns%5B2%5D%5Bname%5D=&columns%5B2%5D%5Bsearchable%5D=false&columns%5B2%5D%5Borderable%5D=false&columns%5B2%5D%5Bsearch%5D%5Bvalue%5D=&columns%5B2%5D%5Bsearch%5D%5Bregex%5D=false&columns%5B3%5D%5Bdata%5D=username&columns%5B3%5D%5Bname%5D=&columns%5B3%5D%5Bsearchable%5D=true&columns%5B3%5D%5Borderable%5D=true&columns%5B3%5D%5Bsearch%5D%5Bvalue%5D=&columns%5B3%5D%5Bsearch%5D%5Bregex%5D=false&columns%5B4%5D%5Bdata%5D=password&columns%5B4%5D%5Bname%5D=&columns%5B4%5D%5Bsearchable%5D=true&columns%5B4%5D%5Borderable%5D=true&columns%5B4%5D%5Bsearch%5D%5Bvalue%5D=&columns%5B4%5D%5Bsearch%5D%5Bregex%5D=false&columns%5B5%5D%5Bdata%5D=formatted_created_at&columns%5B5%5D%5Bname%5D=created_at&columns%5B5%5D%5Bsearchable%5D=false&columns%5B5%5D%5Borderable%5D=true&columns%5B5%5D%5Bsearch%5D%5Bvalue%5D=&columns%5B5%5D%5Bsearch%5D%5Bregex%5D=false&columns%5B6%5D%5Bdata%5D=formatted_exp_date&columns%5B6%5D%5Bname%5D=exp_date&columns%5B6%5D%5Bsearchable%5D=false&columns%5B6%5D%5Borderable%5D=true&columns%5B6%5D%5Bsearch%5D%5Bvalue%5D=&columns%5B6%5D%5Bsearch%5D%5Bregex%5D=false&columns%5B7%5D%5Bdata%5D=max_connections&columns%5B7%5D%5Bname%5D=&columns%5B7%5D%5Bsearchable%5D=true&columns%5B7%5D%5Borderable%5D=true&columns%5B7%5D%5Bsearch%5D%5Bvalue%5D=&columns%5B7%5D%5Bsearch%5D%5Bregex%5D=false&columns%5B8%5D%5Bdata%5D=owner_username&columns%5B8%5D%5Bname%5D=regUser.username&columns%5B8%5D%5Bsearchable%5D=true&columns%5B8%5D%5Borderable%5D=false&columns%5B8%5D%5Bsearch%5D%5Bvalue%5D=&columns%5B8%5D%5Bsearch%5D%5Bregex%5D=false&columns%5B9%5D%5Bdata%5D=reseller_notes&columns%5B9%5D%5Bname%5D=&columns%5B9%5D%5Bsearchable%5D=true&columns%5B9%5D%5Borderable%5D=true&columns%5B9%5D%5Bsearch%5D%5Bvalue%5D=&columns%5B9%5D%5Bsearch%5D%5Bregex%5D=false&columns%5B10%5D%5Bdata%5D=is_trial&columns%5B10%5D%5Bname%5D=&columns%5B10%5D%5Bsearchable%5D=true&columns%5B10%5D%5Borderable%5D=true&columns%5B10%5D%5Bsearch%5D%5Bvalue%5D=&columns%5B10%5D%5Bsearch%5D%5Bregex%5D=false&columns%5B11%5D%5Bdata%5D=enabled&columns%5B11%5D%5Bname%5D=&columns%5B11%5D%5Bsearchable%5D=true&columns%5B11%5D%5Borderable%5D=true&columns%5B11%5D%5Bsearch%5D%5Bvalue%5D=&columns%5B11%5D%5Bsearch%5D%5Bregex%5D=false&columns%5B12%5D%5Bdata%5D=&columns%5B12%5D%5Bname%5D=&columns%5B12%5D%5Bsearchable%5D=false&columns%5B12%5D%5Borderable%5D=false&columns%5B12%5D%5Bsearch%5D%5Bvalue%5D=&columns%5B12%5D%5Bsearch%5D%5Bregex%5D=false&order%5B0%5D%5Bcolumn%5D=1&order%5B0%5D%5Bdir%5D=desc&order%5B0%5D%5Bname%5D=&start=0&length=1000&search%5Bvalue%5D=&search%5Bregex%5D=false'
   const P2P_PARAMS  = 'draw=1&columns%5B0%5D%5Bdata%5D=id&columns%5B0%5D%5Bname%5D=&columns%5B0%5D%5Bsearchable%5D=false&columns%5B0%5D%5Borderable%5D=false&columns%5B0%5D%5Bsearch%5D%5Bvalue%5D=&columns%5B0%5D%5Bsearch%5D%5Bregex%5D=false&columns%5B1%5D%5Bdata%5D=id&columns%5B1%5D%5Bname%5D=&columns%5B1%5D%5Bsearchable%5D=true&columns%5B1%5D%5Borderable%5D=true&columns%5B1%5D%5Bsearch%5D%5Bvalue%5D=&columns%5B1%5D%5Bsearch%5D%5Bregex%5D=false&columns%5B2%5D%5Bdata%5D=&columns%5B2%5D%5Bname%5D=&columns%5B2%5D%5Bsearchable%5D=false&columns%5B2%5D%5Borderable%5D=false&columns%5B2%5D%5Bsearch%5D%5Bvalue%5D=&columns%5B2%5D%5Bsearch%5D%5Bregex%5D=false&columns%5B3%5D%5Bdata%5D=name&columns%5B3%5D%5Bname%5D=&columns%5B3%5D%5Bsearchable%5D=true&columns%5B3%5D%5Borderable%5D=true&columns%5B3%5D%5Bsearch%5D%5Bvalue%5D=&columns%5B3%5D%5Bsearch%5D%5Bregex%5D=false&columns%5B4%5D%5Bdata%5D=email&columns%5B4%5D%5Bname%5D=&columns%5B4%5D%5Bsearchable%5D=true&columns%5B4%5D%5Borderable%5D=true&columns%5B4%5D%5Bsearch%5D%5Bvalue%5D=&columns%5B4%5D%5Bsearch%5D%5Bregex%5D=false&columns%5B5%5D%5Bdata%5D=exField2&columns%5B5%5D%5Bname%5D=&columns%5B5%5D%5Bsearchable%5D=true&columns%5B5%5D%5Borderable%5D=true&columns%5B5%5D%5Bsearch%5D%5Bvalue%5D=&columns%5B5%5D%5Bsearch%5D%5Bregex%5D=false&columns%5B6%5D%5Bdata%5D=formatted_created_at&columns%5B6%5D%5Bname%5D=regTime&columns%5B6%5D%5Bsearchable%5D=false&columns%5B6%5D%5Borderable%5D=true&columns%5B6%5D%5Bsearch%5D%5Bvalue%5D=&columns%5B6%5D%5Bsearch%5D%5Bregex%5D=false&columns%5B7%5D%5Bdata%5D=formatted_exp_date&columns%5B7%5D%5Bname%5D=endTime&columns%5B7%5D%5Bsearchable%5D=false&columns%5B7%5D%5Borderable%5D=true&columns%5B7%5D%5Bsearch%5D%5Bvalue%5D=&columns%5B7%5D%5Bsearch%5D%5Bregex%5D=false&columns%5B8%5D%5Bdata%5D=owner_username&columns%5B8%5D%5Bname%5D=regUser.username&columns%5B8%5D%5Bsearchable%5D=true&columns%5B8%5D%5Borderable%5D=false&columns%5B8%5D%5Bsearch%5D%5Bvalue%5D=&columns%5B8%5D%5Bsearch%5D%5Bregex%5D=false&columns%5B9%5D%5Bdata%5D=exField4&columns%5B9%5D%5Bname%5D=&columns%5B9%5D%5Bsearchable%5D=true&columns%5B9%5D%5Borderable%5D=true&columns%5B9%5D%5Bsearch%5D%5Bvalue%5D=&columns%5B9%5D%5Bsearch%5D%5Bregex%5D=false&columns%5B10%5D%5Bdata%5D=type&columns%5B10%5D%5Bname%5D=&columns%5B10%5D%5Bsearchable%5D=true&columns%5B10%5D%5Borderable%5D=true&columns%5B10%5D%5Bsearch%5D%5Bvalue%5D=&columns%5B10%5D%5Bsearch%5D%5Bregex%5D=false&columns%5B11%5D%5Bdata%5D=status&columns%5B11%5D%5Bname%5D=&columns%5B11%5D%5Bsearchable%5D=true&columns%5B11%5D%5Borderable%5D=true&columns%5B11%5D%5Bsearch%5D%5Bvalue%5D=&columns%5B11%5D%5Bsearch%5D%5Bregex%5D=false&columns%5B12%5D%5Bdata%5D=action&columns%5B12%5D%5Bname%5D=&columns%5B12%5D%5Bsearchable%5D=false&columns%5B12%5D%5Borderable%5D=false&columns%5B12%5D%5Bsearch%5D%5Bvalue%5D=&columns%5B12%5D%5Bsearch%5D%5Bregex%5D=false&order%5B0%5D%5Bcolumn%5D=1&order%5B0%5D%5Bdir%5D=desc&order%5B0%5D%5Bname%5D=&start=0&length=1000&search%5Bvalue%5D=&search%5Bregex%5D=false'
 
   let csrfToken   = null
   let cookieJar   = null
-  let loginPromise = null  // lock para evitar logins simultâneos
+  let loginPromise = null
 
   const parseCookies = (arr) => {
     const obj = {}
@@ -39,7 +34,6 @@ export default function createEliteRouter(enviarMensagemRenovacao) {
   const toArray = (v) => (Array.isArray(v) ? v : v ? [v] : [])
 
   const eliteLogin = async () => {
-    // Se já há um login em andamento, aguarda ele terminar
     if (loginPromise) return loginPromise
     loginPromise = _doLogin().finally(() => { loginPromise = null })
     return loginPromise
@@ -151,8 +145,6 @@ export default function createEliteRouter(enviarMensagemRenovacao) {
     try { return JSON.parse(text) } catch { return { raw: text.substring(0, 500) } }
   }
 
-  // ---- Rotas ----
-
   router.get('/elite/debug', async (req, res) => {
     try {
       await eliteLogin()
@@ -196,7 +188,6 @@ export default function createEliteRouter(enviarMensagemRenovacao) {
       const data = await eliteFetch(path, 'POST', body)
       console.log(`[Elite] RENOVAR id=${id} tipo=${t} meses=${n}`, JSON.stringify(data))
 
-      // Extrai nova data
       let vencimento = null
       if (data?.new_exp_date) {
         const m = data.new_exp_date.match(/(\d{2})\/(\d{2})\/(\d{4})/)
@@ -232,11 +223,12 @@ export default function createEliteRouter(enviarMensagemRenovacao) {
     } catch (err) { res.status(500).json({ ok: false, error: err.message }) }
   })
 
+  // FIX: buscar-linha — P2P usa campo 'email', nao 'username'
   router.get('/elite/buscar-linha/:username', async (req, res) => {
     try {
       const username = decodeURIComponent(req.params.username)
 
-      // IPTV — full scan (search[value] não filtra na API Elite)
+      // IPTV — full scan
       console.log(`[Elite] buscar-linha IPTV: "${username}"`)
       let start = 0
       while (true) {
@@ -251,23 +243,24 @@ export default function createEliteRouter(enviarMensagemRenovacao) {
         start += 100
       }
 
-      // P2P — full scan
+      // P2P — full scan (FIX: campo 'email' na API bruta, nao 'username')
       console.log(`[Elite] buscar-linha P2P: "${username}"`)
       start = 0
       while (true) {
         const p2pData = await eliteFetch(`dashboard/p2p?draw=1&start=${start}&length=100`)
         const items = p2pData?.data ?? []
-        const found = items.find(l => l.username === username)
+        // CORRIGIDO: API P2P usa 'email' como campo de username
+        const found = items.find(l => (l.email ?? '') === username)
         if (found) {
-          console.log(`[Elite] buscar-linha encontrado P2P: id=${found.id}`)
+          console.log(`[Elite] buscar-linha encontrado P2P: id=${found.id} email=${found.email}`)
           return res.json({ ok: true, id: found.id, tipo: 'P2P', username })
         }
         if (items.length < 100) break
         start += 100
       }
 
-      console.log(`[Elite] buscar-linha NÃO encontrado: "${username}"`)
-      res.status(404).json({ ok: false, error: `Usuário "${username}" não encontrado no Elite` })
+      console.log(`[Elite] buscar-linha NAO encontrado: "${username}"`)
+      res.status(404).json({ ok: false, error: `Usuario "${username}" nao encontrado no Elite` })
     } catch (err) { res.status(500).json({ ok: false, error: err.message }) }
   })
 

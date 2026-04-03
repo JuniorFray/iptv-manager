@@ -3,7 +3,7 @@ import express from 'express'
 import { MercadoPagoConfig, Preference, Payment } from 'mercadopago'
 
 const PLANOS = [
-  { id: '1mes',   label: '1 Mês',   valor: 35.00,  meses: 1, creditos: 1 },
+  { id: '1mes',   label: '1 Mes',   valor: 35.00,  meses: 1, creditos: 1 },
   { id: '3meses', label: '3 Meses', valor: 95.00,  meses: 3, creditos: 3 },
   { id: '6meses', label: '6 Meses', valor: 170.00, meses: 6, creditos: 6 },
 ]
@@ -13,29 +13,27 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
 
   const getMpClient = () => {
     const token = process.env.MP_ACCESS_TOKEN
-    if (!token) throw new Error('MP_ACCESS_TOKEN não configurado')
+    if (!token) throw new Error('MP_ACCESS_TOKEN nao configurado')
     return new MercadoPagoConfig({ accessToken: token })
   }
 
-  // ── Criar 3 links (um por plano) ──
   router.post('/pagamento/criar', async (req, res) => {
     try {
       const { clienteId, clienteNome, telefone, servidor, usuario, senha, valor, valor3meses, valor6meses } = req.body
       if (!clienteId || !clienteNome || !servidor || !usuario) {
-        return res.status(400).json({ error: 'Campos obrigatórios faltando' })
+        return res.status(400).json({ error: 'Campos obrigatorios faltando' })
       }
 
       const client     = getMpClient()
       const preference = new Preference(client)
       const links      = []
 
-      // Usa valores individuais do cliente, fallback para PLANOS padrão
       const parseValor = (v) => v ? parseFloat(String(v).replace(',', '.')) : null
       const v1 = parseValor(valor)
       const v3 = parseValor(valor3meses)
       const v6 = parseValor(valor6meses)
       const planosCliente = [
-        { id: '1mes',   label: '1 Mês',   valor: v1 && v1 > 0 ? v1 : PLANOS[0].valor, meses: 1, creditos: 1 },
+        { id: '1mes',   label: '1 Mes',   valor: v1 && v1 > 0 ? v1 : PLANOS[0].valor, meses: 1, creditos: 1 },
         { id: '3meses', label: '3 Meses', valor: v3 && v3 > 0 ? v3 : PLANOS[1].valor, meses: 3, creditos: 3 },
         { id: '6meses', label: '6 Meses', valor: v6 && v6 > 0 ? v6 : PLANOS[2].valor, meses: 6, creditos: 6 },
       ]
@@ -47,7 +45,7 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
           body: {
             items: [{
               id:          plano.id,
-            title:       `Sistema ${plano.label}`,
+              title:       `Sistema ${plano.label}`,
               quantity:    1,
               unit_price:  plano.valor,
               currency_id: 'BRL',
@@ -77,7 +75,6 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
 
         links.push({ plano: plano.label, valor: plano.valor, link: result.init_point, preferenceId: result.id })
 
-        // Salva cada preferência
         await db.collection('pagamentos').add({
           clienteId, clienteNome, telefone: telefone ?? '', servidor,
           usuario, senha: senha ?? '',
@@ -99,7 +96,6 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
     }
   })
 
-  // ── Webhook ──
   router.post('/pagamento/webhook', async (req, res) => {
     try {
       const { type, data } = req.body
@@ -136,7 +132,6 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
       const clienteSnap = await db.collection('clientes').doc(clienteId).get()
       const cliente     = clienteSnap.exists ? clienteSnap.data() : null
 
-      // Renova no servidor
       let vencimento = null
       const BACKEND  = 'https://iptv-manager-production.up.railway.app'
       try {
@@ -148,7 +143,6 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
               method: 'POST', headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ credits: plano.creditos, nome: cliente?.nome, telefone, usuario, senha })
             }).then(r => r.json())
-            // Warez retorna exp_date bruto da API — extrair com timezone correto
             const expRaw = ren.exp_date ?? ren.expiry_date
             if (expRaw) {
               const d = new Date(expRaw)
@@ -157,14 +151,21 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
             console.log('[WEBHOOK] Warez vencimento:', vencimento)
           }
         } else if (servidor.toUpperCase() === 'ELITE') {
+          console.log('[WEBHOOK] Elite buscar-linha:', usuario)
           const buscar = await fetch(`${BACKEND}/elite/buscar-linha/${encodeURIComponent(usuario)}`).then(r => r.json())
+          console.log('[WEBHOOK] Elite buscar-linha resultado:', JSON.stringify(buscar))
           if (buscar.ok) {
+            console.log(`[WEBHOOK] Elite renovando id=${buscar.id} tipo=${buscar.tipo} meses=${plano.meses}`)
             const ren = await fetch(`${BACKEND}/elite/renovar`, {
               method: 'POST', headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ id: buscar.id, tipo: buscar.tipo, meses: plano.meses, nome: cliente?.nome, telefone, usuario, senha })
             }).then(r => r.json())
+            console.log('[WEBHOOK] Elite renovar resultado:', JSON.stringify(ren))
             vencimento = ren.vencimento ?? null
-          } else { console.error('[WEBHOOK] Elite buscar-linha falhou:', buscar.error) }
+            console.log('[WEBHOOK] Elite vencimento:', vencimento)
+          } else {
+            console.error('[WEBHOOK] Elite buscar-linha falhou:', buscar.error)
+          }
         } else if (servidor.toUpperCase() === 'CENTRAL') {
           const buscar = await fetch(`${BACKEND}/central/buscar-linha/${encodeURIComponent(usuario)}`).then(r => r.json())
           if (buscar.ok) {
@@ -172,7 +173,6 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
               method: 'POST', headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ id: buscar.id, meses: plano.meses, nome: cliente?.nome, telefone, usuario, senha })
             }).then(r => r.json())
-            // Central retorna exp_date no formato BR em ren.exp_date
             vencimento = ren.exp_date ?? ren.vencimento ?? null
             console.log('[WEBHOOK] Central vencimento:', vencimento)
           } else { console.error('[WEBHOOK] Central buscar-linha falhou:', buscar.error) }
@@ -210,7 +210,6 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
         })
       }
 
-      // Notifica WA
       if (telefone && enviarMensagemRenovacao) {
         await enviarMensagemRenovacao(telefone, {
           nome: cliente?.nome ?? usuario, usuario,
@@ -226,7 +225,6 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
     }
   })
 
-  // ── Histórico ──
   router.get('/pagamento/historico', async (req, res) => {
     try {
       const snap = await db.collection('pagamentos').orderBy('criadoEm', 'desc').limit(200).get()
