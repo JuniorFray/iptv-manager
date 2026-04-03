@@ -454,8 +454,14 @@ export default function createWhatsAppRouter(db, admin) {
           }
           }
           // Substitui variáveis básicas pelo cliente principal e adiciona pontos
+          const fmtV = (v, fb) => v ? `R$ ${parseFloat(String(v).replace(',','.')).toFixed(2).replace('.',',')}` : fb
           const msgBase = regra.mensagem
             .replace(/\{NOME\}/gi, cliente.nome).replace(/NOME/gi, cliente.nome)
+            .replace(/\{VENCIMENTO\}/gi, cliente.vencimento || '').replace(/VENCIMENTO/gi, cliente.vencimento || '')
+            .replace(/\{SERVIDOR\}/gi, cliente.servidor || '').replace(/SERVIDOR/gi, cliente.servidor || '')
+            .replace(/\{VALOR\}/gi, fmtV(cliente.valor, 'R$ 35,00')).replace(/VALOR/gi, fmtV(cliente.valor, 'R$ 35,00'))
+            .replace(/\{VALOR_3MESES\}/gi, fmtV(cliente.valor3meses, 'R$ 95,00'))
+            .replace(/\{VALOR_6MESES\}/gi, fmtV(cliente.valor6meses, 'R$ 170,00'))
             .replace(/\{LINK_1MES\}/gi, '').replace(/\{LINK_3MESES\}/gi, '').replace(/\{LINK_6MESES\}/gi, '')
           mensagemFinal = msgBase + '\n' + pontosTexto
         } else {
@@ -582,11 +588,15 @@ export default function createWhatsAppRouter(db, admin) {
             pontosTexto += `💰 6 Meses — ${val6}: ${links['6meses'] || '(indisponível)'}\n`
           }
         }
+        const fmtV2 = (v, fb) => v ? `R$ ${parseFloat(String(v).replace(',','.')).toFixed(2).replace('.',',')}` : fb
         const msgBase = cliente
           ? mensagem
             .replace(/\{NOME\}/gi, cliente.nome).replace(/NOME/gi, cliente.nome)
             .replace(/\{VENCIMENTO\}/gi, cliente.vencimento || '').replace(/VENCIMENTO/gi, cliente.vencimento || '')
             .replace(/\{SERVIDOR\}/gi, cliente.servidor || '').replace(/SERVIDOR/gi, cliente.servidor || '')
+            .replace(/\{VALOR\}/gi, fmtV2(cliente.valor, 'R$ 35,00')).replace(/VALOR/gi, fmtV2(cliente.valor, 'R$ 35,00'))
+            .replace(/\{VALOR_3MESES\}/gi, fmtV2(cliente.valor3meses, 'R$ 95,00'))
+            .replace(/\{VALOR_6MESES\}/gi, fmtV2(cliente.valor6meses, 'R$ 170,00'))
             .replace(/\{LINK_1MES\}/gi, '').replace(/\{LINK_3MESES\}/gi, '').replace(/\{LINK_6MESES\}/gi, '')
           : mensagem
         mensagemFinal = msgBase.trimEnd() + '\n' + pontosTexto
