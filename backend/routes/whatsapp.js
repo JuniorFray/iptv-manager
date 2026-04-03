@@ -442,12 +442,16 @@ export default function createWhatsAppRouter(db, admin) {
           for (const p of pontos) {
             const links = await gerarLinksCliente(p)
             const venc = p.vencimento || '—'
-            pontosTexto += `\n📺 *${p.nome}* — vence ${venc}\n`
-            if (links) {
-              pontosTexto += `1 Mês: ${links['1mes'] || ''}\n`
-              pontosTexto += `3 Meses: ${links['3meses'] || ''}\n`
-              pontosTexto += `6 Meses: ${links['6meses'] || ''}\n`
-            }
+            const fmt2 = (v, fb) => v ? `R$ ${parseFloat(String(v).replace(',','.')).toFixed(2).replace('.',',')}` : fb
+          const cv1 = fmt2(p.valor, 'R$ 35,00')
+          const cv3 = fmt2(p.valor3meses, 'R$ 95,00')
+          const cv6 = fmt2(p.valor6meses, 'R$ 170,00')
+          pontosTexto += `\n📺 *${p.nome}* — vence ${venc}\n`
+          if (links) {
+            pontosTexto += `💰 1 Mês — ${cv1}: ${links['1mes'] || ''}\n`
+            pontosTexto += `💰 3 Meses — ${cv3}: ${links['3meses'] || ''}\n`
+            pontosTexto += `💰 6 Meses — ${cv6}: ${links['6meses'] || ''}\n`
+          }
           }
           // Substitui variáveis básicas pelo cliente principal e adiciona pontos
           const msgBase = regra.mensagem
@@ -566,12 +570,16 @@ export default function createWhatsAppRouter(db, admin) {
         let pontosTexto = ''
         for (const p of pontos) {
           const links = await gerarLinksCliente(p)
-          const venc = p.vencimento || '—'
+          const venc  = p.vencimento || '—'
+          const fmt   = (v, fb) => v ? `R$ ${parseFloat(String(v).replace(',','.')).toFixed(2).replace('.',',')}` : fb
+          const val1  = fmt(p.valor, 'R$ 35,00')
+          const val3  = fmt(p.valor3meses, 'R$ 95,00')
+          const val6  = fmt(p.valor6meses, 'R$ 170,00')
           pontosTexto += `\n📺 *${p.nome}* — vence ${venc}\n`
           if (links) {
-            pontosTexto += `💰 1 Mês: ${links['1mes'] || '(indisponível)'}\n`
-            pontosTexto += `💰 3 Meses: ${links['3meses'] || '(indisponível)'}\n`
-            pontosTexto += `💰 6 Meses: ${links['6meses'] || '(indisponível)'}\n`
+            pontosTexto += `💰 1 Mês — ${val1}: ${links['1mes'] || '(indisponível)'}\n`
+            pontosTexto += `💰 3 Meses — ${val3}: ${links['3meses'] || '(indisponível)'}\n`
+            pontosTexto += `💰 6 Meses — ${val6}: ${links['6meses'] || '(indisponível)'}\n`
           }
         }
         const msgBase = cliente
