@@ -81,7 +81,7 @@ const REGRAS_INFO = [
   { key: 'pos3',  label: '3 dias após vencer',   cor: '239,68,68'  },
 ]
 
-const VARIAVEIS = ['{NOME}', '{VENCIMENTO}', '{SERVIDOR}', '{VALOR}', '{LINK_1MES}', '{LINK_3MESES}', '{LINK_6MESES}']
+const VARIAVEIS = ['{NOME}', '{VENCIMENTO}', '{SERVIDOR}', '{VALOR}', '{VALOR_3MESES}', '{VALOR_6MESES}', '{LINK_1MES}', '{LINK_3MESES}', '{LINK_6MESES}']
 
 export default function Notificacoes() {
   const [clientes, setClientes]           = useState<Cliente[]>([])

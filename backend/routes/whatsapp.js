@@ -208,15 +208,21 @@ export default function createWhatsAppRouter(db, admin) {
   }
 
   const formatarMensagem = async (template, cliente) => {
+    const fmtValor = (v) => v ? `R$ ${parseFloat(String(v).replace(',','.')).toFixed(2).replace('.', ',')}` : ''
+    // Valores padrão se não cadastrados
+    const v3 = cliente.valor3meses || (cliente.valor ? (parseFloat(String(cliente.valor).replace(',','.')) * 3).toFixed(2) : '95.00')
+    const v6 = cliente.valor6meses || (cliente.valor ? (parseFloat(String(cliente.valor).replace(',','.')) * 6).toFixed(2) : '170.00')
     let msg = template
-      .replace(/\{NOME\}/gi,       cliente.nome       || '')
-      .replace(/\{VENCIMENTO\}/gi, cliente.vencimento  || '')
-      .replace(/\{SERVIDOR\}/gi,   cliente.servidor    || '')
-      .replace(/\{VALOR\}/gi,      cliente.valor ? `R$ ${parseFloat(cliente.valor).toFixed(2).replace('.', ',')}` : '')
-      .replace(/NOME/gi,       cliente.nome       || '')
-      .replace(/VENCIMENTO/gi, cliente.vencimento  || '')
-      .replace(/SERVIDOR/gi,   cliente.servidor    || '')
-      .replace(/VALOR/gi,      cliente.valor ? `R$ ${parseFloat(cliente.valor).toFixed(2).replace('.', ',')}` : '')
+      .replace(/\{NOME\}/gi,         cliente.nome        || '')
+      .replace(/\{VENCIMENTO\}/gi,   cliente.vencimento   || '')
+      .replace(/\{SERVIDOR\}/gi,     cliente.servidor     || '')
+      .replace(/\{VALOR\}/gi,        fmtValor(cliente.valor))
+      .replace(/\{VALOR_3MESES\}/gi, fmtValor(v3))
+      .replace(/\{VALOR_6MESES\}/gi, fmtValor(v6))
+      .replace(/NOME/gi,         cliente.nome        || '')
+      .replace(/VENCIMENTO/gi,   cliente.vencimento   || '')
+      .replace(/SERVIDOR/gi,     cliente.servidor     || '')
+      .replace(/VALOR/gi,        fmtValor(cliente.valor))
 
     if (/\{LINK_(1MES|3MESES|6MESES)\}/i.test(msg)) {
       console.log('[Links] Detectado link no template para', cliente.nome)
