@@ -125,7 +125,13 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
               method: 'POST', headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ credits: plano.creditos, nome: cliente?.nome, telefone, usuario, senha })
             }).then(r => r.json())
-            vencimento = ren.vencimento ?? null
+            // Warez retorna exp_date bruto da API — extrair com timezone correto
+            const expRaw = ren.exp_date ?? ren.expiry_date
+            if (expRaw) {
+              const d = new Date(expRaw)
+              if (!isNaN(d.getTime())) vencimento = d.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })
+            }
+            console.log('[WEBHOOK] Warez vencimento:', vencimento)
           }
         } else if (servidor.toUpperCase() === 'ELITE') {
           const buscar = await fetch(`${BACKEND}/elite/buscar-linha/${encodeURIComponent(usuario)}`).then(r => r.json())
@@ -143,7 +149,9 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
               method: 'POST', headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ id: buscar.id, meses: plano.meses, nome: cliente?.nome, telefone, usuario, senha })
             }).then(r => r.json())
-            vencimento = ren.vencimento ?? null
+            // Central retorna exp_date no formato BR em ren.exp_date
+            vencimento = ren.exp_date ?? ren.vencimento ?? null
+            console.log('[WEBHOOK] Central vencimento:', vencimento)
           } else { console.error('[WEBHOOK] Central buscar-linha falhou:', buscar.error) }
         }
       } catch (e) { console.error('[WEBHOOK] renovar erro:', e.message) }
@@ -152,7 +160,7 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
       if (vencimento && clienteId && clienteSnap.exists) {
         try {
           await db.collection('clientes').doc(clienteId).update({ vencimento, status: 'ativo' })
-          console.log(`[WEBHOOK] Cliente ${clienteId} atualizado: vencimento=${vencimento}`)
+          console.log(`[WEBHOOK] Cliente ${clienteId} atualizado no Firestore: vencimento=${vencimento}`)
         } catch (e) { console.error('[WEBHOOK] Erro ao atualizar cliente:', e.message) }
       }
 
