@@ -98,8 +98,12 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
 
   router.post('/pagamento/webhook', async (req, res) => {
     try {
+      console.log('[WEBHOOK] Recebido:', JSON.stringify(req.body).substring(0, 300))
       const { type, data } = req.body
-      if (type !== 'payment' || !data?.id) return res.sendStatus(200)
+      if (type !== 'payment' || !data?.id) {
+        console.log('[WEBHOOK] Ignorado: type=' + type + ' data.id=' + data?.id)
+        return res.sendStatus(200)
+      }
 
       const client  = getMpClient()
       const payment = new Payment(client)
