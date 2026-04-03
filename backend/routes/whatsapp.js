@@ -190,6 +190,7 @@ export default function createWhatsAppRouter(db, admin) {
           clienteId: cliente.id, clienteNome: cliente.nome,
           telefone: cliente.telefone, servidor: cliente.servidor,
           usuario: cliente.usuario, senha: cliente.senha,
+          valor: cliente.valor, valor3meses: cliente.valor3meses, valor6meses: cliente.valor6meses,
         })
       })
       const data = await res.json()
@@ -401,16 +402,57 @@ export default function createWhatsAppRouter(db, admin) {
       { key: 'pos3',  diff: -3 },
     ]
     let adicionados = 0
+    // Agrupa clientes: principal = sem responsavel, secundários = com responsavel
+    const principaisSet = new Set(clientes.filter(c => !c.responsavel?.trim()).map(c => c.id))
+
     for (const cliente of clientes) {
       if (!cliente.telefone) continue
+      // Pula pontos secundários — o principal já vai receber msg com todos os pontos
+      if (cliente.responsavel?.trim()) continue
       const diff = diffDias(cliente.vencimento)
       if (diff === null) continue
+
+      // Busca todos os pontos vinculados a este responsável (incluindo ele mesmo)
+      const telResp = cliente.telefone
+      const pontos = clientes.filter(c =>
+        (c.responsavel?.trim() || c.telefone) === telResp && c.status === 'ativo'
+      )
+
       for (const { key, diff: diffAlvo } of regrasMap) {
-        if (diff !== diffAlvo) continue
+        // Dispara se o principal OU qualquer ponto vence no período
+        const algumVence = pontos.some(p => {
+          const d = diffDias(p.vencimento)
+          return d !== null && d === diffAlvo
+        })
+        if (!algumVence) continue
         const regra = config.regras?.[key]
         if (!regra?.ativo) continue
-        const mensagem = await formatarMensagem(regra.mensagem, cliente)
-        const adicionou = await adicionarNaFila(cliente, key, mensagem, {
+
+        // Monta mensagem agrupada se tiver múltiplos pontos
+        let mensagemFinal
+        if (pontos.length > 1) {
+          // Gera uma linha por ponto com links individuais
+          let pontosTexto = ''
+          for (const p of pontos) {
+            const links = await gerarLinksCliente(p)
+            const venc = p.vencimento || '—'
+            pontosTexto += `\n📺 *${p.nome}* — vence ${venc}\n`
+            if (links) {
+              pontosTexto += `1 Mês: ${links['1mes'] || ''}\n`
+              pontosTexto += `3 Meses: ${links['3meses'] || ''}\n`
+              pontosTexto += `6 Meses: ${links['6meses'] || ''}\n`
+            }
+          }
+          // Substitui variáveis básicas pelo cliente principal e adiciona pontos
+          const msgBase = regra.mensagem
+            .replace(/\{NOME\}/gi, cliente.nome).replace(/NOME/gi, cliente.nome)
+            .replace(/\{LINK_1MES\}/gi, '').replace(/\{LINK_3MESES\}/gi, '').replace(/\{LINK_6MESES\}/gi, '')
+          mensagemFinal = msgBase + '\n' + pontosTexto
+        } else {
+          mensagemFinal = await formatarMensagem(regra.mensagem, cliente)
+        }
+
+        const adicionou = await adicionarNaFila(cliente, key, mensagemFinal, {
           midiaUrl:        regra.midiaUrl        || null,
           midiaTipo:       regra.midiaTipo       || null,
           midiaNome:       regra.midiaNome       || null,
@@ -509,9 +551,34 @@ export default function createWhatsAppRouter(db, admin) {
 
   router.post('/fila/adicionar', async (req, res) => {
     try {
-      const { clienteId, clienteNome, telefone, mensagem, gatilho, midiaUrl, midiaTipo, midiaNome, modoEnvio, cliente } = req.body
+      const { clienteId, clienteNome, telefone, mensagem, gatilho, midiaUrl, midiaTipo, midiaNome, modoEnvio, cliente, pontos } = req.body
       if (!telefone || !mensagem) return res.status(400).json({ error: 'telefone e mensagem obrigatórios' })
-      const mensagemFinal = cliente ? await formatarMensagem(mensagem, cliente) : mensagem
+
+      let mensagemFinal
+      if (pontos && pontos.length > 1) {
+        // Múltiplos pontos: monta mensagem agrupada com links de cada ponto
+        let pontosTexto = ''
+        for (const p of pontos) {
+          const links = await gerarLinksCliente(p)
+          const venc = p.vencimento || '—'
+          pontosTexto += `\n📺 *${p.nome}* — vence ${venc}\n`
+          if (links) {
+            pontosTexto += `💰 1 Mês: ${links['1mes'] || '(indisponível)'}\n`
+            pontosTexto += `💰 3 Meses: ${links['3meses'] || '(indisponível)'}\n`
+            pontosTexto += `💰 6 Meses: ${links['6meses'] || '(indisponível)'}\n`
+          }
+        }
+        const msgBase = cliente
+          ? mensagem
+            .replace(/\{NOME\}/gi, cliente.nome).replace(/NOME/gi, cliente.nome)
+            .replace(/\{VENCIMENTO\}/gi, cliente.vencimento || '').replace(/VENCIMENTO/gi, cliente.vencimento || '')
+            .replace(/\{SERVIDOR\}/gi, cliente.servidor || '').replace(/SERVIDOR/gi, cliente.servidor || '')
+            .replace(/\{LINK_1MES\}/gi, '').replace(/\{LINK_3MESES\}/gi, '').replace(/\{LINK_6MESES\}/gi, '')
+          : mensagem
+        mensagemFinal = msgBase.trimEnd() + '\n' + pontosTexto
+      } else {
+        mensagemFinal = cliente ? await formatarMensagem(mensagem, cliente) : mensagem
+      }
       await db.collection('filaEnvios').add({
         clienteId:        clienteId        ?? telefone,
         clienteNome:      clienteNome      ?? '',

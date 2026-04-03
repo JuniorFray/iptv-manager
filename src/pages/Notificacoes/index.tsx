@@ -442,11 +442,18 @@ export default function Notificacoes() {
     cancelarEnvioRef.current = false
     setEnviando(true); setProgresso(0)
     const base = template || mensagem
+    const processados = new Set<string>()
     let adicionados = 0
     for (let i = 0; i < clientesFiltrados.length; i++) {
       if (cancelarEnvioRef.current) break
       const c = clientesFiltrados[i]
       if (!c.telefone) { setProgresso(i + 1); continue }
+      if ((c as any).responsavel?.trim()) { setProgresso(i + 1); continue }
+      if (processados.has(c.telefone)) { setProgresso(i + 1); continue }
+      processados.add(c.telefone)
+      const pontos = clientes.filter((p: any) =>
+        ((p.responsavel?.trim() || p.telefone) === c.telefone) && p.status === 'ativo'
+      )
       try {
         await fetch(`${API}/fila/adicionar`, {
           method: 'POST',
@@ -457,6 +464,7 @@ export default function Notificacoes() {
             telefone:    c.telefone,
             mensagem:    base,
             cliente:     c,
+            pontos:      pontos.length > 1 ? pontos : undefined,
             gatilho:     'manual',
             midiaUrl:    midiaManual?.url    ?? null,
             midiaTipo:   midiaManual?.tipo   ?? null,
