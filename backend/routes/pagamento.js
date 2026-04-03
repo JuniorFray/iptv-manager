@@ -119,7 +119,7 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
         .limit(1)
         .get()
       if (!dupSnap.empty) {
-        console.log(`[WEBHOOK] Duplicata ignorada - mpPaymentId=`${mpPaymentId} ja processado`)
+        console.log('[WEBHOOK] Duplicata ignorada - mpPaymentId=' + mpPaymentId + ' ja processado')
         return res.sendStatus(200)
       }
 
