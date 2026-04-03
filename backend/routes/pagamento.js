@@ -111,6 +111,18 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
 
       if (mp.status !== 'approved') return res.sendStatus(200)
 
+      // Deduplicacao: ignora se mpPaymentId ja foi processado
+      const mpPaymentId = String(mp.id)
+      const dupSnap = await db.collection('pagamentos')
+        .where('mpPaymentId', '==', mpPaymentId)
+        .where('status', '==', 'aprovado')
+        .limit(1)
+        .get()
+      if (!dupSnap.empty) {
+        console.log(`[WEBHOOK] Duplicata ignorada - mpPaymentId=`${mpPaymentId} ja processado`)
+        return res.sendStatus(200)
+      }
+
       const ref   = mp.external_reference ?? ''
       const parts = ref.split('|')
       if (parts.length < 3) return res.sendStatus(200)
@@ -182,7 +194,7 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
 
       if (!pagSnap.empty) {
         await pagSnap.docs[0].ref.update({
-          mpPaymentId: String(mp.id), valor: valorPago,
+          mpPaymentId, valor: valorPago,
           status: 'aprovado',
           renovadoEm: admin.firestore.FieldValue.serverTimestamp(),
         })
@@ -190,7 +202,7 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
         await db.collection('pagamentos').add({
           clienteId, clienteNome: cliente?.nome ?? usuario,
           telefone, servidor, usuario, senha,
-          mpPaymentId: String(mp.id), mpPreferenceId: '',
+          mpPaymentId, mpPreferenceId: '',
           valor: valorPago, plano: plano.label, status: 'aprovado',
           link: null,
           renovadoEm: admin.firestore.FieldValue.serverTimestamp(),
