@@ -529,6 +529,11 @@ export default function Notificacoes() {
     setConfig({ ...config, regras: { ...config.regras, [key]: { ...config.regras[key as keyof typeof config.regras], [field]: value } } })
   }
 
+  const updateRegraMulti = (key: string, fields: Record<string, any>) => {
+    if (!config) return
+    setConfig({ ...config, regras: { ...config.regras, [key]: { ...config.regras[key as keyof typeof config.regras], ...fields } } })
+  }
+
   const desconectarWhatsApp = async () => {
     setDesconectando(true)
     try { await axios.post(`${API}/logout`) } catch {}
@@ -929,13 +934,9 @@ export default function Notificacoes() {
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '12px' }}>
                       {midias.map(m => (
                         <div key={m.id} onClick={() => {
-                          updateRegra(modalMidiaRegra, 'midiaUrl', m.url)
-                          updateRegra(modalMidiaRegra, 'midiaTipo', m.tipo)
-                          updateRegra(modalMidiaRegra, 'midiaNome', m.nome)
-                          updateRegra(modalMidiaRegra, 'midiaStoragePath', m.storagePath)
-                          if (!(config.regras as any)[modalMidiaRegra]?.modoEnvio) {
-                            updateRegra(modalMidiaRegra, 'modoEnvio', 'junto')
-                          }
+                          const fields: Record<string, any> = { midiaUrl: m.url, midiaTipo: m.tipo, midiaNome: m.nome, midiaStoragePath: m.storagePath }
+                          if (!(config.regras as any)[modalMidiaRegra]?.modoEnvio) fields.modoEnvio = 'junto'
+                          updateRegraMulti(modalMidiaRegra!, fields)
                           setModalMidiaRegra(null)
                         }}
                           style={{ cursor: 'pointer', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', overflow: 'hidden', background: 'rgba(255,255,255,0.03)' }}>
