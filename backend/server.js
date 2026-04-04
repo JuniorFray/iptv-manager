@@ -1,4 +1,12 @@
 import express from 'express'
+
+// Handler global â€” impede que erros nao tratados do Baileys matem o processo
+process.on('uncaughtException', (err) => {
+  console.error('[PROCESSO] Erro nao tratado (mantendo servidor no ar):', err.message)
+})
+process.on('unhandledRejection', (reason) => {
+  console.error('[PROCESSO] Promise rejeitada nao tratada (mantendo servidor no ar):', reason?.message ?? reason)
+})
 import cors from 'cors'
 import admin from 'firebase-admin'
 import { createRequire } from 'module'
