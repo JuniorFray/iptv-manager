@@ -34,7 +34,7 @@ export default function createWarezRouter(enviarMensagemRenovacao) {
     return wpToken
   }
 
-  const wpFetch = async (path, method = 'GET', body = null) => {
+  const wpFetch = async (path, method = 'GET', body = null, retry = true) => {
     const token = await getWpToken()
     const res   = await fetch(`https://mcapi.knewcms.com:2087${path}`, {
       method,
@@ -46,7 +46,17 @@ export default function createWarezRouter(enviarMensagemRenovacao) {
       },
       body: body ? JSON.stringify(body) : null
     })
-    return res.json()
+
+    if (res.status === 401 && retry) {
+      console.log('[Warez] Token expirado (401), renovando e tentando novamente...')
+      wpToken = null
+      wpTokenExp = 0
+      return wpFetch(path, method, body, false)
+    }
+
+    const text = await res.text()
+    console.log('[Warez] ' + method + ' ' + path.substring(0, 60) + ' -> ' + res.status)
+    try { return JSON.parse(text) } catch { return { raw: text.substring(0, 200) } }
   }
 
   // ---- Rotas WWPanel ----
