@@ -98,7 +98,7 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
 
   router.post('/pagamento/webhook', async (req, res) => {
     try {
-      console.log('[WEBHOOK] Recebido:', JSON.stringify(req.body).substring(0, 300))
+      console.log('[WEBHOOK] Recebido:', req.body ? JSON.stringify(req.body).substring(0, 300) : '(body vazio)')
       const { type, data } = req.body
       if (type !== 'payment' || !data?.id) {
         console.log('[WEBHOOK] Ignorado: type=' + type + ' data.id=' + data?.id)
