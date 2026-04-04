@@ -220,7 +220,28 @@ export default function createWarezRouter(enviarMensagemRenovacao) {
       }
 
       console.log(`[Warez] buscar-linha NÃO encontrado para "${username}"`)
-      res.status(404).json({ ok: false, error: `Usuário "${username}" não encontrado no painel Warez.` })
+      // Fallback 1: buscar com username direto
+      console.log('[Warez] buscar-linha fallback username= para ' + username)
+      const byUser = await wpFetch('/lines?page=1&quantityPerPage=100&username=' + encodeURIComponent(username))
+      const byUserItems = byUser?.items ?? (Array.isArray(byUser) ? byUser : [])
+      const linhaByUser = byUserItems.find(l => String(l.username) === username)
+      if (linhaByUser) {
+        console.log('[Warez] buscar-linha encontrado via username=: id=' + linhaByUser.id)
+        return res.json({ ok: true, id: linhaByUser.id, username: linhaByUser.username, isTrial: false })
+      }
+
+      // Fallback 2: buscar com search=
+      console.log('[Warez] buscar-linha fallback search= para ' + username)
+      const bySearch2 = await wpFetch('/lines?page=1&quantityPerPage=100&search=' + encodeURIComponent(username))
+      const bySearch2Items = bySearch2?.items ?? (Array.isArray(bySearch2) ? bySearch2 : [])
+      const linhaBySearch2 = bySearch2Items.find(l => String(l.username) === username)
+      if (linhaBySearch2) {
+        console.log('[Warez] buscar-linha encontrado via search=: id=' + linhaBySearch2.id)
+        return res.json({ ok: true, id: linhaBySearch2.id, username: linhaBySearch2.username, isTrial: false })
+      }
+
+      console.log('[Warez] buscar-linha NAO encontrado para ' + username)
+      res.status(404).json({ ok: false, error: 'Usuario ' + username + ' nao encontrado no painel Warez.' })
     } catch (err) { res.status(500).json({ ok: false, error: err.message }) }
   })
 
