@@ -174,12 +174,6 @@ export default function createWarezRouter(enviarMensagemRenovacao) {
           vencimento = d.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })
         }
       }
-      if (enviarMensagemRenovacao && telefone) {
-        console.log(`[Warez] Chamando enviarMensagemRenovacao para ${telefone} nome=${nome}`)
-        await enviarMensagemRenovacao(telefone, { nome, usuario, senha, vencimento })
-      } else {
-        console.log(`[Warez] enviarMensagemRenovacao NÃO chamada: telefone=${telefone} fn=${!!enviarMensagemRenovacao}`)
-      }
       res.json(data)
     } catch (err) { res.status(500).json({ error: err.message }) }
   })
