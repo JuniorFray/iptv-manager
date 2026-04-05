@@ -338,6 +338,13 @@ export default function createWhatsAppRouter(db, admin) {
         const ref  = docSnap.ref
         await ref.update({ status: 'enviando' })
         try {
+          // Verifica se ja foi enviado antes de tentar (evita duplicata no reprocessamento)
+          if (item.clienteId && item.gatilho && await jaEnviouHoje(item.clienteId, item.gatilho)) {
+            await ref.update({ status: 'enviado', enviadoEm: admin.firestore.FieldValue.serverTimestamp(), erro: null })
+            console.log('Duplicata detectada na fila, ignorando: ' + item.clienteNome + ' ' + item.gatilho)
+            await sleep(500)
+            continue
+          }
           const numero = normalizarTelefone(item.telefone)
           if (item.midiaUrl && item.midiaTipo) {
             // Envia com mídia
