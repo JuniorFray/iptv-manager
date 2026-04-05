@@ -196,9 +196,6 @@ export default function createEliteRouter(enviarMensagemRenovacao) {
         const d = new Date(data.new_end_time)
         vencimento = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`
       }
-      if (enviarMensagemRenovacao && telefone) {
-        enviarMensagemRenovacao(telefone, { nome, usuario, senha, vencimento })
-      }
       console.log('[Elite] vencimento extraido: ' + vencimento)
       res.json({ ...data, vencimento })
     } catch (err) {
