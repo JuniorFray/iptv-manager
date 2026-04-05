@@ -179,7 +179,7 @@ export default function createEliteRouter(enviarMensagemRenovacao) {
 
   router.post('/elite/renovar', async (req, res) => {
     try {
-      const { id, tipo, meses = 1, nome, telefone, usuario, senha } = req.body
+      const { id, tipo, meses = 1, nome, telefone, usuario, senha, skipWA } = req.body
       if (!id || !tipo) return res.status(400).json({ error: 'id e tipo sao obrigatorios' })
       const t    = tipo.toLowerCase() === 'p2p' ? 'p2p' : 'iptv'
       const n    = Number(meses)
@@ -195,6 +195,9 @@ export default function createEliteRouter(enviarMensagemRenovacao) {
       } else if (data?.new_end_time) {
         const d = new Date(data.new_end_time)
         vencimento = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`
+      }
+      if (enviarMensagemRenovacao && telefone && !skipWA) {
+        try { await enviarMensagemRenovacao(telefone, { nome, usuario, senha, vencimento }) } catch (e) { console.error('[Elite] WA erro:', e.message) }
       }
       console.log('[Elite] vencimento extraido: ' + vencimento)
       res.json({ ...data, vencimento })
