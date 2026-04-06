@@ -42,32 +42,55 @@ export default function createEliteRouter(enviarMensagemRenovacao) {
 
   const resolverCaptchaElite = async () => {
     const FLARESOLVERR = 'http://flaresolverr.railway.internal:8080/v1'
-    const pageURL = 'https://adminx.offo.dad/login'
+    const LOGIN_URL = 'https://adminx.offo.dad/login'
 
-    console.log('[Elite] Resolvendo Cloudflare via FlareSolverr...')
+    // Step 1: GET login page via FlareSolverr
+    console.log('[Elite] FlareSolverr GET /login...')
+    const r1 = await fetch(FLARESOLVERR, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cmd: 'request.get', url: LOGIN_URL, maxTimeout: 60000 })
+    })
+    const d1 = await r1.json()
+    console.log('[Elite] FlareSolverr GET:', d1.status, 'http:', d1.solution?.status)
+    if (d1.status !== 'ok') throw new Error('[FlareSolverr] GET falhou: ' + d1.message)
 
-    const res = await fetch(FLARESOLVERR, {
+    const html1 = d1.solution?.response || ''
+    const cookieArr1 = d1.solution?.cookies || []
+    const ua = d1.solution?.userAgent || 'Mozilla/5.0'
+
+    const fmMatch = html1.match(/name="_token"\s+value="([^"]+)"/) ?? html1.match(/value="([^"]+)"\s+name="_token"/)
+    if (!fmMatch?.[1]) throw new Error('[Elite] _token nao encontrado via FlareSolverr')
+    const formToken = fmMatch[1]
+    console.log('[Elite] _token:', formToken.substring(0, 20) + '...')
+
+    // Step 2: POST login via FlareSolverr
+    console.log('[Elite] FlareSolverr POST /login...')
+    const postData = '_token=' + encodeURIComponent(formToken) +
+      '&timezone=America%2FSao_Paulo' +
+      '&email=' + encodeURIComponent(process.env.ELITEUSER) +
+      '&password=' + encodeURIComponent(process.env.ELITEPASS) +
+      '&remember=on'
+
+    const r2 = await fetch(FLARESOLVERR, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        cmd: 'request.get',
-        url: pageURL,
+        cmd: 'request.post',
+        url: LOGIN_URL,
+        postData,
         maxTimeout: 60000,
+        cookies: cookieArr1,
       })
     })
+    const d2 = await r2.json()
+    console.log('[Elite] FlareSolverr POST:', d2.status, 'http:', d2.solution?.status)
+    if (d2.status !== 'ok') throw new Error('[FlareSolverr] POST falhou: ' + d2.message)
 
-    const data = await res.json()
-    console.log('[Elite] FlareSolverr status:', data.status, 'solution status:', data.solution?.status)
-
-    if (data.status !== 'ok') throw new Error('[FlareSolverr] Erro: ' + data.message)
-
-    // Extract cookies as object
-    const cookieArr = data.solution?.cookies || []
+    const cookieArr2 = d2.solution?.cookies || []
     const cookies = {}
-    for (const c of cookieArr) cookies[c.name] = c.value
-    const ua = data.solution?.userAgent || ''
-
-    console.log('[Elite] FlareSolverr resolvido! cookies:', Object.keys(cookies).join(', '))
+    for (const c of [...cookieArr1, ...cookieArr2]) cookies[c.name] = c.value
+    console.log('[Elite] Login via FlareSolverr OK! cookies:', Object.keys(cookies).join(', '))
     return { cookies, ua }
   }
 
