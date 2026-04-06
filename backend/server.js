@@ -16,6 +16,7 @@ import createWarezRouter    from './routes/warez.js'
 import createEliteRouter    from './routes/elite.js'
 import createCentralRouter  from './routes/central.js'
 import createPagamentoRouter from './routes/pagamento.js'
+import createStatusRouter    from './routes/status.js'
 
 const require = createRequire(import.meta.url)
 const serviceAccount = JSON.parse(process.env.SERVICEACCOUNTKEY)
@@ -28,7 +29,7 @@ app.use(cors())
 app.use(express.json({ type: ['application/json', 'text/plain', '*/*'] }))
 
 // ---- Routers ----
-const { router: whatsappRouter, inicializar: inicializarWA, enviarMensagemRenovacao } = createWhatsAppRouter(db, admin)
+const { router: whatsappRouter, inicializar: inicializarWA, enviarMensagemRenovacao, getSock, isReady } = createWhatsAppRouter(db, admin)
 const { router: warezRouter }   = createWarezRouter(enviarMensagemRenovacao)
 const { router: eliteRouter }   = createEliteRouter(enviarMensagemRenovacao)
 const { router: centralRouter }   = createCentralRouter(db, admin, enviarMensagemRenovacao)
@@ -39,6 +40,8 @@ app.use('/', warezRouter)
 app.use('/', eliteRouter)
 app.use('/', centralRouter)
 app.use('/', pagamentoRouter)
+const { router: statusRouter } = createStatusRouter(db, admin, getSock, isReady)
+app.use('/', statusRouter)
 
 // Inicializar WhatsApp (conexão + cron)
 inicializarWA()

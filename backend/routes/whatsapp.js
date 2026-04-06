@@ -792,5 +792,5 @@ export default function createWhatsAppRouter(db, admin) {
     }
   })
 
-  return { router, inicializar, enviarMensagemRenovacao }
+  return { router, inicializar, enviarMensagemRenovacao, getSock: () => sock, isReady: () => clientReady }
 }
