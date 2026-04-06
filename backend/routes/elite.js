@@ -41,7 +41,7 @@ export default function createEliteRouter(enviarMensagemRenovacao) {
   }
 
   const resolverCaptchaElite = async () => {
-    const FLARESOLVERR = 'http://flaresolverr.railway.internal:8191/v1'
+    const FLARESOLVERR = 'http://flaresolverr.railway.internal:8080/v1'
     const pageURL = 'https://adminx.offo.dad/login'
 
     console.log('[Elite] Resolvendo Cloudflare via FlareSolverr...')
