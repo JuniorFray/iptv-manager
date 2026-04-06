@@ -992,76 +992,6 @@ export default function Notificacoes() {
               </div>
             )
           )}
-
-          {/* STATUS WHATSAPP */}
-          {aba === 'status' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              <div className="glass-card" style={{ padding: '24px' }}>
-                <h3 style={{ color: 'white', margin: '0 0 20px', fontSize: '16px', fontWeight: '600' }}>
-                  📡 Agendar Postagem no Status
-                </h3>
-                <div style={{ marginBottom: '14px' }}>
-                  <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', fontWeight: '600' }}>📎 Midia (opcional)</span>
-                  <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
-                    <button onClick={() => inputStatusRef.current?.click()} style={{ padding: '6px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', background: 'rgba(99,102,241,0.2)', border: '1px solid rgba(99,102,241,0.3)', color: '#a5b4fc' }}>Upload imagem/video</button>
-                    {statusMidiaUrl && <button onClick={() => { setStatusMidiaUrl(''); setStatusMidiaTipo('') }} style={{ padding: '6px 10px', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171' }}>Remover</button>}
-                  </div>
-                  <input ref={inputStatusRef} type="file" accept="image/*,video/mp4" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) uploadMidiaStatus(f); e.target.value = '' }} />
-                  {statusUploadProg >= 0 && <div style={{ marginTop: '8px', background: 'rgba(255,255,255,0.05)', borderRadius: '6px', overflow: 'hidden', height: '6px' }}><div style={{ height: '100%', background: '#6366f1', width: `${statusUploadProg}%`, transition: 'width 0.3s' }} /></div>}
-                  {statusMidiaUrl && statusMidiaTipo === 'imagem' && <img src={statusMidiaUrl} alt="preview" style={{ marginTop: '8px', maxHeight: '120px', borderRadius: '8px', objectFit: 'cover', display: 'block' }} />}
-                  {statusMidiaUrl && statusMidiaTipo === 'video' && <video src={statusMidiaUrl} style={{ marginTop: '8px', maxHeight: '120px', borderRadius: '8px', display: 'block' }} muted controls />}
-                </div>
-                <div style={{ marginBottom: '14px' }}>
-                  <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', fontWeight: '600' }}>Legenda / Texto</span>
-                  <textarea value={statusLegenda} onChange={e => setStatusLegenda(e.target.value)} placeholder="Digite o texto do status..." rows={3} style={{ width: '100%', marginTop: '6px', padding: '10px', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', fontSize: '13px', resize: 'vertical', boxSizing: 'border-box' }} />
-                </div>
-                <div style={{ marginBottom: '18px' }}>
-                  <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', fontWeight: '600' }}>Data e hora</span>
-                  <input type="datetime-local" value={statusAgendarPara} onChange={e => setStatusAgendarPara(e.target.value)} style={{ display: 'block', marginTop: '6px', padding: '8px 12px', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', fontSize: '13px', width: '100%', boxSizing: 'border-box' }} />
-                </div>
-                <button onClick={agendarStatus} disabled={statusEnviando || (!statusLegenda.trim() && !statusMidiaUrl)} style={{ width: '100%', padding: '13px', borderRadius: '12px', border: 'none', cursor: statusEnviando || (!statusLegenda.trim() && !statusMidiaUrl) ? 'not-allowed' : 'pointer', background: statusEnviando || (!statusLegenda.trim() && !statusMidiaUrl) ? 'rgba(255,255,255,0.08)' : 'linear-gradient(135deg,#6366f1,#8b5cf6)', color: 'white', fontWeight: 'bold', fontSize: '15px' }}>
-                  {statusEnviando ? 'Agendando...' : 'Agendar Postagem'}
-                </button>
-              </div>
-              <div className="glass-card" style={{ padding: '24px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                  <h3 style={{ color: 'white', margin: 0, fontSize: '16px', fontWeight: '600' }}>Postagens ({statusPostagens.length})</h3>
-                  <button onClick={carregarStatus} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.6)', borderRadius: '8px', padding: '6px 14px', cursor: 'pointer', fontSize: '13px' }}><RefreshCw size={13} /> Atualizar</button>
-                </div>
-                {statusPostagens.length === 0 ? (
-                  <p style={{ color: 'rgba(255,255,255,0.3)', textAlign: 'center', padding: '40px 0' }}>Nenhuma postagem agendada.</p>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    {statusPostagens.map((p: any) => (
-                      <div key={p.id} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', padding: '14px', display: 'flex', gap: '14px', alignItems: 'flex-start' }}>
-                        {p.midiaUrl && p.midiaTipo === 'imagem' && <img src={p.midiaUrl} alt="" style={{ width: '60px', height: '60px', borderRadius: '8px', objectFit: 'cover', flexShrink: 0 }} />}
-                        {p.midiaUrl && p.midiaTipo === 'video' && <video src={p.midiaUrl} style={{ width: '60px', height: '60px', borderRadius: '8px', flexShrink: 0 }} muted />}
-                        {!p.midiaUrl && <div style={{ width: '60px', height: '60px', borderRadius: '8px', background: 'rgba(99,102,241,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '24px' }}>TXT</div>}
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <p style={{ color: 'white', margin: '0 0 4px', fontSize: '13px', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{p.legenda || '(sem legenda)'}</p>
-                          <p style={{ color: 'rgba(255,255,255,0.4)', margin: '0 0 8px', fontSize: '11px' }}>{p.agendarPara ? new Date(p.agendarPara).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : '—'}</p>
-                          <span style={{ padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '600', background: p.status === 'publicado' ? 'rgba(34,197,94,0.15)' : p.status === 'erro' ? 'rgba(239,68,68,0.15)' : 'rgba(99,102,241,0.15)', color: p.status === 'publicado' ? '#4ade80' : p.status === 'erro' ? '#f87171' : '#a5b4fc', border: `1px solid ${p.status === 'publicado' ? 'rgba(34,197,94,0.3)' : p.status === 'erro' ? 'rgba(239,68,68,0.3)' : 'rgba(99,102,241,0.3)'}` }}>
-                            {p.status === 'publicado' ? 'Publicado' : p.status === 'erro' ? 'Erro' : 'Agendado'}
-                          </span>
-                          {p.erro && <p style={{ color: '#f87171', fontSize: '11px', margin: '4px 0 0' }}>{p.erro}</p>}
-                        </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flexShrink: 0 }}>
-                          {p.status === 'agendado' && <button onClick={() => publicarStatusAgora(p.id)} style={{ padding: '5px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.3)', color: '#4ade80', fontWeight: '600' }}>Publicar</button>}
-                          <button onClick={() => deletarStatus(p.id)} style={{ padding: '5px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171', fontWeight: '600' }}>Remover</button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Modal seleção mídia para regra */}
-
-
-
-          })}
           {modalMidiaRegra && (
             <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
               <div style={{ background: '#1a1a2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', padding: '24px', width: '100%', maxWidth: '700px', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
@@ -1193,6 +1123,69 @@ export default function Notificacoes() {
         </div>
       )}
 
+
+
+      {/* ---- ABA STATUS WHATSAPP ---- */}
+      {aba === 'status' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <div className="glass-card" style={{ padding: '24px' }}>
+            <h3 style={{ color: 'white', margin: '0 0 20px', fontSize: '16px', fontWeight: '600' }}>Agendar Postagem no Status</h3>
+            <div style={{ marginBottom: '14px' }}>
+              <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', fontWeight: '600' }}>Midia (opcional)</span>
+              <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+                <button onClick={() => inputStatusRef.current?.click()} style={{ padding: '6px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', background: 'rgba(99,102,241,0.2)', border: '1px solid rgba(99,102,241,0.3)', color: '#a5b4fc' }}>Upload imagem/video</button>
+                {statusMidiaUrl && <button onClick={() => { setStatusMidiaUrl(''); setStatusMidiaTipo('') }} style={{ padding: '6px 10px', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171' }}>Remover</button>}
+              </div>
+              <input ref={inputStatusRef} type="file" accept="image/*,video/mp4" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) uploadMidiaStatus(f); e.target.value = '' }} />
+              {statusUploadProg >= 0 && <div style={{ marginTop: '8px', background: 'rgba(255,255,255,0.05)', borderRadius: '6px', overflow: 'hidden', height: '6px' }}><div style={{ height: '100%', background: '#6366f1', width: `${statusUploadProg}%`, transition: 'width 0.3s' }} /></div>}
+              {statusMidiaUrl && statusMidiaTipo === 'imagem' && <img src={statusMidiaUrl} alt="preview" style={{ marginTop: '8px', maxHeight: '120px', borderRadius: '8px', objectFit: 'cover', display: 'block' }} />}
+              {statusMidiaUrl && statusMidiaTipo === 'video' && <video src={statusMidiaUrl} style={{ marginTop: '8px', maxHeight: '120px', borderRadius: '8px', display: 'block' }} muted controls />}
+            </div>
+            <div style={{ marginBottom: '14px' }}>
+              <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', fontWeight: '600' }}>Legenda / Texto</span>
+              <textarea value={statusLegenda} onChange={e => setStatusLegenda(e.target.value)} placeholder="Digite o texto do status..." rows={3} style={{ width: '100%', marginTop: '6px', padding: '10px', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', fontSize: '13px', resize: 'vertical', boxSizing: 'border-box' }} />
+            </div>
+            <div style={{ marginBottom: '18px' }}>
+              <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', fontWeight: '600' }}>Data e hora</span>
+              <input type="datetime-local" value={statusAgendarPara} onChange={e => setStatusAgendarPara(e.target.value)} style={{ display: 'block', marginTop: '6px', padding: '8px 12px', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', fontSize: '13px', width: '100%', boxSizing: 'border-box' }} />
+            </div>
+            <button onClick={agendarStatus} disabled={statusEnviando || (!statusLegenda.trim() && !statusMidiaUrl)} style={{ width: '100%', padding: '13px', borderRadius: '12px', border: 'none', cursor: statusEnviando || (!statusLegenda.trim() && !statusMidiaUrl) ? 'not-allowed' : 'pointer', background: statusEnviando || (!statusLegenda.trim() && !statusMidiaUrl) ? 'rgba(255,255,255,0.08)' : 'linear-gradient(135deg,#6366f1,#8b5cf6)', color: 'white', fontWeight: 'bold', fontSize: '15px' }}>
+              {statusEnviando ? 'Agendando...' : 'Agendar Postagem'}
+            </button>
+          </div>
+          <div className="glass-card" style={{ padding: '24px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h3 style={{ color: 'white', margin: 0, fontSize: '16px', fontWeight: '600' }}>Postagens ({statusPostagens.length})</h3>
+              <button onClick={carregarStatus} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.6)', borderRadius: '8px', padding: '6px 14px', cursor: 'pointer', fontSize: '13px' }}><RefreshCw size={13} /> Atualizar</button>
+            </div>
+            {statusPostagens.length === 0 ? (
+              <p style={{ color: 'rgba(255,255,255,0.3)', textAlign: 'center', padding: '40px 0' }}>Nenhuma postagem agendada.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {statusPostagens.map((p: any) => (
+                  <div key={p.id} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', padding: '14px', display: 'flex', gap: '14px', alignItems: 'flex-start' }}>
+                    {p.midiaUrl && p.midiaTipo === 'imagem' && <img src={p.midiaUrl} alt="" style={{ width: '60px', height: '60px', borderRadius: '8px', objectFit: 'cover', flexShrink: 0 }} />}
+                    {p.midiaUrl && p.midiaTipo === 'video' && <video src={p.midiaUrl} style={{ width: '60px', height: '60px', borderRadius: '8px', flexShrink: 0 }} muted />}
+                    {!p.midiaUrl && <div style={{ width: '60px', height: '60px', borderRadius: '8px', background: 'rgba(99,102,241,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '20px' }}>TXT</div>}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ color: 'white', margin: '0 0 4px', fontSize: '13px', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{p.legenda || '(sem legenda)'}</p>
+                      <p style={{ color: 'rgba(255,255,255,0.4)', margin: '0 0 8px', fontSize: '11px' }}>{p.agendarPara ? new Date(p.agendarPara).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : '—'}</p>
+                      <span style={{ padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '600', background: p.status === 'publicado' ? 'rgba(34,197,94,0.15)' : p.status === 'erro' ? 'rgba(239,68,68,0.15)' : 'rgba(99,102,241,0.15)', color: p.status === 'publicado' ? '#4ade80' : p.status === 'erro' ? '#f87171' : '#a5b4fc', border: "1px solid " + (p.status === 'publicado' ? 'rgba(34,197,94,0.3)' : p.status === 'erro' ? 'rgba(239,68,68,0.3)' : 'rgba(99,102,241,0.3)') }}>
+                        {p.status === 'publicado' ? 'Publicado' : p.status === 'erro' ? 'Erro' : 'Agendado'}
+                      </span>
+                      {p.erro && <p style={{ color: '#f87171', fontSize: '11px', margin: '4px 0 0' }}>{p.erro}</p>}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flexShrink: 0 }}>
+                      {p.status === 'agendado' && <button onClick={() => publicarStatusAgora(p.id)} style={{ padding: '5px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.3)', color: '#4ade80', fontWeight: '600' }}>Publicar</button>}
+                      <button onClick={() => deletarStatus(p.id)} style={{ padding: '5px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171', fontWeight: '600' }}>Remover</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ── ABA MÍDIAS ── */}
       {aba === 'midias' && (
