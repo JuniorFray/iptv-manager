@@ -56,15 +56,35 @@ export default function createStatusRouter(db, admin, getSock, isReady) {
     const sock = getSock()
     if (!sock || !isReady()) throw new Error('WhatsApp nao conectado')
     const jid = 'status@broadcast'
+
+    // Busca lista de contatos para statusJidList
+    let statusJidList = []
+    try {
+      const contacts = await sock.fetchStatus ? [] : []
+      // Usa contacts do store se disponivel
+      const store = sock.store || {}
+      const keys = Object.keys(store.contacts || {})
+      statusJidList = keys.filter(k => k.endsWith('@s.whatsapp.net'))
+      if (statusJidList.length === 0) {
+        // Fallback: busca chats recentes
+        const chats = Object.keys(store.chats || {}).filter(k => k.endsWith('@s.whatsapp.net'))
+        statusJidList = chats
+      }
+    } catch (e) {
+      console.log('[STATUS] Nao foi possivel obter contatos:', e.message)
+    }
+
+    const opts = statusJidList.length > 0 ? { statusJidList } : {}
+
     if (data.midiaUrl && data.midiaTipo === 'imagem') {
-      await sock.sendMessage(jid, { image: { url: data.midiaUrl }, caption: data.legenda || '' })
+      await sock.sendMessage(jid, { image: { url: data.midiaUrl }, caption: data.legenda || '' }, opts)
     } else if (data.midiaUrl && data.midiaTipo === 'video') {
-      await sock.sendMessage(jid, { video: { url: data.midiaUrl }, caption: data.legenda || '' })
+      await sock.sendMessage(jid, { video: { url: data.midiaUrl }, caption: data.legenda || '' }, opts)
     } else {
-      await sock.sendMessage(jid, { text: data.legenda || '' })
+      await sock.sendMessage(jid, { text: data.legenda || '' }, opts)
     }
     await ref.update({ status: 'publicado', publicadoEm: admin.firestore.FieldValue.serverTimestamp(), erro: null })
-    console.log('[STATUS] Postagem publicada: ' + ref.id)
+    console.log('[STATUS] Postagem publicada: ' + ref.id + ' para ' + statusJidList.length + ' contatos')
   }
 
   cron.schedule('* * * * *', async () => {
