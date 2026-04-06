@@ -90,98 +90,79 @@ export default function createEliteRouter(enviarMensagemRenovacao) {
     const cookieArr2 = d2.solution?.cookies || []
     const cookies = {}
     for (const c of [...cookieArr1, ...cookieArr2]) cookies[c.name] = c.value
+    const html = d2.solution?.response || ''
     console.log('[Elite] Login via FlareSolverr OK! cookies:', Object.keys(cookies).join(', '))
-    return { cookies, ua }
+    return { cookies, ua, html }
   }
 
   const _doLogin = async () => {
-    console.log('🔐 [Elite] Iniciando login...')
+    console.log('[Elite] Iniciando login via FlareSolverr...')
+    const FLARESOLVERR = 'http://flaresolverr.railway.internal:8080/v1'
 
-    // Resolve Cloudflare primeiro
-    let cfCookies = {}
-    let cfUA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
-    try {
-      const sol = await resolverCaptchaElite()
-      cfCookies = sol.cookies || {}
-      savedCfCookies = cfCookies
-      if (sol.ua) cfUA = sol.ua
-    } catch (e) {
-      console.log('[Elite] CapSolver falhou, tentando sem:', e.message)
-    }
-
-    const cfCookieHeader = Object.entries(cfCookies).map(([k,v]) => k + '=' + v).join('; ')
-
-    const s1 = await undiciRequest('https://adminx.offo.dad/login', {
-      method: 'GET',
-      headers: {
-        'User-Agent': cfUA,
-        'Cookie':     cfCookieHeader,
-      },
-      dispatcher: eliteProxy,
-      maxRedirections: 5,
-      headersTimeout: 30000,
-      bodyTimeout: 30000,
+    // Step 1: GET /login via FlareSolverr
+    const r1 = await fetch(FLARESOLVERR, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cmd: 'request.get', url: 'https://adminx.offo.dad/login', maxTimeout: 60000 })
     })
-    const html1 = await s1.body.text()
-    console.log('🔍 [Elite] GET /login status:', s1.statusCode)
-    console.log('🔍 [Elite] HTML preview:', html1.substring(0, 200).replace(/\n/g, ' '))
+    const d1 = await r1.json()
+    console.log('[Elite] FlareSolverr GET:', d1.status, 'http:', d1.solution?.status)
+    if (d1.status !== 'ok') throw new Error('[FlareSolverr] GET falhou: ' + d1.message)
 
-    if (s1.statusCode === 404 || html1.includes('MANUTENCAO') || html1.includes('manutenção') || html1.includes('manutencao')) {
-      throw new Error('[Elite] Servidor em manutenção. Tente novamente mais tarde.')
-    }
-    if (s1.statusCode !== 200) {
-      throw new Error(`[Elite] GET /login retornou status ${s1.statusCode}`)
-    }
+    const html1 = d1.solution?.response || ''
+    const cookieArr1 = d1.solution?.cookies || []
+    const cfUA = d1.solution?.userAgent || 'Mozilla/5.0'
 
     const fmMatch = html1.match(/name="_token"\s+value="([^"]+)"/) ?? html1.match(/value="([^"]+)"\s+name="_token"/)
-    if (!fmMatch?.[1]) {
-      console.error('❌ [Elite] HTML (500 chars):', html1.substring(0, 500))
-      throw new Error('[Elite] _token nao encontrado no formulario de login')
-    }
+    if (!fmMatch?.[1]) throw new Error('[Elite] _token nao encontrado')
     const formToken = fmMatch[1]
-    const c1 = parseCookies(toArray(s1.headers['set-cookie']))
+    console.log('[Elite] _token:', formToken.substring(0, 20) + '...')
 
-    const s2 = await undiciRequest('https://adminx.offo.dad/login', {
+    // Step 2: POST /login via FlareSolverr
+    const postData = '_token=' + encodeURIComponent(formToken) +
+      '&timezone=America%2FSao_Paulo' +
+      '&email=' + encodeURIComponent(process.env.ELITEUSER) +
+      '&password=' + encodeURIComponent(process.env.ELITEPASS) +
+      '&remember=on'
+
+    const r2 = await fetch(FLARESOLVERR, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Cookie':       buildCookieHeader({...cfCookies, ...c1}),
-        'User-Agent':   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36',
-        'Origin':       'https://adminx.offo.dad',
-        'Referer':      'https://adminx.offo.dad/login',
-        'Accept':       'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      },
-      body: new URLSearchParams({
-        _token: formToken, timezone: 'America/Sao_Paulo',
-        email: process.env.ELITEUSER, password: process.env.ELITEPASS, remember: 'on',
-      }).toString(),
-      dispatcher: eliteProxy,
-      maxRedirections: 0,
-      headersTimeout: 30000,
-      bodyTimeout: 30000,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cmd: 'request.post', url: 'https://adminx.offo.dad/login', postData, maxTimeout: 60000, cookies: cookieArr1 })
     })
-    const s2body = await s2.body.text()
-    console.log('[Elite] POST /login status:', s2.statusCode, 'body preview:', s2body.substring(0, 150).replace(/\n/g, ' '))
-    if (s2.statusCode !== 302 && s2.statusCode !== 200) throw new Error(`[Elite] Login falhou (${s2.statusCode})`)
-    const c2 = { ...c1, ...parseCookies(toArray(s2.headers['set-cookie'])) }
+    const d2 = await r2.json()
+    console.log('[Elite] FlareSolverr POST:', d2.status, 'http:', d2.solution?.status)
+    if (d2.status !== 'ok') throw new Error('[FlareSolverr] POST falhou: ' + d2.message)
 
-    const s3 = await undiciRequest('https://adminx.offo.dad/dashboard', {
-      method: 'GET',
-      headers: {
-        'Cookie':     buildCookieHeader(c2),
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36',
-      },
-      dispatcher: eliteProxy,
-      headersTimeout: 30000,
-      bodyTimeout: 30000,
+    const cookieArr2 = d2.solution?.cookies || []
+    const allCookieArr = [...cookieArr1, ...cookieArr2]
+    const cfCookies = {}
+    for (const c of allCookieArr) cfCookies[c.name] = c.value
+    savedCfCookies = cfCookies
+    console.log('[Elite] Cookies apos login:', Object.keys(cfCookies).join(', '))
+
+    // Step 3: GET /dashboard via FlareSolverr para pegar csrf-token
+    const r3 = await fetch(FLARESOLVERR, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cmd: 'request.get', url: 'https://adminx.offo.dad/dashboard', maxTimeout: 60000, cookies: allCookieArr })
     })
-    const html3 = await s3.body.text()
+    const d3 = await r3.json()
+    console.log('[Elite] FlareSolverr dashboard:', d3.status, 'http:', d3.solution?.status)
+    if (d3.status !== 'ok') throw new Error('[FlareSolverr] dashboard falhou: ' + d3.message)
+
+    const html3 = d3.solution?.response || ''
     const mm = html3.match(/<meta\s+name="csrf-token"\s+content="([^"]+)"/)
     if (!mm?.[1]) throw new Error('[Elite] csrf-token nao encontrado no dashboard')
     csrfToken = mm[1]
-    cookieJar = { ...savedCfCookies, ...c2, ...parseCookies(toArray(s3.headers['set-cookie'])) }
-    console.log('🔑 [Elite] csrf-token:', csrfToken.substring(0, 20) + '...')
-    console.log('🍪 [Elite] Cookies:', Object.keys(cookieJar).join(', '))
+
+    const cookieArr3 = d3.solution?.cookies || []
+    const allFinal = {}
+    for (const c of [...allCookieArr, ...cookieArr3]) allFinal[c.name] = c.value
+    cookieJar = allFinal
+
+    console.log('[Elite] csrf-token:', csrfToken.substring(0, 20) + '...')
+    console.log('[Elite] Cookies finais:', Object.keys(cookieJar).join(', '))
   }
 
   const eliteFetch = async (path, method = 'GET', body = null, retry = true) => {
