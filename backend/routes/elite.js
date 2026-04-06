@@ -39,14 +39,83 @@ export default function createEliteRouter(enviarMensagemRenovacao) {
     return loginPromise
   }
 
+  const resolverCaptchaElite = async () => {
+    const apiKey  = process.env.CAPSOLVER_KEY
+    const pageURL = 'https://adminx.offo.dad/login'
+
+    // Parse proxy
+    const proxyUrl = process.env.PROXY_URL || ''
+    let proxyHost = '', proxyPort = '', proxyUser = '', proxyPass = ''
+    if (proxyUrl) {
+      const m = proxyUrl.match(/http:\/\/([^:]+):([^@]+)@([^:]+):([0-9]+)/)
+      if (m) { proxyUser = m[1]; proxyPass = m[2]; proxyHost = m[3]; proxyPort = m[4] }
+    }
+
+    console.log('[Elite] Resolvendo Cloudflare via CapSolver...')
+
+    const taskBody = {
+      clientKey: apiKey,
+      task: {
+        type:        'AntiCloudflareTask',
+        websiteURL:  pageURL,
+        proxy:       proxyHost ? proxyUser + ':' + proxyPass + '@' + proxyHost + ':' + proxyPort : undefined,
+      }
+    }
+
+    const createRes = await fetch('https://api.capsolver.com/createTask', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(taskBody)
+    })
+    const createData = await createRes.json()
+    console.log('[CapSolver] Elite create:', JSON.stringify(createData))
+    if (createData.errorId) throw new Error('[CapSolver] Erro: ' + createData.errorDescription)
+
+    const taskId = createData.taskId
+    for (let i = 0; i < 30; i++) {
+      await new Promise(r => setTimeout(r, 5000))
+      const resultRes = await fetch('https://api.capsolver.com/getTaskResult', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientKey: apiKey, taskId })
+      })
+      const result = await resultRes.json()
+      console.log('[CapSolver] Elite status (' + ((i+1)*5) + 's):', result.status)
+      if (result.status === 'ready') {
+        const cookies = result.solution?.cookies
+        const ua      = result.solution?.userAgent
+        console.log('[Elite] Cloudflare resolvido! cookies:', JSON.stringify(cookies))
+        return { cookies, ua }
+      }
+      if (result.status === 'failed') throw new Error('[CapSolver] Elite falhou: ' + result.errorDescription)
+    }
+    throw new Error('[Elite] CapSolver timeout')
+  }
+
   const _doLogin = async () => {
     console.log('🔐 [Elite] Iniciando login...')
 
+    // Resolve Cloudflare primeiro
+    let cfCookies = {}
+    let cfUA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+    try {
+      const sol = await resolverCaptchaElite()
+      cfCookies = sol.cookies || {}
+      if (sol.ua) cfUA = sol.ua
+    } catch (e) {
+      console.log('[Elite] CapSolver falhou, tentando sem:', e.message)
+    }
+
+    const cfCookieHeader = Object.entries(cfCookies).map(([k,v]) => k + '=' + v).join('; ')
+
     const s1 = await undiciRequest('https://adminx.offo.dad/login', {
       method: 'GET',
-      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36' },
+      headers: {
+        'User-Agent': cfUA,
+        'Cookie':     cfCookieHeader,
+      },
       dispatcher: eliteProxy,
-      maxRedirections: 0,
+      maxRedirections: 5,
       headersTimeout: 30000,
       bodyTimeout: 30000,
     })
@@ -73,7 +142,7 @@ export default function createEliteRouter(enviarMensagemRenovacao) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
-        'Cookie':       buildCookieHeader(c1),
+        'Cookie':       buildCookieHeader({...cfCookies, ...c1}),
         'User-Agent':   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36',
         'Origin':       'https://adminx.offo.dad',
         'Referer':      'https://adminx.offo.dad/login',
