@@ -114,10 +114,18 @@ export default function Notificacoes() {
   const [modoEnvioRenovacao, setModoEnvioRenovacao] = useState<'junto' | 'separado'>('junto')
   const [modalMidiaRenovacao, setModalMidiaRenovacao] = useState(false)
   const [whatsReady, setWhatsReady]       = useState(false)
+  const [statusPostagens, setStatusPostagens] = useState<any[]>([])
+  const [statusLegenda, setStatusLegenda]     = useState('')
+  const [statusMidiaUrl, setStatusMidiaUrl]   = useState('')
+  const [statusMidiaTipo, setStatusMidiaTipo] = useState<'imagem' | 'video' | ''>('')
+  const [statusAgendarPara, setStatusAgendarPara] = useState('')
+  const [statusEnviando, setStatusEnviando]   = useState(false)
+  const [statusUploadProg, setStatusUploadProg] = useState(-1)
+  const inputStatusRef = useRef<HTMLInputElement>(null)
   const [qrCode, setQrCode]               = useState<string | null>(null)
   const [mostrarQR, setMostrarQR]         = useState(false)
   const [resultado, setResultado]         = useState<{ tipo: 'ok' | 'erro'; msg: string } | null>(null)
-  const [aba, setAba]                     = useState<'manual' | 'auto' | 'fila' | 'log' | 'midias'>('manual')
+  const [aba, setAba]                     = useState<'manual' | 'auto' | 'fila' | 'log' | 'midias' | 'status'>('manual')
   const [logs, setLogs]                   = useState<LogEntry[]>([])
   const [salvando, setSalvando]           = useState(false)
   const [saved, setSaved]                 = useState(false)
@@ -201,6 +209,71 @@ export default function Notificacoes() {
       console.error('Erro ao carregar mídias:', err)
     }
   }, [])
+
+  const carregarStatus = async () => {
+    try {
+      const res = await axios.get(`${API}/status/listar`)
+      setStatusPostagens(res.data.postagens || [])
+    } catch (err) { console.error('Erro ao carregar status:', err) }
+  }
+
+  const uploadMidiaStatus = async (file: File) => {
+    const maxSize = 50 * 1024 * 1024
+    if (file.size > maxSize) { alert('Arquivo muito grande. Max 50MB'); return }
+    const ext = file.name.split('.').pop()?.toLowerCase() || ''
+    const tipo = ['jpg','jpeg','png','gif','webp'].includes(ext) ? 'imagem' : 'video'
+    const path = `status/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
+    const { ref: refFn, uploadBytesResumable: ubr, getDownloadURL: gdurl } = await import('firebase/storage')
+    const { storage: st } = await import('../../firebase')
+    const storageRef = refFn(st, path)
+    const task = ubr(storageRef, file)
+    setStatusUploadProg(0)
+    task.on('state_changed',
+      snap => setStatusUploadProg(Math.round(snap.bytesTransferred / snap.totalBytes * 100)),
+      err => { console.error(err); setStatusUploadProg(-1) },
+      async () => {
+        const url = await gdurl(task.snapshot.ref)
+        setStatusMidiaUrl(url)
+        setStatusMidiaTipo(tipo)
+        setStatusUploadProg(-1)
+      }
+    )
+  }
+
+  const agendarStatus = async () => {
+    if (!statusAgendarPara && !statusLegenda && !statusMidiaUrl) return
+    if (!statusAgendarPara) { alert('Selecione data e hora'); return }
+    setStatusEnviando(true)
+    try {
+      await axios.post(`${API}/status/agendar`, {
+        legenda: statusLegenda,
+        midiaUrl: statusMidiaUrl || null,
+        midiaTipo: statusMidiaTipo || null,
+        agendarPara: new Date(statusAgendarPara).toISOString(),
+      })
+      setStatusLegenda('')
+      setStatusMidiaUrl('')
+      setStatusMidiaTipo('')
+      setStatusAgendarPara('')
+      await carregarStatus()
+    } catch (err) { console.error(err); alert('Erro ao agendar') }
+    setStatusEnviando(false)
+  }
+
+  const publicarStatusAgora = async (id: string) => {
+    try {
+      await axios.post(`${API}/status/publicar/${id}`)
+      await carregarStatus()
+    } catch (err: any) { alert('Erro: ' + (err.response?.data?.error || err.message)) }
+  }
+
+  const deletarStatus = async (id: string) => {
+    if (!confirm('Remover postagem?')) return
+    try {
+      await axios.delete(`${API}/status/${id}`)
+      await carregarStatus()
+    } catch (err) { console.error(err) }
+  }
 
   const uploadMidia = async (file: File) => {
     if (!file) return
@@ -597,8 +670,9 @@ export default function Notificacoes() {
           { key: 'fila',   label: 'Fila',             icon: <RefreshCw size={15} /> },
           { key: 'log',    label: 'Histórico',        icon: <Clock size={15} />    },
           { key: 'midias', label: 'Mídias',            icon: <Image size={15} />    },
+          { key: 'status', label: 'Status WA',          icon: <Play size={15} />     },
         ].map(a => (
-          <button key={a.key} onClick={() => { setAba(a.key as any); if (a.key === 'log') carregarLogs(); if (a.key === 'fila') carregarFila(); if (a.key === 'midias') carregarMidias(); if (a.key === 'auto') carregarTemplateRenovacao() }} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px', background: aba === a.key ? 'rgba(99,102,241,0.3)' : 'rgba(255,255,255,0.05)', border: aba === a.key ? '1px solid rgba(99,102,241,0.5)' : '1px solid rgba(255,255,255,0.1)', color: aba === a.key ? 'white' : 'rgba(255,255,255,0.5)' }}>
+          <button key={a.key} onClick={() => { setAba(a.key as any); if (a.key === 'log') carregarLogs(); if (a.key === 'fila') carregarFila(); if (a.key === 'midias') carregarMidias(); if (a.key === 'auto') carregarTemplateRenovacao(); if (a.key === 'status') carregarStatus() }} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px', background: aba === a.key ? 'rgba(99,102,241,0.3)' : 'rgba(255,255,255,0.05)', border: aba === a.key ? '1px solid rgba(99,102,241,0.5)' : '1px solid rgba(255,255,255,0.1)', color: aba === a.key ? 'white' : 'rgba(255,255,255,0.5)' }}>
             {a.icon}{a.label}
           </button>
         ))}
