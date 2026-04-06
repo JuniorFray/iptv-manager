@@ -41,56 +41,34 @@ export default function createEliteRouter(enviarMensagemRenovacao) {
   }
 
   const resolverCaptchaElite = async () => {
-    const apiKey  = process.env.CAPSOLVER_KEY
+    const FLARESOLVERR = 'http://flaresolverr.railway.internal:8191/v1'
     const pageURL = 'https://adminx.offo.dad/login'
 
-    // Parse proxy
-    const proxyUrl = process.env.PROXY_URL || ''
-    let proxyHost = '', proxyPort = '', proxyUser = '', proxyPass = ''
-    if (proxyUrl) {
-      const m = proxyUrl.match(/http:\/\/([^:]+):([^@]+)@([^:]+):([0-9]+)/)
-      if (m) { proxyUser = m[1]; proxyPass = m[2]; proxyHost = m[3]; proxyPort = m[4] }
-    }
+    console.log('[Elite] Resolvendo Cloudflare via FlareSolverr...')
 
-    console.log('[Elite] Resolvendo Cloudflare via CapSolver...')
-
-    const taskBody = {
-      clientKey: apiKey,
-      task: {
-        type:        'AntiCloudflareTask',
-        websiteURL:  pageURL,
-        proxy:       proxyHost ? 'http://' + proxyUser + ':' + proxyPass + '@' + proxyHost + ':' + proxyPort : undefined,
-      }
-    }
-
-    const createRes = await fetch('https://api.capsolver.com/createTask', {
+    const res = await fetch(FLARESOLVERR, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(taskBody)
-    })
-    const createData = await createRes.json()
-    console.log('[CapSolver] Elite create:', JSON.stringify(createData))
-    if (createData.errorId) throw new Error('[CapSolver] Erro: ' + createData.errorDescription)
-
-    const taskId = createData.taskId
-    for (let i = 0; i < 30; i++) {
-      await new Promise(r => setTimeout(r, 5000))
-      const resultRes = await fetch('https://api.capsolver.com/getTaskResult', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientKey: apiKey, taskId })
+      body: JSON.stringify({
+        cmd: 'request.get',
+        url: pageURL,
+        maxTimeout: 60000,
       })
-      const result = await resultRes.json()
-      console.log('[CapSolver] Elite status (' + ((i+1)*5) + 's):', result.status)
-      if (result.status === 'ready') {
-        const cookies = result.solution?.cookies
-        const ua      = result.solution?.userAgent
-        console.log('[Elite] Cloudflare resolvido! cookies:', JSON.stringify(cookies))
-        return { cookies, ua }
-      }
-      if (result.status === 'failed') throw new Error('[CapSolver] Elite falhou: ' + result.errorDescription)
-    }
-    throw new Error('[Elite] CapSolver timeout')
+    })
+
+    const data = await res.json()
+    console.log('[Elite] FlareSolverr status:', data.status, 'solution status:', data.solution?.status)
+
+    if (data.status !== 'ok') throw new Error('[FlareSolverr] Erro: ' + data.message)
+
+    // Extract cookies as object
+    const cookieArr = data.solution?.cookies || []
+    const cookies = {}
+    for (const c of cookieArr) cookies[c.name] = c.value
+    const ua = data.solution?.userAgent || ''
+
+    console.log('[Elite] FlareSolverr resolvido! cookies:', Object.keys(cookies).join(', '))
+    return { cookies, ua }
   }
 
   const _doLogin = async () => {
