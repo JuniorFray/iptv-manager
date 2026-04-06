@@ -14,6 +14,7 @@ export default function createEliteRouter(enviarMensagemRenovacao) {
   let csrfToken   = null
   let cookieJar   = null
   let loginPromise = null
+  let savedCfCookies = {}
 
   const parseCookies = (arr) => {
     const obj = {}
@@ -101,6 +102,7 @@ export default function createEliteRouter(enviarMensagemRenovacao) {
     try {
       const sol = await resolverCaptchaElite()
       cfCookies = sol.cookies || {}
+      savedCfCookies = cfCookies
       if (sol.ua) cfUA = sol.ua
     } catch (e) {
       console.log('[Elite] CapSolver falhou, tentando sem:', e.message)
@@ -175,7 +177,7 @@ export default function createEliteRouter(enviarMensagemRenovacao) {
     const mm = html3.match(/<meta\s+name="csrf-token"\s+content="([^"]+)"/)
     if (!mm?.[1]) throw new Error('[Elite] csrf-token nao encontrado no dashboard')
     csrfToken = mm[1]
-    cookieJar = { ...c2, ...parseCookies(toArray(s3.headers['set-cookie'])) }
+    cookieJar = { ...savedCfCookies, ...c2, ...parseCookies(toArray(s3.headers['set-cookie'])) }
     console.log('🔑 [Elite] csrf-token:', csrfToken.substring(0, 20) + '...')
     console.log('🍪 [Elite] Cookies:', Object.keys(cookieJar).join(', '))
   }
