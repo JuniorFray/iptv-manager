@@ -76,7 +76,14 @@ export default function createStatusRouter(db, admin, getSock, isReady) {
         .limit(5).get()
       for (const docSnap of snap.docs) {
         try { await publicarStatus(docSnap.data(), docSnap.ref) }
-        catch (err) { await docSnap.ref.update({ status: 'erro', erro: err.message }) }
+        catch (err) {
+          if (err.message && err.message.includes('nao conectado')) {
+            console.log('[STATUS] WA desconectado, aguardando reconexao para publicar:', docSnap.id)
+          } else {
+            console.error('[STATUS] Erro ao publicar:', err.message)
+            await docSnap.ref.update({ status: 'erro', erro: err.message })
+          }
+        }
       }
     } catch (err) { console.error('[STATUS] Cron erro:', err.message) }
   }, { timezone: 'America/Sao_Paulo' })
