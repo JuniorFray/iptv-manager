@@ -59,7 +59,7 @@ export default function createEliteRouter(enviarMensagemRenovacao) {
       task: {
         type:        'AntiCloudflareTask',
         websiteURL:  pageURL,
-        proxy:       proxyHost ? proxyUser + ':' + proxyPass + '@' + proxyHost + ':' + proxyPort : undefined,
+        proxy:       proxyHost ? 'http://' + proxyUser + ':' + proxyPass + '@' + proxyHost + ':' + proxyPort : undefined,
       }
     }
 
