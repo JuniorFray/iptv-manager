@@ -52,26 +52,30 @@ export default function createStatusRouter(db, admin, getSock, isReady) {
     } catch (err) { res.status(500).json({ error: err.message }) }
   })
 
+  const normalizarJid = (tel) => {
+    let num = String(tel).replace(/\D/g, '')
+    if (!num.startsWith('55')) num = '55' + num
+    return num + '@s.whatsapp.net'
+  }
+
   const publicarStatus = async (data, ref) => {
     const sock = getSock()
     if (!sock || !isReady()) throw new Error('WhatsApp nao conectado')
     const jid = 'status@broadcast'
 
-    // Busca lista de contatos para statusJidList
+    // Busca contatos do Firestore (clientes)
     let statusJidList = []
     try {
-      const contacts = await sock.fetchStatus ? [] : []
-      // Usa contacts do store se disponivel
-      const store = sock.store || {}
-      const keys = Object.keys(store.contacts || {})
-      statusJidList = keys.filter(k => k.endsWith('@s.whatsapp.net'))
-      if (statusJidList.length === 0) {
-        // Fallback: busca chats recentes
-        const chats = Object.keys(store.chats || {}).filter(k => k.endsWith('@s.whatsapp.net'))
-        statusJidList = chats
-      }
+      const snap = await db.collection('clientes').where('telefone', '!=', '').get()
+      const jids = snap.docs
+        .map(d => d.data().telefone)
+        .filter(Boolean)
+        .map(normalizarJid)
+      // Remove duplicatas
+      statusJidList = [...new Set(jids)]
+      console.log('[STATUS] statusJidList com ' + statusJidList.length + ' contatos do Firestore')
     } catch (e) {
-      console.log('[STATUS] Nao foi possivel obter contatos:', e.message)
+      console.log('[STATUS] Erro ao buscar contatos:', e.message)
     }
 
     const opts = statusJidList.length > 0 ? { statusJidList } : {}
