@@ -196,8 +196,7 @@ export default function createEliteRouter(enviarMensagemRenovacao) {
 
     const text = flareData.solution?.response || ''
     const statusCode = flareData.solution?.status || 200
-    console.log('[Elite] ' + method + ' /' + path.substring(0,60) + ' -> ' + statusCode)
-    console.log(`📥 [Elite] ${method} /${path.substring(0,60)} → ${res.statusCode} | ${text.substring(0, 200)}`)
+    console.log('[Elite] ' + method + ' /' + path.substring(0,60) + ' -> ' + statusCode + ' | ' + text.substring(0, 100))
 
     if ((statusCode === 401 || statusCode === 419) && retry) {
       console.log('[Elite] Sessao expirada, refazendo login...')
