@@ -159,7 +159,8 @@ export default function createEliteRouter(enviarMensagemRenovacao) {
       headersTimeout: 30000,
       bodyTimeout: 30000,
     })
-    await s2.body.text()
+    const s2body = await s2.body.text()
+    console.log('[Elite] POST /login status:', s2.statusCode, 'body preview:', s2body.substring(0, 150).replace(/\n/g, ' '))
     if (s2.statusCode !== 302 && s2.statusCode !== 200) throw new Error(`[Elite] Login falhou (${s2.statusCode})`)
     const c2 = { ...c1, ...parseCookies(toArray(s2.headers['set-cookie'])) }
 
