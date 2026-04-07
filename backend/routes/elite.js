@@ -186,7 +186,7 @@ export default function createEliteRouter(enviarMensagemRenovacao) {
         'User-Agent':       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
       },
       body:           body ? JSON.stringify(body) : undefined,
-      dispatcher:     eliteProxy,
+      dispatcher:     undefined, // sem proxy - mesmo IP do Railway que FlareSolverr
       headersTimeout: 60000,
       bodyTimeout:    60000,
     })
