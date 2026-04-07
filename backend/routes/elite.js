@@ -206,7 +206,11 @@ export default function createEliteRouter(enviarMensagemRenovacao) {
 
   router.get('/elite/debug-api', async (req, res) => {
     try {
-      if (!csrfToken || !cookieJar) await eliteLogin()
+      // Forca re-login
+      csrfToken = null; cookieJar = null; flareSession = null
+      await eliteLogin()
+
+      // Testa API imediatamente apos login
       const cookieArr = Object.entries(cookieJar).map(([name, value]) => ({ name, value, domain: '.adminx.offo.dad', path: '/' }))
       const d = await fetch(FLARESOLVERR, {
         method: 'POST',
@@ -224,7 +228,7 @@ export default function createEliteRouter(enviarMensagemRenovacao) {
         })
       })
       const data = await d.json()
-      res.json({ status: data.status, httpStatus: data.solution?.status, cookies: cookieArr.map(c=>c.name), preview: (data.solution?.response || '').substring(0, 300) })
+      res.json({ httpStatus: data.solution?.status, isJSON: (data.solution?.response||'').startsWith('{') || (data.solution?.response||'').startsWith('['), preview: (data.solution?.response || '').substring(0, 300) })
     } catch(err) { res.status(500).json({ error: err.message }) }
   })
 
