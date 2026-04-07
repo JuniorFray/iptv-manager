@@ -206,15 +206,25 @@ export default function createEliteRouter(enviarMensagemRenovacao) {
 
   router.get('/elite/debug-api', async (req, res) => {
     try {
-      if (!csrfToken || !cookieJar || !flareSession) await eliteLogin()
-      const d = await flareRequest('request.get', 'https://adminx.offo.dad/dashboard/iptv?draw=1&start=0&length=5', {
-        headers: {
-          'Accept': 'application/json, text/javascript, */*; q=0.01',
-          'X-CSRF-TOKEN': csrfToken,
-          'X-Requested-With': 'XMLHttpRequest',
-        }
+      if (!csrfToken || !cookieJar) await eliteLogin()
+      const cookieArr = Object.entries(cookieJar).map(([name, value]) => ({ name, value, domain: '.adminx.offo.dad', path: '/' }))
+      const d = await fetch(FLARESOLVERR, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cmd: 'request.get',
+          url: 'https://adminx.offo.dad/dashboard/iptv?draw=1&start=0&length=5',
+          maxTimeout: 60000,
+          cookies: cookieArr,
+          headers: {
+            'Accept': 'application/json, text/javascript, */*; q=0.01',
+            'X-CSRF-TOKEN': csrfToken,
+            'X-Requested-With': 'XMLHttpRequest',
+          }
+        })
       })
-      res.json({ status: d.status, httpStatus: d.solution?.status, preview: (d.solution?.response || '').substring(0, 500) })
+      const data = await d.json()
+      res.json({ status: data.status, httpStatus: data.solution?.status, cookies: cookieArr.map(c=>c.name), preview: (data.solution?.response || '').substring(0, 300) })
     } catch(err) { res.status(500).json({ error: err.message }) }
   })
 
