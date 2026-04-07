@@ -11,10 +11,37 @@ export default function createEliteRouter(enviarMensagemRenovacao) {
   const IPTV_PARAMS = 'draw=1&columns%5B0%5D%5Bdata%5D=&columns%5B0%5D%5Bname%5D=&columns%5B0%5D%5Bsearchable%5D=false&columns%5B0%5D%5Borderable%5D=false&columns%5B0%5D%5Bsearch%5D%5Bvalue%5D=&columns%5B0%5D%5Bsearch%5D%5Bregex%5D=false&columns%5B1%5D%5Bdata%5D=id&columns%5B1%5D%5Bname%5D=&columns%5B1%5D%5Bsearchable%5D=true&columns%5B1%5D%5Borderable%5D=true&columns%5B1%5D%5Bsearch%5D%5Bvalue%5D=&columns%5B1%5D%5Bsearch%5D%5Bregex%5D=false&columns%5B2%5D%5Bdata%5D=&columns%5B2%5D%5Bname%5D=&columns%5B2%5D%5Bsearchable%5D=false&columns%5B2%5D%5Borderable%5D=false&columns%5B2%5D%5Bsearch%5D%5Bvalue%5D=&columns%5B2%5D%5Bsearch%5D%5Bregex%5D=false&columns%5B3%5D%5Bdata%5D=username&columns%5B3%5D%5Bname%5D=&columns%5B3%5D%5Bsearchable%5D=true&columns%5B3%5D%5Borderable%5D=true&columns%5B3%5D%5Bsearch%5D%5Bvalue%5D=&columns%5B3%5D%5Bsearch%5D%5Bregex%5D=false&columns%5B4%5D%5Bdata%5D=password&columns%5B4%5D%5Bname%5D=&columns%5B4%5D%5Bsearchable%5D=true&columns%5B4%5D%5Borderable%5D=true&columns%5B4%5D%5Bsearch%5D%5Bvalue%5D=&columns%5B4%5D%5Bsearch%5D%5Bregex%5D=false&columns%5B5%5D%5Bdata%5D=formatted_created_at&columns%5B5%5D%5Bname%5D=created_at&columns%5B5%5D%5Bsearchable%5D=false&columns%5B5%5D%5Borderable%5D=true&columns%5B5%5D%5Bsearch%5D%5Bvalue%5D=&columns%5B5%5D%5Bsearch%5D%5Bregex%5D=false&columns%5B6%5D%5Bdata%5D=formatted_exp_date&columns%5B6%5D%5Bname%5D=exp_date&columns%5B6%5D%5Bsearchable%5D=false&columns%5B6%5D%5Borderable%5D=true&columns%5B6%5D%5Bsearch%5D%5Bvalue%5D=&columns%5B6%5D%5Bsearch%5D%5Bregex%5D=false&columns%5B7%5D%5Bdata%5D=max_connections&columns%5B7%5D%5Bname%5D=&columns%5B7%5D%5Bsearchable%5D=true&columns%5B7%5D%5Borderable%5D=true&columns%5B7%5D%5Bsearch%5D%5Bvalue%5D=&columns%5B7%5D%5Bsearch%5D%5Bregex%5D=false&columns%5B8%5D%5Bdata%5D=owner_username&columns%5B8%5D%5Bname%5D=regUser.username&columns%5B8%5D%5Bsearchable%5D=true&columns%5B8%5D%5Borderable%5D=false&columns%5B8%5D%5Bsearch%5D%5Bvalue%5D=&columns%5B8%5D%5Bsearch%5D%5Bregex%5D=false&columns%5B9%5D%5Bdata%5D=reseller_notes&columns%5B9%5D%5Bname%5D=&columns%5B9%5D%5Bsearchable%5D=true&columns%5B9%5D%5Borderable%5D=true&columns%5B9%5D%5Bsearch%5D%5Bvalue%5D=&columns%5B9%5D%5Bsearch%5D%5Bregex%5D=false&columns%5B10%5D%5Bdata%5D=is_trial&columns%5B10%5D%5Bname%5D=&columns%5B10%5D%5Bsearchable%5D=true&columns%5B10%5D%5Borderable%5D=true&columns%5B10%5D%5Bsearch%5D%5Bvalue%5D=&columns%5B10%5D%5Bsearch%5D%5Bregex%5D=false&columns%5B11%5D%5Bdata%5D=enabled&columns%5B11%5D%5Bname%5D=&columns%5B11%5D%5Bsearchable%5D=true&columns%5B11%5D%5Borderable%5D=true&columns%5B11%5D%5Bsearch%5D%5Bvalue%5D=&columns%5B11%5D%5Bsearch%5D%5Bregex%5D=false&columns%5B12%5D%5Bdata%5D=&columns%5B12%5D%5Bname%5D=&columns%5B12%5D%5Bsearchable%5D=false&columns%5B12%5D%5Borderable%5D=false&columns%5B12%5D%5Bsearch%5D%5Bvalue%5D=&columns%5B12%5D%5Bsearch%5D%5Bregex%5D=false&order%5B0%5D%5Bcolumn%5D=1&order%5B0%5D%5Bdir%5D=desc&order%5B0%5D%5Bname%5D=&start=0&length=1000&search%5Bvalue%5D=&search%5Bregex%5D=false'
   const P2P_PARAMS  = 'draw=1&columns%5B0%5D%5Bdata%5D=id&columns%5B0%5D%5Bname%5D=&columns%5B0%5D%5Bsearchable%5D=false&columns%5B0%5D%5Borderable%5D=false&columns%5B0%5D%5Bsearch%5D%5Bvalue%5D=&columns%5B0%5D%5Bsearch%5D%5Bregex%5D=false&columns%5B1%5D%5Bdata%5D=id&columns%5B1%5D%5Bname%5D=&columns%5B1%5D%5Bsearchable%5D=true&columns%5B1%5D%5Borderable%5D=true&columns%5B1%5D%5Bsearch%5D%5Bvalue%5D=&columns%5B1%5D%5Bsearch%5D%5Bregex%5D=false&columns%5B2%5D%5Bdata%5D=&columns%5B2%5D%5Bname%5D=&columns%5B2%5D%5Bsearchable%5D=false&columns%5B2%5D%5Borderable%5D=false&columns%5B2%5D%5Bsearch%5D%5Bvalue%5D=&columns%5B2%5D%5Bsearch%5D%5Bregex%5D=false&columns%5B3%5D%5Bdata%5D=name&columns%5B3%5D%5Bname%5D=&columns%5B3%5D%5Bsearchable%5D=true&columns%5B3%5D%5Borderable%5D=true&columns%5B3%5D%5Bsearch%5D%5Bvalue%5D=&columns%5B3%5D%5Bsearch%5D%5Bregex%5D=false&columns%5B4%5D%5Bdata%5D=email&columns%5B4%5D%5Bname%5D=&columns%5B4%5D%5Bsearchable%5D=true&columns%5B4%5D%5Borderable%5D=true&columns%5B4%5D%5Bsearch%5D%5Bvalue%5D=&columns%5B4%5D%5Bsearch%5D%5Bregex%5D=false&columns%5B5%5D%5Bdata%5D=exField2&columns%5B5%5D%5Bname%5D=&columns%5B5%5D%5Bsearchable%5D=true&columns%5B5%5D%5Borderable%5D=true&columns%5B5%5D%5Bsearch%5D%5Bvalue%5D=&columns%5B5%5D%5Bsearch%5D%5Bregex%5D=false&columns%5B6%5D%5Bdata%5D=formatted_created_at&columns%5B6%5D%5Bname%5D=regTime&columns%5B6%5D%5Bsearchable%5D=false&columns%5B6%5D%5Borderable%5D=true&columns%5B6%5D%5Bsearch%5D%5Bvalue%5D=&columns%5B6%5D%5Bsearch%5D%5Bregex%5D=false&columns%5B7%5D%5Bdata%5D=formatted_exp_date&columns%5B7%5D%5Bname%5D=endTime&columns%5B7%5D%5Bsearchable%5D=false&columns%5B7%5D%5Borderable%5D=true&columns%5B7%5D%5Bsearch%5D%5Bvalue%5D=&columns%5B7%5D%5Bsearch%5D%5Bregex%5D=false&columns%5B8%5D%5Bdata%5D=owner_username&columns%5B8%5D%5Bname%5D=regUser.username&columns%5B8%5D%5Bsearchable%5D=true&columns%5B8%5D%5Borderable%5D=false&columns%5B8%5D%5Bsearch%5D%5Bvalue%5D=&columns%5B8%5D%5Bsearch%5D%5Bregex%5D=false&columns%5B9%5D%5Bdata%5D=exField4&columns%5B9%5D%5Bname%5D=&columns%5B9%5D%5Bsearchable%5D=true&columns%5B9%5D%5Borderable%5D=true&columns%5B9%5D%5Bsearch%5D%5Bvalue%5D=&columns%5B9%5D%5Bsearch%5D%5Bregex%5D=false&columns%5B10%5D%5Bdata%5D=type&columns%5B10%5D%5Bname%5D=&columns%5B10%5D%5Bsearchable%5D=true&columns%5B10%5D%5Borderable%5D=true&columns%5B10%5D%5Bsearch%5D%5Bvalue%5D=&columns%5B10%5D%5Bsearch%5D%5Bregex%5D=false&columns%5B11%5D%5Bdata%5D=status&columns%5B11%5D%5Bname%5D=&columns%5B11%5D%5Bsearchable%5D=true&columns%5B11%5D%5Borderable%5D=true&columns%5B11%5D%5Bsearch%5D%5Bvalue%5D=&columns%5B11%5D%5Bsearch%5D%5Bregex%5D=false&columns%5B12%5D%5Bdata%5D=action&columns%5B12%5D%5Bname%5D=&columns%5B12%5D%5Bsearchable%5D=false&columns%5B12%5D%5Borderable%5D=false&columns%5B12%5D%5Bsearch%5D%5Bvalue%5D=&columns%5B12%5D%5Bsearch%5D%5Bregex%5D=false&order%5B0%5D%5Bcolumn%5D=1&order%5B0%5D%5Bdir%5D=desc&order%5B0%5D%5Bname%5D=&start=0&length=1000&search%5Bvalue%5D=&search%5Bregex%5D=false'
 
-  let csrfToken   = null
-  let cookieJar   = null
+  let csrfToken    = null
+  let cookieJar    = null
   let loginPromise = null
   let savedCfCookies = {}
+  let flareSession = null
+  const FLARESOLVERR = 'http://flaresolverr.railway.internal:8080/v1'
+
+  const flareRequest = async (cmd, url, opts = {}) => {
+    const payload = { cmd, url, maxTimeout: 60000, ...opts }
+    if (flareSession) payload.session = flareSession
+    const r = await fetch(FLARESOLVERR, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+    const d = await r.json()
+    if (d.status !== 'ok') throw new Error('[FlareSolverr] ' + cmd + ' falhou: ' + d.message)
+    return d
+  }
+
+  const ensureFlareSession = async () => {
+    if (flareSession) return
+    const d = await fetch(FLARESOLVERR, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cmd: 'sessions.create' })
+    })
+    const data = await d.json()
+    flareSession = data.session
+    console.log('[Elite] FlareSolverr session criada:', flareSession)
+  }
 
   const parseCookies = (arr) => {
     const obj = {}
@@ -96,106 +123,85 @@ export default function createEliteRouter(enviarMensagemRenovacao) {
   }
 
   const _doLogin = async () => {
-    console.log('[Elite] Iniciando login via FlareSolverr...')
-    const FLARESOLVERR = 'http://flaresolverr.railway.internal:8080/v1'
+    console.log('[Elite] Iniciando login via FlareSolverr session...')
+    // Destroi sessao antiga e cria nova
+    if (flareSession) {
+      try {
+        await fetch(FLARESOLVERR, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cmd: 'sessions.destroy', session: flareSession }) })
+      } catch(e) {}
+      flareSession = null
+    }
+    await ensureFlareSession()
 
-    // Step 1: GET /login via FlareSolverr
-    const r1 = await fetch(FLARESOLVERR, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cmd: 'request.get', url: 'https://adminx.offo.dad/login', maxTimeout: 60000 })
-    })
-    const d1 = await r1.json()
+    // Step 1: GET /login
+    const d1 = await flareRequest('request.get', 'https://adminx.offo.dad/login')
     console.log('[Elite] FlareSolverr GET:', d1.status, 'http:', d1.solution?.status)
-    if (d1.status !== 'ok') throw new Error('[FlareSolverr] GET falhou: ' + d1.message)
-
     const html1 = d1.solution?.response || ''
-    const cookieArr1 = d1.solution?.cookies || []
-    const cfUA = d1.solution?.userAgent || 'Mozilla/5.0'
-
     const fmMatch = html1.match(/name="_token"\s+value="([^"]+)"/) ?? html1.match(/value="([^"]+)"\s+name="_token"/)
     if (!fmMatch?.[1]) throw new Error('[Elite] _token nao encontrado')
     const formToken = fmMatch[1]
     console.log('[Elite] _token:', formToken.substring(0, 20) + '...')
 
-    // Step 2: POST /login via FlareSolverr
+    // Step 2: POST /login
     const postData = '_token=' + encodeURIComponent(formToken) +
       '&timezone=America%2FSao_Paulo' +
       '&email=' + encodeURIComponent(process.env.ELITEUSER) +
       '&password=' + encodeURIComponent(process.env.ELITEPASS) +
       '&remember=on'
-
-    const r2 = await fetch(FLARESOLVERR, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cmd: 'request.post', url: 'https://adminx.offo.dad/login', postData, maxTimeout: 60000, cookies: cookieArr1 })
-    })
-    const d2 = await r2.json()
+    const d2 = await flareRequest('request.post', 'https://adminx.offo.dad/login', { postData })
     console.log('[Elite] FlareSolverr POST:', d2.status, 'http:', d2.solution?.status)
-    if (d2.status !== 'ok') throw new Error('[FlareSolverr] POST falhou: ' + d2.message)
 
-    const cookieArr2 = d2.solution?.cookies || []
-    const allCookieArr = [...cookieArr1, ...cookieArr2]
-    const cfCookies = {}
-    for (const c of allCookieArr) cfCookies[c.name] = c.value
-    savedCfCookies = cfCookies
-    console.log('[Elite] Cookies apos login:', Object.keys(cfCookies).join(', '))
-
-    // Step 3: GET /dashboard via FlareSolverr para pegar csrf-token
-    const r3 = await fetch(FLARESOLVERR, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cmd: 'request.get', url: 'https://adminx.offo.dad/dashboard', maxTimeout: 60000, cookies: allCookieArr })
-    })
-    const d3 = await r3.json()
+    // Step 3: GET /dashboard para csrf-token
+    const d3 = await flareRequest('request.get', 'https://adminx.offo.dad/dashboard')
     console.log('[Elite] FlareSolverr dashboard:', d3.status, 'http:', d3.solution?.status)
-    if (d3.status !== 'ok') throw new Error('[FlareSolverr] dashboard falhou: ' + d3.message)
-
     const html3 = d3.solution?.response || ''
     const mm = html3.match(/<meta\s+name="csrf-token"\s+content="([^"]+)"/)
     if (!mm?.[1]) throw new Error('[Elite] csrf-token nao encontrado no dashboard')
     csrfToken = mm[1]
 
-    const cookieArr3 = d3.solution?.cookies || []
-    const allFinal = {}
-    for (const c of [...allCookieArr, ...cookieArr3]) allFinal[c.name] = c.value
-    cookieJar = allFinal
+    // Salva cookies da sessao
+    const cookieArr = d3.solution?.cookies || []
+    cookieJar = {}
+    for (const c of cookieArr) cookieJar[c.name] = c.value
+    savedCfCookies = cookieJar
 
     console.log('[Elite] csrf-token:', csrfToken.substring(0, 20) + '...')
     console.log('[Elite] Cookies finais:', Object.keys(cookieJar).join(', '))
   }
 
   const eliteFetch = async (path, method = 'GET', body = null, retry = true) => {
-    if (!csrfToken || !cookieJar) await eliteLogin()
+    if (!csrfToken || !cookieJar || !flareSession) await eliteLogin()
 
-    // Usa undici diretamente com cookies do FlareSolverr (inclui cf_clearance)
-    const res = await undiciRequest('https://adminx.offo.dad/' + path, {
-      method,
+    // Usa FlareSolverr session - mesmo IP que fez o login
+    const cmd = method === 'GET' ? 'request.get' : 'request.post'
+    const opts = {
       headers: {
         'Accept':           'application/json, text/javascript, */*; q=0.01',
-        'Content-Type':     body ? 'application/json' : undefined,
-        'Cookie':           buildCookieHeader(cookieJar),
-        'Origin':           'https://adminx.offo.dad',
-        'Referer':          'https://adminx.offo.dad/dashboard',
         'X-CSRF-TOKEN':     csrfToken,
         'X-Requested-With': 'XMLHttpRequest',
-        'User-Agent':       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-      },
-      body:           body ? JSON.stringify(body) : undefined,
-      dispatcher:     eliteProxy,
-      headersTimeout: 60000,
-      bodyTimeout:    60000,
-    })
+        'Origin':           'https://adminx.offo.dad',
+        'Referer':          'https://adminx.offo.dad/dashboard',
+      }
+    }
+    if (body) opts.postData = JSON.stringify(body)
 
-    const text = await res.body.text()
-    console.log('[Elite] ' + method + ' /' + path.substring(0,60) + ' -> ' + res.statusCode + ' | ' + text.substring(0, 100))
+    let d
+    try {
+      d = await flareRequest(cmd, 'https://adminx.offo.dad/' + path, opts)
+    } catch(e) {
+      throw new Error('[Elite] FlareSolverr eliteFetch: ' + e.message)
+    }
 
-    if ((res.statusCode === 401 || res.statusCode === 419) && retry) {
+    const text = d.solution?.response || ''
+    const statusCode = d.solution?.status || 200
+    console.log('[Elite] ' + method + ' /' + path.substring(0,60) + ' -> ' + statusCode + ' | ' + text.substring(0, 80))
+
+    if ((statusCode === 401 || statusCode === 419) && retry) {
       console.log('[Elite] Sessao expirada, refazendo login...')
-      csrfToken = null; cookieJar = null
+      csrfToken = null; cookieJar = null; flareSession = null
       return eliteFetch(path, method, body, false)
     }
-    if (res.statusCode >= 400) throw new Error('[Elite] ' + method + ' /' + path.substring(0,60) + ' status ' + res.statusCode + ': ' + text.slice(0, 200))
+    if (statusCode >= 400) throw new Error('[Elite] ' + method + ' /' + path.substring(0,60) + ' status ' + statusCode + ': ' + text.slice(0, 200))
 
     try { return JSON.parse(text) } catch { return { raw: text.substring(0, 500) } }
   }
