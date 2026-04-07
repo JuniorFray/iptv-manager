@@ -170,11 +170,13 @@ export default function createEliteRouter(enviarMensagemRenovacao) {
   }
 
   const eliteFetch = async (path, method = 'GET', body = null, retry = true) => {
-    if (!csrfToken || !cookieJar || !flareSession) await eliteLogin()
+    if (!csrfToken || !cookieJar) await eliteLogin()
 
-    // Usa FlareSolverr session - mesmo IP que fez o login
+    // Passa cookies explicitamente no FlareSolverr para autenticar a requisicao
     const cmd = method === 'GET' ? 'request.get' : 'request.post'
+    const cookieArr = Object.entries(cookieJar).map(([name, value]) => ({ name, value, domain: 'adminx.offo.dad' }))
     const opts = {
+      cookies: cookieArr,
       headers: {
         'Accept':           'application/json, text/javascript, */*; q=0.01',
         'X-CSRF-TOKEN':     csrfToken,
@@ -185,12 +187,15 @@ export default function createEliteRouter(enviarMensagemRenovacao) {
     }
     if (body) opts.postData = JSON.stringify(body)
 
-    let d
-    try {
-      d = await flareRequest(cmd, 'https://adminx.offo.dad/' + path, opts)
-    } catch(e) {
-      throw new Error('[Elite] FlareSolverr eliteFetch: ' + e.message)
-    }
+    // Usa nova sessao por request para garantir cookies frescos
+    const payload = { cmd, url: 'https://adminx.offo.dad/' + path, maxTimeout: 60000, ...opts }
+    const r = await fetch(FLARESOLVERR, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+    const d = await r.json()
+    if (d.status !== 'ok') throw new Error('[FlareSolverr] eliteFetch falhou: ' + d.message)
 
     const text = d.solution?.response || ''
     const statusCode = d.solution?.status || 200
