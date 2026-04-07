@@ -168,42 +168,34 @@ export default function createEliteRouter(enviarMensagemRenovacao) {
   const eliteFetch = async (path, method = 'GET', body = null, retry = true) => {
     if (!csrfToken || !cookieJar) await eliteLogin()
 
-    const FLARESOLVERR = 'http://flaresolverr.railway.internal:8080/v1'
-    const cookieArr = Object.entries(cookieJar).map(([name, value]) => ({ name, value }))
-    const cmd = method === 'GET' ? 'request.get' : 'request.post'
-    const payload = {
-      cmd,
-      url: 'https://adminx.offo.dad/' + path,
-      maxTimeout: 60000,
-      cookies: cookieArr,
+    // Usa undici diretamente com cookies do FlareSolverr (inclui cf_clearance)
+    const res = await undiciRequest('https://adminx.offo.dad/' + path, {
+      method,
       headers: {
         'Accept':           'application/json, text/javascript, */*; q=0.01',
-        'X-CSRF-TOKEN':     csrfToken,
-        'X-Requested-With': 'XMLHttpRequest',
+        'Content-Type':     body ? 'application/json' : undefined,
+        'Cookie':           buildCookieHeader(cookieJar),
         'Origin':           'https://adminx.offo.dad',
         'Referer':          'https://adminx.offo.dad/dashboard',
-      }
-    }
-    if (body) payload.postData = JSON.stringify(body)
-
-    const flareRes = await fetch(FLARESOLVERR, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+        'X-CSRF-TOKEN':     csrfToken,
+        'X-Requested-With': 'XMLHttpRequest',
+        'User-Agent':       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      },
+      body:           body ? JSON.stringify(body) : undefined,
+      dispatcher:     eliteProxy,
+      headersTimeout: 60000,
+      bodyTimeout:    60000,
     })
-    const flareData = await flareRes.json()
-    if (flareData.status !== 'ok') throw new Error('[FlareSolverr] eliteFetch falhou: ' + flareData.message)
 
-    const text = flareData.solution?.response || ''
-    const statusCode = flareData.solution?.status || 200
-    console.log('[Elite] ' + method + ' /' + path.substring(0,60) + ' -> ' + statusCode + ' | ' + text.substring(0, 100))
+    const text = await res.body.text()
+    console.log('[Elite] ' + method + ' /' + path.substring(0,60) + ' -> ' + res.statusCode + ' | ' + text.substring(0, 100))
 
-    if ((statusCode === 401 || statusCode === 419) && retry) {
+    if ((res.statusCode === 401 || res.statusCode === 419) && retry) {
       console.log('[Elite] Sessao expirada, refazendo login...')
       csrfToken = null; cookieJar = null
       return eliteFetch(path, method, body, false)
     }
-    if (statusCode >= 400) throw new Error('[Elite] ' + method + ' /' + path.substring(0,60) + ' status ' + statusCode + ': ' + text.slice(0, 200))
+    if (res.statusCode >= 400) throw new Error('[Elite] ' + method + ' /' + path.substring(0,60) + ' status ' + res.statusCode + ': ' + text.slice(0, 200))
 
     try { return JSON.parse(text) } catch { return { raw: text.substring(0, 500) } }
   }
