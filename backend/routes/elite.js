@@ -175,30 +175,37 @@ export default function createEliteRouter(enviarMensagemRenovacao) {
   const eliteFetch = async (path, method = 'GET', body = null, retry = true) => {
     if (!csrfToken || !cookieJar) await eliteLogin()
 
-    // Usa FlareSolverr session - mesmo browser que fez o login mantém cookies
-    const cmd = method === 'GET' ? 'request.get' : 'request.post'
-    const reqOpts = {
+    // Usa undici sem proxy - mesmo IP do Railway que FlareSolverr (sem proxy agora)
+    const res = await undiciRequest('https://adminx.offo.dad/' + path, {
+      method,
       headers: {
         'Accept':           'application/json, text/javascript, */*; q=0.01',
-        'X-CSRF-TOKEN':     csrfToken,
-        'X-Requested-With': 'XMLHttpRequest',
+        'Content-Type':     body ? 'application/json' : undefined,
+        'Cookie':           buildCookieHeader(cookieJar),
         'Origin':           'https://adminx.offo.dad',
         'Referer':          'https://adminx.offo.dad/dashboard',
-      }
-    }
-    if (body) { reqOpts.postData = JSON.stringify(body); reqOpts.headers['Content-Type'] = 'application/json' }
+        'X-CSRF-TOKEN':     csrfToken,
+        'X-Requested-With': 'XMLHttpRequest',
+        'User-Agent':       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      },
+      body:           body ? JSON.stringify(body) : undefined,
+      headersTimeout: 60000,
+      bodyTimeout:    60000,
+    })
 
-    const d = await flareRequest(cmd, 'https://adminx.offo.dad/' + path, reqOpts)
-    const text = d.solution?.response || ''
-    const statusCode = d.solution?.status || 200
-    console.log('[Elite] ' + method + ' /' + path.substring(0,60) + ' -> ' + statusCode + ' | ' + text.substring(0, 80))
+    const text = await res.body.text()
+    console.log('[Elite] ' + method + ' /' + path.substring(0,60) + ' -> ' + res.statusCode + ' | ' + text.substring(0, 80))
 
-    if (text.includes('Logar no Sistema') && retry) {
-      console.log('[Elite] Sessao expirada, refazendo login...')
+    if (res.statusCode === 403 && retry) {
+      console.log('[Elite] 403 - refazendo login...')
       csrfToken = null; cookieJar = null; flareSession = null
       return eliteFetch(path, method, body, false)
     }
-    if (statusCode >= 400) throw new Error('[Elite] ' + method + ' /' + path.substring(0,60) + ' status ' + statusCode + ': ' + text.slice(0, 200))
+    if ((res.statusCode === 401 || res.statusCode === 419) && retry) {
+      csrfToken = null; cookieJar = null; flareSession = null
+      return eliteFetch(path, method, body, false)
+    }
+    if (res.statusCode >= 400) throw new Error('[Elite] ' + method + ' /' + path.substring(0,60) + ' status ' + res.statusCode + ': ' + text.slice(0, 200))
 
     try { return JSON.parse(text) } catch { return { raw: text.substring(0, 500) } }
   }
