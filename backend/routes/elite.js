@@ -142,13 +142,16 @@ export default function createEliteRouter(enviarMensagemRenovacao) {
     const formToken = fmMatch[1]
     console.log('[Elite] _token:', formToken.substring(0, 20) + '...')
 
-    // Step 2: POST /login
+    // Step 2: POST /login com Content-Type correto
     const postData = '_token=' + encodeURIComponent(formToken) +
       '&timezone=America%2FSao_Paulo' +
       '&email=' + encodeURIComponent(process.env.ELITEUSER) +
       '&password=' + encodeURIComponent(process.env.ELITEPASS) +
       '&remember=on'
-    const d2 = await flareRequest('request.post', 'https://adminx.offo.dad/login', { postData })
+    const d2 = await flareRequest('request.post', 'https://adminx.offo.dad/login', {
+      postData,
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Referer': 'https://adminx.offo.dad/login' }
+    })
     console.log('[Elite] FlareSolverr POST:', d2.status, 'http:', d2.solution?.status)
 
     // Step 3: GET /dashboard para csrf-token
@@ -172,34 +175,30 @@ export default function createEliteRouter(enviarMensagemRenovacao) {
   const eliteFetch = async (path, method = 'GET', body = null, retry = true) => {
     if (!csrfToken || !cookieJar) await eliteLogin()
 
-    // Usa undici com proxy residencial (mesmo IP que FlareSolverr usa agora)
-    const res = await undiciRequest('https://adminx.offo.dad/' + path, {
-      method,
+    // Usa FlareSolverr session - mesmo browser que fez o login mantém cookies
+    const cmd = method === 'GET' ? 'request.get' : 'request.post'
+    const reqOpts = {
       headers: {
         'Accept':           'application/json, text/javascript, */*; q=0.01',
-        'Content-Type':     body ? 'application/json' : undefined,
-        'Cookie':           buildCookieHeader(cookieJar),
-        'Origin':           'https://adminx.offo.dad',
-        'Referer':          'https://adminx.offo.dad/dashboard',
         'X-CSRF-TOKEN':     csrfToken,
         'X-Requested-With': 'XMLHttpRequest',
-        'User-Agent':       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-      },
-      body:           body ? JSON.stringify(body) : undefined,
-      dispatcher:     undefined, // sem proxy - mesmo IP do Railway que FlareSolverr
-      headersTimeout: 60000,
-      bodyTimeout:    60000,
-    })
+        'Origin':           'https://adminx.offo.dad',
+        'Referer':          'https://adminx.offo.dad/dashboard',
+      }
+    }
+    if (body) { reqOpts.postData = JSON.stringify(body); reqOpts.headers['Content-Type'] = 'application/json' }
 
-    const text = await res.body.text()
-    console.log('[Elite] ' + method + ' /' + path.substring(0,60) + ' -> ' + res.statusCode + ' | ' + text.substring(0, 80))
+    const d = await flareRequest(cmd, 'https://adminx.offo.dad/' + path, reqOpts)
+    const text = d.solution?.response || ''
+    const statusCode = d.solution?.status || 200
+    console.log('[Elite] ' + method + ' /' + path.substring(0,60) + ' -> ' + statusCode + ' | ' + text.substring(0, 80))
 
-    if ((res.statusCode === 401 || res.statusCode === 419) && retry) {
+    if (text.includes('Logar no Sistema') && retry) {
       console.log('[Elite] Sessao expirada, refazendo login...')
       csrfToken = null; cookieJar = null; flareSession = null
       return eliteFetch(path, method, body, false)
     }
-    if (res.statusCode >= 400) throw new Error('[Elite] ' + method + ' /' + path.substring(0,60) + ' status ' + res.statusCode + ': ' + text.slice(0, 200))
+    if (statusCode >= 400) throw new Error('[Elite] ' + method + ' /' + path.substring(0,60) + ' status ' + statusCode + ': ' + text.slice(0, 200))
 
     try { return JSON.parse(text) } catch { return { raw: text.substring(0, 500) } }
   }
