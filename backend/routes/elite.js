@@ -206,6 +206,20 @@ export default function createEliteRouter(enviarMensagemRenovacao) {
     try { return JSON.parse(text) } catch { return { raw: text.substring(0, 500) } }
   }
 
+  router.get('/elite/debug-api', async (req, res) => {
+    try {
+      if (!csrfToken || !cookieJar || !flareSession) await eliteLogin()
+      const d = await flareRequest('request.get', 'https://adminx.offo.dad/dashboard/iptv?draw=1&start=0&length=5', {
+        headers: {
+          'Accept': 'application/json, text/javascript, */*; q=0.01',
+          'X-CSRF-TOKEN': csrfToken,
+          'X-Requested-With': 'XMLHttpRequest',
+        }
+      })
+      res.json({ status: d.status, httpStatus: d.solution?.status, preview: (d.solution?.response || '').substring(0, 500) })
+    } catch(err) { res.status(500).json({ error: err.message }) }
+  })
+
   router.get('/elite/debug', async (req, res) => {
     try {
       await eliteLogin()
