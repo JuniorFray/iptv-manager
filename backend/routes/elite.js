@@ -1,6 +1,6 @@
 import express from 'express'
 import { ProxyAgent, request as undiciRequest } from 'undici'
-import { chromium } from 'playwright-core'
+import { chromium } from 'playwright'
 
 export default function createEliteRouter(enviarMensagemRenovacao) {
   const router = express.Router()
