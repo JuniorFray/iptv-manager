@@ -24,6 +24,69 @@ export default function createEliteRouter(enviarMensagemRenovacao) {
   let pwContext    = null
   let pwPage       = null
   const FLARESOLVERR = 'http://flaresolverr.railway.internal:8080/v1'
+  const WEBSHARE_URL = 'https://proxy.webshare.io/api/v2/proxy/list/download/blakoucfmitwitesafvofqkybjjceuryjvjsetry/-/any/username/direct/-/?plan_id=13126949'
+
+  let validProxies = []
+  let currentProxyIndex = 0
+
+  const buildProxyUrl = (p) => `http://${p.username}:${p.password}@${p.proxy_address}:${p.port}`
+
+  const testProxy = async (proxyUrl) => {
+    try {
+      const m = proxyUrl.match(/http:\/\/([^:]+):([^@]+)@([^:]+):([0-9]+)/)
+      if (!m) return false
+      const res = await undiciRequest('https://adminx.offo.dad/login', {
+        method: 'GET',
+        dispatcher: new ProxyAgent(proxyUrl),
+        headersTimeout: 10000,
+        bodyTimeout: 10000,
+      })
+      const text = await res.body.text()
+      return res.statusCode === 200 && !text.includes('Just a moment')
+    } catch(e) { return false }
+  }
+
+  const refreshProxyList = async () => {
+    try {
+      console.log('[Elite] Atualizando lista de proxies Webshare...')
+      const res = await undiciRequest(WEBSHARE_URL, { method: 'GET', headersTimeout: 15000, bodyTimeout: 15000 })
+      const text = await res.body.text()
+      const lines = text.trim().split('\n').filter(Boolean)
+      const proxies = lines.map(l => {
+        const [host, port, user, pass] = l.trim().split(':')
+        return { proxy_address: host, port, username: user, password: pass }
+      }).filter(p => p.proxy_address && p.port)
+
+      console.log(`[Elite] ${proxies.length} proxies encontrados, testando...`)
+      const valid = []
+      for (const p of proxies) {
+        const url = buildProxyUrl(p)
+        const ok = await testProxy(url)
+        if (ok) { valid.push(url); console.log(`[Elite] ✅ Proxy OK: ${p.proxy_address}:${p.port}`) }
+        else { console.log(`[Elite] ❌ Proxy bloqueado: ${p.proxy_address}:${p.port}`) }
+      }
+      if (valid.length > 0) {
+        validProxies = valid
+        currentProxyIndex = 0
+        console.log(`[Elite] ${valid.length} proxies válidos encontrados`)
+      } else {
+        console.log('[Elite] Nenhum proxy válido encontrado, mantendo lista anterior')
+      }
+    } catch(e) {
+      console.log('[Elite] Erro ao atualizar proxies:', e.message)
+    }
+  }
+
+  const getNextProxy = () => {
+    if (validProxies.length === 0) return process.env.ELITE_PROXY_URL || ''
+    const proxy = validProxies[currentProxyIndex % validProxies.length]
+    currentProxyIndex++
+    return proxy
+  }
+
+  // Atualiza proxies na inicializacao e a cada 6 horas
+  refreshProxyList()
+  setInterval(refreshProxyList, 6 * 60 * 60 * 1000)
 
   const flareRequest = async (cmd, url, opts = {}) => {
     const payload = { cmd, url, maxTimeout: 60000, ...opts }
@@ -68,6 +131,20 @@ export default function createEliteRouter(enviarMensagemRenovacao) {
 
   const toArray = (v) => (Array.isArray(v) ? v : v ? [v] : [])
 
+  // Health check a cada 5 minutos
+  setInterval(async () => {
+    if (!pwPage) return
+    try {
+      const url = pwPage.url()
+      if (!url.includes('adminx.offo.dad') || url.includes('/login')) {
+        console.log('[Elite] Health check: sessao expirada, resetando...')
+        csrfToken = null; cookieJar = null; pwPage = null
+      }
+    } catch(e) {
+      csrfToken = null; cookieJar = null; pwPage = null
+    }
+  }, 5 * 60 * 1000)
+
   const eliteLogin = async () => {
     if (loginPromise) return loginPromise
     loginPromise = _doLogin().finally(() => { loginPromise = null })
@@ -76,6 +153,69 @@ export default function createEliteRouter(enviarMensagemRenovacao) {
 
   const resolverCaptchaElite = async () => {
     const FLARESOLVERR = 'http://flaresolverr.railway.internal:8080/v1'
+  const WEBSHARE_URL = 'https://proxy.webshare.io/api/v2/proxy/list/download/blakoucfmitwitesafvofqkybjjceuryjvjsetry/-/any/username/direct/-/?plan_id=13126949'
+
+  let validProxies = []
+  let currentProxyIndex = 0
+
+  const buildProxyUrl = (p) => `http://${p.username}:${p.password}@${p.proxy_address}:${p.port}`
+
+  const testProxy = async (proxyUrl) => {
+    try {
+      const m = proxyUrl.match(/http:\/\/([^:]+):([^@]+)@([^:]+):([0-9]+)/)
+      if (!m) return false
+      const res = await undiciRequest('https://adminx.offo.dad/login', {
+        method: 'GET',
+        dispatcher: new ProxyAgent(proxyUrl),
+        headersTimeout: 10000,
+        bodyTimeout: 10000,
+      })
+      const text = await res.body.text()
+      return res.statusCode === 200 && !text.includes('Just a moment')
+    } catch(e) { return false }
+  }
+
+  const refreshProxyList = async () => {
+    try {
+      console.log('[Elite] Atualizando lista de proxies Webshare...')
+      const res = await undiciRequest(WEBSHARE_URL, { method: 'GET', headersTimeout: 15000, bodyTimeout: 15000 })
+      const text = await res.body.text()
+      const lines = text.trim().split('\n').filter(Boolean)
+      const proxies = lines.map(l => {
+        const [host, port, user, pass] = l.trim().split(':')
+        return { proxy_address: host, port, username: user, password: pass }
+      }).filter(p => p.proxy_address && p.port)
+
+      console.log(`[Elite] ${proxies.length} proxies encontrados, testando...`)
+      const valid = []
+      for (const p of proxies) {
+        const url = buildProxyUrl(p)
+        const ok = await testProxy(url)
+        if (ok) { valid.push(url); console.log(`[Elite] ✅ Proxy OK: ${p.proxy_address}:${p.port}`) }
+        else { console.log(`[Elite] ❌ Proxy bloqueado: ${p.proxy_address}:${p.port}`) }
+      }
+      if (valid.length > 0) {
+        validProxies = valid
+        currentProxyIndex = 0
+        console.log(`[Elite] ${valid.length} proxies válidos encontrados`)
+      } else {
+        console.log('[Elite] Nenhum proxy válido encontrado, mantendo lista anterior')
+      }
+    } catch(e) {
+      console.log('[Elite] Erro ao atualizar proxies:', e.message)
+    }
+  }
+
+  const getNextProxy = () => {
+    if (validProxies.length === 0) return process.env.ELITE_PROXY_URL || ''
+    const proxy = validProxies[currentProxyIndex % validProxies.length]
+    currentProxyIndex++
+    return proxy
+  }
+
+  // Atualiza proxies na inicializacao e a cada 6 horas
+  refreshProxyList()
+  setInterval(refreshProxyList, 6 * 60 * 60 * 1000)
     const LOGIN_URL = 'https://adminx.offo.dad/login'
 
     // Step 1: GET login page via FlareSolverr
@@ -135,8 +275,8 @@ export default function createEliteRouter(enviarMensagemRenovacao) {
     // Fecha browser anterior se existir
     if (pwBrowser) { try { await pwBrowser.close() } catch(e) {} pwBrowser = null; pwContext = null; pwPage = null }
 
-    // Usa proxy residencial - Railway IP de datacenter é bloqueado pelo Cloudflare
-    const eliteProxyUrl = process.env.ELITE_PROXY_URL || process.env.PROXY_URL || ''
+    // Usa proxy residencial válido da lista Webshare
+    const eliteProxyUrl = getNextProxy()
     let proxyOpts = undefined
     if (eliteProxyUrl) {
       const m = eliteProxyUrl.match(/http:\/\/([^:]+):([^@]+)@([^:]+):([0-9]+)/)
@@ -338,6 +478,69 @@ export default function createEliteRouter(enviarMensagemRenovacao) {
     try {
       if (!csrfToken || !cookieJar) await eliteLogin()
       const FLARESOLVERR = 'http://flaresolverr.railway.internal:8080/v1'
+  const WEBSHARE_URL = 'https://proxy.webshare.io/api/v2/proxy/list/download/blakoucfmitwitesafvofqkybjjceuryjvjsetry/-/any/username/direct/-/?plan_id=13126949'
+
+  let validProxies = []
+  let currentProxyIndex = 0
+
+  const buildProxyUrl = (p) => `http://${p.username}:${p.password}@${p.proxy_address}:${p.port}`
+
+  const testProxy = async (proxyUrl) => {
+    try {
+      const m = proxyUrl.match(/http:\/\/([^:]+):([^@]+)@([^:]+):([0-9]+)/)
+      if (!m) return false
+      const res = await undiciRequest('https://adminx.offo.dad/login', {
+        method: 'GET',
+        dispatcher: new ProxyAgent(proxyUrl),
+        headersTimeout: 10000,
+        bodyTimeout: 10000,
+      })
+      const text = await res.body.text()
+      return res.statusCode === 200 && !text.includes('Just a moment')
+    } catch(e) { return false }
+  }
+
+  const refreshProxyList = async () => {
+    try {
+      console.log('[Elite] Atualizando lista de proxies Webshare...')
+      const res = await undiciRequest(WEBSHARE_URL, { method: 'GET', headersTimeout: 15000, bodyTimeout: 15000 })
+      const text = await res.body.text()
+      const lines = text.trim().split('\n').filter(Boolean)
+      const proxies = lines.map(l => {
+        const [host, port, user, pass] = l.trim().split(':')
+        return { proxy_address: host, port, username: user, password: pass }
+      }).filter(p => p.proxy_address && p.port)
+
+      console.log(`[Elite] ${proxies.length} proxies encontrados, testando...`)
+      const valid = []
+      for (const p of proxies) {
+        const url = buildProxyUrl(p)
+        const ok = await testProxy(url)
+        if (ok) { valid.push(url); console.log(`[Elite] ✅ Proxy OK: ${p.proxy_address}:${p.port}`) }
+        else { console.log(`[Elite] ❌ Proxy bloqueado: ${p.proxy_address}:${p.port}`) }
+      }
+      if (valid.length > 0) {
+        validProxies = valid
+        currentProxyIndex = 0
+        console.log(`[Elite] ${valid.length} proxies válidos encontrados`)
+      } else {
+        console.log('[Elite] Nenhum proxy válido encontrado, mantendo lista anterior')
+      }
+    } catch(e) {
+      console.log('[Elite] Erro ao atualizar proxies:', e.message)
+    }
+  }
+
+  const getNextProxy = () => {
+    if (validProxies.length === 0) return process.env.ELITE_PROXY_URL || ''
+    const proxy = validProxies[currentProxyIndex % validProxies.length]
+    currentProxyIndex++
+    return proxy
+  }
+
+  // Atualiza proxies na inicializacao e a cada 6 horas
+  refreshProxyList()
+  setInterval(refreshProxyList, 6 * 60 * 60 * 1000)
       const cookieArr = Object.entries(cookieJar).map(([name, value]) => ({ name, value }))
       const r = await fetch(FLARESOLVERR, {
         method: 'POST',
