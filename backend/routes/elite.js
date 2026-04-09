@@ -135,21 +135,24 @@ export default function createEliteRouter(enviarMensagemRenovacao) {
     // Fecha browser anterior se existir
     if (pwBrowser) { try { await pwBrowser.close() } catch(e) {} pwBrowser = null; pwContext = null; pwPage = null }
 
-    const proxyUrl = process.env.PROXY_URL || ''
+    // Usa proxy residencial - Railway IP de datacenter é bloqueado pelo Cloudflare
+    const eliteProxyUrl = process.env.ELITE_PROXY_URL || process.env.PROXY_URL || ''
     let proxyOpts = undefined
-    if (proxyUrl) {
-      const m = proxyUrl.match(/http:\/\/([^:]+):([^@]+)@([^:]+):([0-9]+)/)
+    if (eliteProxyUrl) {
+      const m = eliteProxyUrl.match(/http:\/\/([^:]+):([^@]+)@([^:]+):([0-9]+)/)
       if (m) proxyOpts = { server: 'http://' + m[3] + ':' + m[4], username: m[1], password: m[2] }
+      console.log('[Elite] Usando proxy:', eliteProxyUrl.replace(/:[^:@]+@/, ':***@'))
     }
 
     pwBrowser = await chromium.launch({
       headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-blink-features=AutomationControlled'],
       proxy: proxyOpts,
     })
     pwContext = await pwBrowser.newContext({
       userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
       proxy: proxyOpts,
+      viewport: { width: 1280, height: 800 },
     })
     pwPage = await pwContext.newPage()
 
