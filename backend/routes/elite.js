@@ -163,12 +163,13 @@ export default function createEliteRouter(enviarMensagemRenovacao) {
         '&password=' + encodeURIComponent(process.env.ELITEPASS) +
         '&remember=on',
       dispatcher:     eliteProxy,
-      maxRedirections: 5,
+      maxRedirections: 0,
       headersTimeout: 30000,
       bodyTimeout:    30000,
     })
-    await s2.body.text()
-    console.log('[Elite] POST /login status:', s2.statusCode)
+    const s2body = await s2.body.text()
+    console.log('[Elite] POST /login status:', s2.statusCode, 'location:', s2.headers['location'] || 'none')
+    console.log('[Elite] POST cookies:', toArray(s2.headers['set-cookie']).join(' | ').substring(0, 200))
     const c2 = { ...cfCookies, ...parseCookies(toArray(s2.headers['set-cookie'])) }
 
     // Step 3: undici GET /dashboard para csrf-token
