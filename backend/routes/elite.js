@@ -152,13 +152,18 @@ export default function createEliteRouter(enviarMensagemRenovacao) {
 
     // Navega para login
     console.log('[Elite] Playwright navegando para /login...')
-    await pwPage.goto('https://adminx.offo.dad/login', { waitUntil: 'networkidle', timeout: 60000 })
+    await pwPage.goto('https://adminx.offo.dad/login', { waitUntil: 'domcontentloaded', timeout: 60000 })
+
+    // Aguarda Cloudflare resolver e formulario aparecer
+    console.log('[Elite] Aguardando formulario de login...')
+    await pwPage.waitForSelector('input[name="email"]', { timeout: 60000, state: 'visible' })
+    console.log('[Elite] Formulario visivel, URL:', pwPage.url())
 
     // Preenche formulario
     await pwPage.fill('input[name="email"]', process.env.ELITEUSER)
     await pwPage.fill('input[name="password"]', process.env.ELITEPASS)
     await pwPage.click('button[type="submit"]')
-    await pwPage.waitForURL('**/dashboard**', { timeout: 30000 })
+    await pwPage.waitForURL('**/dashboard**', { timeout: 60000 })
     console.log('[Elite] Playwright login OK, URL:', pwPage.url())
 
     // Pega csrf-token
