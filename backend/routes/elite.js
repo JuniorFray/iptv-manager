@@ -168,9 +168,17 @@ export default function createEliteRouter(enviarMensagemRenovacao) {
     // Preenche formulario
     await pwPage.fill('input[name="email"]', process.env.ELITEUSER)
     await pwPage.fill('input[name="password"]', process.env.ELITEPASS)
-    await pwPage.click('button[type="submit"]')
-    await pwPage.waitForURL('**/dashboard**', { timeout: 60000 })
-    console.log('[Elite] Playwright login OK, URL:', pwPage.url())
+    console.log('[Elite] Submetendo formulario...')
+    await Promise.all([
+      pwPage.waitForNavigation({ timeout: 60000 }),
+      pwPage.click('button[type="submit"]')
+    ])
+    console.log('[Elite] Apos submit, URL:', pwPage.url())
+    if (pwPage.url().includes('/login')) {
+      const err = await pwPage.$('.alert, .error, [class*="error"]')
+      const errText = err ? await err.innerText() : 'sem mensagem'
+      throw new Error('[Elite] Login falhou, ainda em /login: ' + errText)
+    }
 
     // Pega csrf-token
     const csrfMeta = await pwPage.$('meta[name="csrf-token"]')
