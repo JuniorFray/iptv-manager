@@ -379,7 +379,7 @@ export default function createEliteRouter(enviarMensagemRenovacao) {
         const p2pData = await eliteFetch(`dashboard/p2p?draw=1&start=${start}&length=100`)
         const items = p2pData?.data ?? []
         // CORRIGIDO: API P2P usa 'email' como campo de username
-        const found = items.find(l => (l.email ?? '') === username)
+        const found = items.find(l => (l.email ?? '') === username || (l.email ?? '').replace(/@.*/, '') === username)
         if (found) {
           console.log(`[Elite] buscar-linha encontrado P2P: id=${found.id} email=${found.email}`)
           return res.json({ ok: true, id: found.id, tipo: 'P2P', username })
