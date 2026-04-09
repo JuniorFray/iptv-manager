@@ -1,5 +1,6 @@
 import express from 'express'
 import { ProxyAgent, request as undiciRequest } from 'undici'
+import { chromium } from 'playwright-core'
 
 export default function createEliteRouter(enviarMensagemRenovacao) {
   const router = express.Router()
@@ -16,6 +17,9 @@ export default function createEliteRouter(enviarMensagemRenovacao) {
   let loginPromise = null
   let savedCfCookies = {}
   let flareSession = null
+  let pwBrowser    = null
+  let pwContext    = null
+  let pwPage       = null
   const FLARESOLVERR = 'http://flaresolverr.railway.internal:8080/v1'
 
   const flareRequest = async (cmd, url, opts = {}) => {
@@ -123,119 +127,103 @@ export default function createEliteRouter(enviarMensagemRenovacao) {
   }
 
   const _doLogin = async () => {
-    console.log('[Elite] Iniciando login...')
+    console.log('[Elite] Iniciando login via Playwright...')
 
-    // Step 1: FlareSolverr GET /login para obter cf_clearance + _token
-    console.log('[Elite] FlareSolverr GET /login para cf_clearance...')
-    const fr = await fetch(FLARESOLVERR, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cmd: 'request.get', url: 'https://adminx.offo.dad/login', maxTimeout: 60000 })
+    // Fecha browser anterior se existir
+    if (pwBrowser) { try { await pwBrowser.close() } catch(e) {} pwBrowser = null; pwContext = null; pwPage = null }
+
+    const proxyUrl = process.env.PROXY_URL || ''
+    let proxyOpts = undefined
+    if (proxyUrl) {
+      const m = proxyUrl.match(/http:\/\/([^:]+):([^@]+)@([^:]+):([0-9]+)/)
+      if (m) proxyOpts = { server: 'http://' + m[3] + ':' + m[4], username: m[1], password: m[2] }
+    }
+
+    pwBrowser = await chromium.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+      proxy: proxyOpts,
     })
-    const fd = await fr.json()
-    if (fd.status !== 'ok') throw new Error('[FlareSolverr] GET falhou: ' + fd.message)
-
-    const cfUA = fd.solution?.userAgent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-    const cfCookies = {}
-    for (const c of (fd.solution?.cookies || [])) cfCookies[c.name] = c.value
-    const html1 = fd.solution?.response || ''
-    console.log('[Elite] cf_clearance obtido, cookies:', Object.keys(cfCookies).join(', '))
-
-    const fmMatch = html1.match(/name="_token"\s+value="([^"]+)"/) ?? html1.match(/value="([^"]+)"\s+name="_token"/)
-    if (!fmMatch?.[1]) throw new Error('[Elite] _token nao encontrado')
-    const formToken = fmMatch[1]
-    console.log('[Elite] _token:', formToken.substring(0, 20) + '...')
-
-    // Step 2: undici POST /login com cf_clearance + mesmo proxy
-    const s2 = await undiciRequest('https://adminx.offo.dad/login', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Cookie':       buildCookieHeader(cfCookies),
-        'User-Agent':   cfUA,
-        'Origin':       'https://adminx.offo.dad',
-        'Referer':      'https://adminx.offo.dad/login',
-        'Accept':       'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      },
-      body: '_token=' + encodeURIComponent(formToken) +
-        '&timezone=America%2FSao_Paulo' +
-        '&email=' + encodeURIComponent(process.env.ELITEUSER) +
-        '&password=' + encodeURIComponent(process.env.ELITEPASS) +
-        '&remember=on',
-      dispatcher:     eliteProxy,
-      maxRedirections: 0,
-      headersTimeout: 30000,
-      bodyTimeout:    30000,
+    pwContext = await pwBrowser.newContext({
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      proxy: proxyOpts,
     })
-    const s2body = await s2.body.text()
-    console.log('[Elite] POST /login status:', s2.statusCode, 'location:', s2.headers['location'] || 'none')
-    console.log('[Elite] POST cookies:', toArray(s2.headers['set-cookie']).join(' | ').substring(0, 200))
-    const c2 = { ...cfCookies, ...parseCookies(toArray(s2.headers['set-cookie'])) }
+    pwPage = await pwContext.newPage()
 
-    // Step 3: undici GET /dashboard para csrf-token
-    const s3 = await undiciRequest('https://adminx.offo.dad/dashboard', {
-      method: 'GET',
-      headers: {
-        'Cookie':     buildCookieHeader(c2),
-        'User-Agent': cfUA,
-        'Accept':     'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      },
-      dispatcher:     eliteProxy,
-      headersTimeout: 30000,
-      bodyTimeout:    30000,
-    })
-    const html3 = await s3.body.text()
-    const c3 = { ...c2, ...parseCookies(toArray(s3.headers['set-cookie'])) }
-    console.log('[Elite] GET /dashboard status:', s3.statusCode)
+    // Navega para login
+    console.log('[Elite] Playwright navegando para /login...')
+    await pwPage.goto('https://adminx.offo.dad/login', { waitUntil: 'networkidle', timeout: 60000 })
 
-    const mm = html3.match(/<meta\s+name="csrf-token"\s+content="([^"]+)"/)
-    if (!mm?.[1]) throw new Error('[Elite] csrf-token nao encontrado no dashboard')
-    csrfToken = mm[1]
-    cookieJar = c3
-    savedCfCookies = c3
+    // Preenche formulario
+    await pwPage.fill('input[name="email"]', process.env.ELITEUSER)
+    await pwPage.fill('input[name="password"]', process.env.ELITEPASS)
+    await pwPage.click('button[type="submit"]')
+    await pwPage.waitForURL('**/dashboard**', { timeout: 30000 })
+    console.log('[Elite] Playwright login OK, URL:', pwPage.url())
+
+    // Pega csrf-token
+    const csrfMeta = await pwPage.$('meta[name="csrf-token"]')
+    csrfToken = csrfMeta ? await csrfMeta.getAttribute('content') : null
+    if (!csrfToken) throw new Error('[Elite] csrf-token nao encontrado')
+
+    // Pega cookies
+    const cookies = await pwContext.cookies()
+    cookieJar = {}
+    for (const c of cookies) cookieJar[c.name] = c.value
+    savedCfCookies = cookieJar
 
     console.log('[Elite] csrf-token:', csrfToken.substring(0, 20) + '...')
-    console.log('[Elite] Cookies finais:', Object.keys(cookieJar).join(', '))
+    console.log('[Elite] Cookies:', Object.keys(cookieJar).join(', '))
   }
 
+
   const eliteFetch = async (path, method = 'GET', body = null, retry = true) => {
-    if (!csrfToken || !cookieJar) await eliteLogin()
+    if (!csrfToken || !cookieJar || !pwPage) await eliteLogin()
 
-    // Usa undici com proxy - mesmo IP que FlareSolverr usou para obter cf_clearance
-    const res = await undiciRequest('https://adminx.offo.dad/' + path, {
-      method,
-      headers: {
-        'Accept':           'application/json, text/javascript, */*; q=0.01',
-        'Content-Type':     body ? 'application/json' : undefined,
-        'Cookie':           buildCookieHeader(cookieJar),
-        'Origin':           'https://adminx.offo.dad',
-        'Referer':          'https://adminx.offo.dad/dashboard',
-        'X-CSRF-TOKEN':     csrfToken,
-        'X-Requested-With': 'XMLHttpRequest',
-        'User-Agent':       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-      },
-      body:           body ? JSON.stringify(body) : undefined,
-      dispatcher:     eliteProxy,
-      headersTimeout: 60000,
-      bodyTimeout:    60000,
-    })
+    // Usa Playwright page para fazer fetch no contexto do browser (mesmo IP/TLS/fingerprint)
+    let result
+    try {
+      result = await pwPage.evaluate(async ({ path, method, body, csrfToken }) => {
+        const opts = {
+          method,
+          headers: {
+            'Accept': 'application/json, text/javascript, */*; q=0.01',
+            'X-CSRF-TOKEN': csrfToken,
+            'X-Requested-With': 'XMLHttpRequest',
+            'Origin': 'https://adminx.offo.dad',
+            'Referer': 'https://adminx.offo.dad/dashboard',
+          }
+        }
+        if (body) {
+          opts.headers['Content-Type'] = 'application/json'
+          opts.body = JSON.stringify(body)
+        }
+        const r = await fetch('https://adminx.offo.dad/' + path, opts)
+        const text = await r.text()
+        return { status: r.status, text }
+      }, { path, method, body, csrfToken })
+    } catch(e) {
+      if (retry) {
+        console.log('[Elite] Playwright evaluate erro, refazendo login:', e.message)
+        csrfToken = null; cookieJar = null; pwPage = null
+        return eliteFetch(path, method, body, false)
+      }
+      throw e
+    }
 
-    const text = await res.body.text()
-    console.log('[Elite] ' + method + ' /' + path.substring(0,60) + ' -> ' + res.statusCode + ' | ' + text.substring(0, 80))
+    const { status: statusCode, text } = result
+    console.log('[Elite] ' + method + ' /' + path.substring(0,60) + ' -> ' + statusCode + ' | ' + text.substring(0, 80))
 
-    if (res.statusCode === 403 && retry) {
-      console.log('[Elite] 403 - refazendo login...')
-      csrfToken = null; cookieJar = null; flareSession = null
+    if ((statusCode === 401 || statusCode === 419 || text.includes('Logar no Sistema')) && retry) {
+      console.log('[Elite] Sessao expirada, refazendo login...')
+      csrfToken = null; cookieJar = null; pwPage = null
       return eliteFetch(path, method, body, false)
     }
-    if ((res.statusCode === 401 || res.statusCode === 419) && retry) {
-      csrfToken = null; cookieJar = null; flareSession = null
-      return eliteFetch(path, method, body, false)
-    }
-    if (res.statusCode >= 400) throw new Error('[Elite] ' + method + ' /' + path.substring(0,60) + ' status ' + res.statusCode + ': ' + text.slice(0, 200))
+    if (statusCode >= 400) throw new Error('[Elite] ' + method + ' /' + path.substring(0,60) + ' status ' + statusCode + ': ' + text.slice(0, 200))
 
     try { return JSON.parse(text) } catch { return { raw: text.substring(0, 500) } }
   }
+
 
   router.get('/elite/debug-api', async (req, res) => {
     try {
