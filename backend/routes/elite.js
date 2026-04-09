@@ -1,6 +1,9 @@
 import express from 'express'
 import { ProxyAgent, request as undiciRequest } from 'undici'
-import { chromium } from 'playwright'
+import { chromium as chromiumBase } from 'playwright'
+import { chromium } from 'playwright-extra'
+import StealthPlugin from 'puppeteer-extra-plugin-stealth'
+chromium.use(StealthPlugin())
 
 export default function createEliteRouter(enviarMensagemRenovacao) {
   const router = express.Router()
