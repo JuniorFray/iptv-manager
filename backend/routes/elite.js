@@ -123,50 +123,75 @@ export default function createEliteRouter(enviarMensagemRenovacao) {
   }
 
   const _doLogin = async () => {
-    console.log('[Elite] Iniciando login via FlareSolverr session...')
-    // Destroi sessao antiga e cria nova
-    if (flareSession) {
-      try {
-        await fetch(FLARESOLVERR, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cmd: 'sessions.destroy', session: flareSession }) })
-      } catch(e) {}
-      flareSession = null
-    }
-    await ensureFlareSession()
+    console.log('[Elite] Iniciando login...')
 
-    // Step 1: GET /login
-    const d1 = await flareRequest('request.get', 'https://adminx.offo.dad/login')
-    console.log('[Elite] FlareSolverr GET:', d1.status, 'http:', d1.solution?.status)
-    const html1 = d1.solution?.response || ''
+    // Step 1: FlareSolverr GET /login para obter cf_clearance + _token
+    console.log('[Elite] FlareSolverr GET /login para cf_clearance...')
+    const fr = await fetch(FLARESOLVERR, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cmd: 'request.get', url: 'https://adminx.offo.dad/login', maxTimeout: 60000 })
+    })
+    const fd = await fr.json()
+    if (fd.status !== 'ok') throw new Error('[FlareSolverr] GET falhou: ' + fd.message)
+
+    const cfUA = fd.solution?.userAgent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+    const cfCookies = {}
+    for (const c of (fd.solution?.cookies || [])) cfCookies[c.name] = c.value
+    const html1 = fd.solution?.response || ''
+    console.log('[Elite] cf_clearance obtido, cookies:', Object.keys(cfCookies).join(', '))
+
     const fmMatch = html1.match(/name="_token"\s+value="([^"]+)"/) ?? html1.match(/value="([^"]+)"\s+name="_token"/)
     if (!fmMatch?.[1]) throw new Error('[Elite] _token nao encontrado')
     const formToken = fmMatch[1]
     console.log('[Elite] _token:', formToken.substring(0, 20) + '...')
 
-    // Step 2: POST /login com Content-Type correto
-    const postData = '_token=' + encodeURIComponent(formToken) +
-      '&timezone=America%2FSao_Paulo' +
-      '&email=' + encodeURIComponent(process.env.ELITEUSER) +
-      '&password=' + encodeURIComponent(process.env.ELITEPASS) +
-      '&remember=on'
-    const d2 = await flareRequest('request.post', 'https://adminx.offo.dad/login', {
-      postData,
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Referer': 'https://adminx.offo.dad/login' }
+    // Step 2: undici POST /login com cf_clearance + mesmo proxy
+    const s2 = await undiciRequest('https://adminx.offo.dad/login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Cookie':       buildCookieHeader(cfCookies),
+        'User-Agent':   cfUA,
+        'Origin':       'https://adminx.offo.dad',
+        'Referer':      'https://adminx.offo.dad/login',
+        'Accept':       'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      },
+      body: '_token=' + encodeURIComponent(formToken) +
+        '&timezone=America%2FSao_Paulo' +
+        '&email=' + encodeURIComponent(process.env.ELITEUSER) +
+        '&password=' + encodeURIComponent(process.env.ELITEPASS) +
+        '&remember=on',
+      dispatcher:     eliteProxy,
+      maxRedirections: 5,
+      headersTimeout: 30000,
+      bodyTimeout:    30000,
     })
-    console.log('[Elite] FlareSolverr POST:', d2.status, 'http:', d2.solution?.status)
+    await s2.body.text()
+    console.log('[Elite] POST /login status:', s2.statusCode)
+    const c2 = { ...cfCookies, ...parseCookies(toArray(s2.headers['set-cookie'])) }
 
-    // Step 3: GET /dashboard para csrf-token
-    const d3 = await flareRequest('request.get', 'https://adminx.offo.dad/dashboard')
-    console.log('[Elite] FlareSolverr dashboard:', d3.status, 'http:', d3.solution?.status)
-    const html3 = d3.solution?.response || ''
+    // Step 3: undici GET /dashboard para csrf-token
+    const s3 = await undiciRequest('https://adminx.offo.dad/dashboard', {
+      method: 'GET',
+      headers: {
+        'Cookie':     buildCookieHeader(c2),
+        'User-Agent': cfUA,
+        'Accept':     'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      },
+      dispatcher:     eliteProxy,
+      headersTimeout: 30000,
+      bodyTimeout:    30000,
+    })
+    const html3 = await s3.body.text()
+    const c3 = { ...c2, ...parseCookies(toArray(s3.headers['set-cookie'])) }
+    console.log('[Elite] GET /dashboard status:', s3.statusCode)
+
     const mm = html3.match(/<meta\s+name="csrf-token"\s+content="([^"]+)"/)
     if (!mm?.[1]) throw new Error('[Elite] csrf-token nao encontrado no dashboard')
     csrfToken = mm[1]
-
-    // Salva cookies da sessao
-    const cookieArr = d3.solution?.cookies || []
-    cookieJar = {}
-    for (const c of cookieArr) cookieJar[c.name] = c.value
-    savedCfCookies = cookieJar
+    cookieJar = c3
+    savedCfCookies = c3
 
     console.log('[Elite] csrf-token:', csrfToken.substring(0, 20) + '...')
     console.log('[Elite] Cookies finais:', Object.keys(cookieJar).join(', '))
@@ -175,7 +200,7 @@ export default function createEliteRouter(enviarMensagemRenovacao) {
   const eliteFetch = async (path, method = 'GET', body = null, retry = true) => {
     if (!csrfToken || !cookieJar) await eliteLogin()
 
-    // Usa undici sem proxy - mesmo IP do Railway que FlareSolverr (sem proxy agora)
+    // Usa undici com proxy - mesmo IP que FlareSolverr usou para obter cf_clearance
     const res = await undiciRequest('https://adminx.offo.dad/' + path, {
       method,
       headers: {
@@ -189,6 +214,7 @@ export default function createEliteRouter(enviarMensagemRenovacao) {
         'User-Agent':       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
       },
       body:           body ? JSON.stringify(body) : undefined,
+      dispatcher:     eliteProxy,
       headersTimeout: 60000,
       bodyTimeout:    60000,
     })
