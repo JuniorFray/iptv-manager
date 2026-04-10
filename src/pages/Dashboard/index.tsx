@@ -91,13 +91,24 @@ export default function Dashboard() {
             usuario: novoCliente.usuario, senha: novoCliente.senha,
           })
         }).then(r => r.json())
+        // Monta mensagem base com dados do teste
+        const msgBase = `Olá *${novoCliente.nome}*! 🎉\n\nSeu teste foi criado!\n\n👤 Usuário: *${novoCliente.usuario}*\n🔑 Senha: *${novoCliente.senha}*\n⏱️ Expira: *${novoCliente.vencimento}*`
+
+        let msgFinal = msgBase
         if (linkRes.ok) {
           const linksTexto = linkRes.links.map((l: any) => `${l.plano} - R$ ${l.valor.toFixed(2).replace('.', ',')}\n${l.link}`).join('\n\n')
-          const msg = `Olá *${novoCliente.nome}*! 🎉\n\nSeu teste foi criado!\n\n👤 Usuário: *${novoCliente.usuario}*\n🔑 Senha: *${novoCliente.senha}*\n⏱️ Expira: *${novoCliente.vencimento}*\n\n💳 *Para ativar seu plano:*\n\n${linksTexto}`
-          await fetch(`${API}/send`, {
+          msgFinal = msgBase + `\n\n💳 *Para ativar seu plano:*\n\n${linksTexto}`
+        }
+
+        // Envia mensagem sempre, com ou sem link
+        try {
+          const sendRes = await fetch(`${API}/send`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ phone: novoCliente.telefone, message: msg })
-          })
+            body: JSON.stringify({ phone: novoCliente.telefone, message: msgFinal })
+          }).then(r => r.json())
+          if (!sendRes.success) console.warn('[TESTE] Falha ao enviar WA:', sendRes.error)
+        } catch (e: any) {
+          console.warn('[TESTE] Erro ao enviar WA:', e.message)
         }
       }
       alert(`✅ Cliente cadastrado${resultadoTeste.telefoneCliente ? ' e mensagem enviada!' : '!'}`)
