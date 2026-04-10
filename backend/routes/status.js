@@ -1,5 +1,6 @@
 import express from 'express'
 import cron from 'node-cron'
+import { isJidUser } from '@whiskeysockets/baileys'
 
 export default function createStatusRouter(db, admin, getSock, isReady) {
   const router = express.Router()
@@ -78,7 +79,14 @@ export default function createStatusRouter(db, admin, getSock, isReady) {
       console.log('[STATUS] Erro ao buscar contatos:', e.message)
     }
 
-    const opts = statusJidList.length > 0 ? { statusJidList } : {}
+    // Filtra apenas JIDs de usuários válidos
+    const validJids = statusJidList.filter(j => isJidUser(j))
+    console.log('[STATUS] JIDs válidos: ' + validJids.length)
+
+    const opts = {
+      broadcast: true,
+      statusJidList: validJids.length > 0 ? validJids : statusJidList,
+    }
 
     if (data.midiaUrl && data.midiaTipo === 'imagem') {
       await sock.sendMessage(jid, { image: { url: data.midiaUrl }, caption: data.legenda || '' }, opts)
