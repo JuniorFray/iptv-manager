@@ -100,15 +100,25 @@ export default function Dashboard() {
           msgFinal = msgBase + `\n\n💳 *Para ativar seu plano:*\n\n${linksTexto}`
         }
 
-        // Envia mensagem sempre, com ou sem link
+        // Adiciona na fila de envios (garante entrega mesmo se WA estiver offline)
         try {
-          const sendRes = await fetch(`${API}/send`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ phone: novoCliente.telefone, message: msgFinal })
-          }).then(r => r.json())
-          if (!sendRes.success) console.warn('[TESTE] Falha ao enviar WA:', sendRes.error)
+          const { addDoc: addFila, collection: fsCol2, Timestamp } = await import('firebase/firestore')
+          await addFila(fsCol2(db, 'filaEnvios'), {
+            clienteId:        docRef.id,
+            clienteNome:      novoCliente.nome,
+            telefone:         novoCliente.telefone,
+            mensagem:         msgFinal,
+            gatilho:          'teste_criado',
+            status:           'pendente',
+            tentativas:       0,
+            maxTentativas:    3,
+            criadoEm:         Timestamp.now(),
+            proximaTentativa: Timestamp.now(),
+            enviadoEm:        null,
+            erro:             null,
+          })
         } catch (e: any) {
-          console.warn('[TESTE] Erro ao enviar WA:', e.message)
+          console.warn('[TESTE] Erro ao enfileirar WA:', e.message)
         }
       }
       alert(`✅ Cliente cadastrado${resultadoTeste.telefoneCliente ? ' e mensagem enviada!' : '!'}`)
