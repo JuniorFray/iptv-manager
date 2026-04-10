@@ -166,7 +166,7 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
             console.log(`[WEBHOOK] Elite renovando id=${buscar.id} tipo=${buscar.tipo} meses=${plano.meses}`)
             const ren = await fetch(`${BACKEND}/elite/renovar`, {
               method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ id: buscar.id, tipo: buscar.tipo, meses: plano.meses, nome: cliente?.nome, telefone, usuario, senha })
+              body: JSON.stringify({ id: buscar.id, tipo: buscar.tipo, meses: plano.meses, nome: cliente?.nome, telefone, usuario, senha, skipWA: true })
             }).then(r => r.json())
             console.log('[WEBHOOK] Elite renovar resultado:', JSON.stringify(ren))
             vencimento = ren.vencimento ?? null
