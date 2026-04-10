@@ -430,8 +430,9 @@ export default function createWhatsAppRouter(db, admin) {
 
       // Busca todos os pontos vinculados a este responsável (incluindo ele mesmo)
       const telResp = cliente.telefone
+      // Para regras pós-vencimento (pos1, pos3), inclui clientes inativos/vencidos também
       const pontos = clientes.filter(c =>
-        (c.responsavel?.trim() || c.telefone) === telResp && c.status === 'ativo'
+        (c.responsavel?.trim() || c.telefone) === telResp
       )
 
       for (const { key, diff: diffAlvo } of regrasMap) {
