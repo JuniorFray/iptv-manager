@@ -83,7 +83,7 @@ export default function createWhatsAppRouter(db, admin) {
         auth: state,
         printQRInTerminal: false,
         generateHighQualityLinkPreview: false,
-        browser: ['SistemaTV', 'Desktop', '1.0.0'],
+        browser: ['Chrome', 'Desktop', '124.0.0'],
         keepAliveIntervalMs: 25000,
         connectTimeoutMs:    60000,
         retryRequestDelayMs: 2000,
