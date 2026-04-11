@@ -544,6 +544,26 @@ export default function createWhatsAppRouter(db, admin) {
     } catch (err) { res.status(500).json({ error: err.message }) }
   })
 
+  // Rotas no formato /fila/:id/acao (usado pelo frontend)
+  router.post('/fila/:id/cancelar', async (req, res) => {
+    try {
+      await db.collection('filaEnvios').doc(req.params.id).update({ status: 'cancelado' })
+      res.json({ ok: true })
+    } catch (err) { res.status(500).json({ error: err.message }) }
+  })
+
+  router.post('/fila/:id/retry', async (req, res) => {
+    try {
+      await db.collection('filaEnvios').doc(req.params.id).update({
+        status: 'pendente',
+        tentativas: 0,
+        erro: null,
+        proximaTentativa: admin.firestore.Timestamp.now(),
+      })
+      res.json({ ok: true })
+    } catch (err) { res.status(500).json({ error: err.message }) }
+  })
+
   router.post('/fila/limpar', async (req, res) => {
     try {
       const snap = await db.collection('filaEnvios')
