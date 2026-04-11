@@ -122,7 +122,19 @@ export default function createWarezRouter(enviarMensagemRenovacao) {
   router.get('/painel/linha/:lineId', async (req, res) => {
     try {
       const data = await wpFetch(`/lines/${req.params.lineId}`)
-      res.json(data)
+      // Envia msg de renovação via fila
+      if (telefone && enviarMensagemRenovacao) {
+        try {
+          await enviarMensagemRenovacao(telefone, {
+            nome: nome || '',
+            usuario: usuario || '',
+            senha: senha || '',
+            vencimento: vencimento ?? 'Atualizado',
+          })
+        } catch(e) { console.error('[Warez] Erro msg renovacao:', e.message) }
+      }
+
+      res.json({ ...data, vencimento })
     } catch (err) { res.status(500).json({ error: err.message }) }
   })
 
@@ -174,21 +186,57 @@ export default function createWarezRouter(enviarMensagemRenovacao) {
           vencimento = d.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })
         }
       }
-      res.json(data)
+      // Envia msg de renovação via fila
+      if (telefone && enviarMensagemRenovacao) {
+        try {
+          await enviarMensagemRenovacao(telefone, {
+            nome: nome || '',
+            usuario: usuario || '',
+            senha: senha || '',
+            vencimento: vencimento ?? 'Atualizado',
+          })
+        } catch(e) { console.error('[Warez] Erro msg renovacao:', e.message) }
+      }
+
+      res.json({ ...data, vencimento })
     } catch (err) { res.status(500).json({ error: err.message }) }
   })
 
   router.get('/painel/planos', async (req, res) => {
     try {
       const data = await wpFetch('/products')
-      res.json(data)
+      // Envia msg de renovação via fila
+      if (telefone && enviarMensagemRenovacao) {
+        try {
+          await enviarMensagemRenovacao(telefone, {
+            nome: nome || '',
+            usuario: usuario || '',
+            senha: senha || '',
+            vencimento: vencimento ?? 'Atualizado',
+          })
+        } catch(e) { console.error('[Warez] Erro msg renovacao:', e.message) }
+      }
+
+      res.json({ ...data, vencimento })
     } catch (err) { res.status(500).json({ error: err.message }) }
   })
 
   router.post('/painel/teste', async (req, res) => {
     try {
       const data = await wpFetch('/lines/trial', 'POST', req.body)
-      res.json(data)
+      // Envia msg de renovação via fila
+      if (telefone && enviarMensagemRenovacao) {
+        try {
+          await enviarMensagemRenovacao(telefone, {
+            nome: nome || '',
+            usuario: usuario || '',
+            senha: senha || '',
+            vencimento: vencimento ?? 'Atualizado',
+          })
+        } catch(e) { console.error('[Warez] Erro msg renovacao:', e.message) }
+      }
+
+      res.json({ ...data, vencimento })
     } catch (err) { res.status(500).json({ error: err.message }) }
   })
 
