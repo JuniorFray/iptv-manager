@@ -10,14 +10,25 @@ const EVOLUTION_URL = process.env.EVOLUTION_API_URL || 'https://evolution-api-pr
 const EVOLUTION_KEY  = process.env.EVOLUTION_API_KEY  || 'iptv123manager456'
 const INSTANCE       = process.env.EVOLUTION_INSTANCE  || 'conectatv'
 
-const evoFetch = async (path, method = 'GET', body = null) => {
+const evoFetch = async (path, method = 'GET', body = null, tentativas = 3) => {
   const opts = {
     method,
     headers: { 'Content-Type': 'application/json', 'apikey': EVOLUTION_KEY },
+    signal: AbortSignal.timeout(30000),
   }
   if (body) opts.body = JSON.stringify(body)
-  const res = await fetch(`${EVOLUTION_URL}${path}`, opts)
-  return res.json()
+  let ultimoErro
+  for (let i = 0; i < tentativas; i++) {
+    try {
+      const res = await fetch(`${EVOLUTION_URL}${path}`, opts)
+      return res.json()
+    } catch (err) {
+      ultimoErro = err
+      console.warn(`[EVO] fetch falhou (tentativa ${i+1}/${tentativas}): ${err.message}`)
+      if (i < tentativas - 1) await new Promise(r => setTimeout(r, 2000 * (i + 1)))
+    }
+  }
+  throw ultimoErro
 }
 
 export default function createWhatsAppRouter(db, admin) {
