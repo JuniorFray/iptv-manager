@@ -237,8 +237,10 @@ export default function createWhatsAppRouter(db, admin) {
 
   const normalizarTelefone = tel => {
     let num = String(tel).replace(/\D/g, '')
+    // Corrige duplicação do código BR (5511... → 55511...)
     if (num.startsWith('5555')) num = num.substring(2)
-    else if (!num.startsWith('55')) num = '55' + num
+    // Só adiciona 55 se parecer número BR sem código (10 ou 11 dígitos)
+    else if (num.length <= 11 && !num.startsWith('55')) num = '55' + num
     return num + '@s.whatsapp.net'
   }
 
