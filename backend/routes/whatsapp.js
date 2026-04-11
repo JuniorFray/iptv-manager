@@ -197,7 +197,7 @@ export default function createWhatsAppRouter(db, admin) {
       if (!data.ok) { console.log('[Links] pagamento/criar falhou:', data.error); return null }
       const links = {}
       for (const l of data.links) {
-        const short = await encurtarUrl(l.link)
+        const short = l.link  // encurtador removido
         if      (l.plano.includes('1')) links['1mes']   = short
         else if (l.plano.includes('3')) links['3meses'] = short
         else if (l.plano.includes('6')) links['6meses'] = short
