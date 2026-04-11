@@ -585,6 +585,15 @@ export default function createWhatsAppRouter(db, admin) {
     console.log('[WA] Evolution API configurada. Instância:', INSTANCE)
     const pronto = await isReady()
     console.log('[WA] Status:', pronto ? '✅ Conectado' : '⚠️ Desconectado')
+    try {
+      const snap = await db.collection('filaEnvios').where('status', '==', 'enviando').get()
+      if (!snap.empty) {
+        const batch = db.batch()
+        snap.docs.forEach(d => batch.update(d.ref, { status: 'pendente', proximaTentativa: admin.firestore.Timestamp.now() }))
+        await batch.commit()
+        console.log(`[WA] ${snap.size} itens resetados de "enviando" para "pendente"`)
+      }
+    } catch (e) { console.error('[WA] Erro ao resetar fila:', e.message) }
   }
 
   // Mantém compatibilidade com server.js que usa getSock e isReady

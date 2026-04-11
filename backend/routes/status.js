@@ -5,10 +5,11 @@ const EVOLUTION_URL = process.env.EVOLUTION_API_URL || 'https://evolution-api-pr
 const EVOLUTION_KEY  = process.env.EVOLUTION_API_KEY  || 'iptv123manager456'
 const INSTANCE       = process.env.EVOLUTION_INSTANCE  || 'conectatv'
 
-const evoFetch = async (path, method = 'GET', body = null) => {
+const evoFetch = async (path, method = 'GET', body = null, timeoutMs = 15000) => {
   const opts = {
     method,
     headers: { 'Content-Type': 'application/json', 'apikey': EVOLUTION_KEY },
+    signal: AbortSignal.timeout(timeoutMs),
   }
   if (body) opts.body = JSON.stringify(body)
   const res = await fetch(`${EVOLUTION_URL}${path}`, opts)
@@ -102,7 +103,7 @@ export default function createStatusRouter(db, admin, getSock, isReady) {
         caption: data.legenda || '',
         statusJidList: contatos,
         allContacts: contatos.length === 0,
-      })
+      }, 20000)
     } else if (data.midiaUrl && data.midiaTipo === 'video') {
       resultado = await evoFetch(`/message/sendStatus/${INSTANCE}`, 'POST', {
         type: 'video',
@@ -110,14 +111,14 @@ export default function createStatusRouter(db, admin, getSock, isReady) {
         caption: data.legenda || '',
         statusJidList: contatos,
         allContacts: contatos.length === 0,
-      })
+      }, 20000)
     } else {
       resultado = await evoFetch(`/message/sendStatus/${INSTANCE}`, 'POST', {
         type: 'text',
         content: data.legenda || '',
         statusJidList: contatos,
         allContacts: contatos.length === 0,
-      })
+      }, 20000)
     }
 
     console.log('[STATUS] Resultado:', JSON.stringify(resultado))
