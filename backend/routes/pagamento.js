@@ -149,7 +149,7 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
           if (buscar.ok) {
             const ren = await fetch(`${BACKEND}/painel/renovar/${buscar.id}`, {
               method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ credits: plano.creditos, nome: cliente?.nome, telefone, usuario, senha })
+              body: JSON.stringify({ credits: plano.creditos, nome: cliente?.nome, telefone, usuario, senha, skipWA: true })
             }).then(r => r.json())
             const expRaw = ren.exp_date ?? ren.expiry_date
             if (expRaw) {
@@ -179,7 +179,7 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
           if (buscar.ok) {
             const ren = await fetch(`${BACKEND}/central/renovar`, {
               method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ id: buscar.id, meses: plano.meses, nome: cliente?.nome, telefone, usuario, senha })
+              body: JSON.stringify({ id: buscar.id, meses: plano.meses, nome: cliente?.nome, telefone, usuario, senha, skipWA: true })
             }).then(r => r.json())
             vencimento = ren.exp_date ?? ren.vencimento ?? null
             console.log('[WEBHOOK] Central vencimento:', vencimento)

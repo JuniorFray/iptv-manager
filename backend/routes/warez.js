@@ -173,7 +173,7 @@ export default function createWarezRouter(enviarMensagemRenovacao) {
     try {
       const lineId  = req.params.lineId
       const credits = req.body?.credits ?? 1
-      const { nome, telefone, usuario, senha } = req.body ?? {}
+      const { nome, telefone, usuario, senha, skipWA } = req.body ?? {}
       const data    = await wpFetch(`/lines/extend/${lineId}`, 'PATCH', { credits })
       console.log(`[RENOVAR WAREZ] lineId=${lineId} credits=${credits} resposta=`, JSON.stringify(data))
 

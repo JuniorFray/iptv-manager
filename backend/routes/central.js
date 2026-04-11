@@ -228,12 +228,12 @@ export default function createCentralRouter(db, admin, enviarMensagemRenovacao) 
 
   router.post('/central/renovar', async (req, res) => {
     try {
-      const { id, nome, telefone, usuario, senha } = req.body
+      const { id, nome, telefone, usuario, senha, skipWA } = req.body
       if (!id) return res.status(400).json({ error: 'id obrigatorio' })
       const packageId = Number(process.env.CENTRAL_PACKAGE_ID ?? 17)
       const data = await centralFetch(`/users/${id}/renew`, 'POST', { package_id: packageId })
       const novaData = tsParaBR(data?.exp_date)
-      if (enviarMensagemRenovacao && telefone) {
+      if (enviarMensagemRenovacao && telefone && !skipWA) {
         enviarMensagemRenovacao(telefone, { nome, usuario, senha, vencimento: novaData })
       }
       res.json({ success: true, exp_date: novaData, raw: data })
