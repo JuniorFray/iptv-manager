@@ -544,10 +544,20 @@ export default function createWhatsAppRouter(db, admin) {
     } catch (err) { res.status(500).json({ error: err.message }) }
   })
 
-  router.delete('/fila/limpar', async (req, res) => {
+  router.post('/fila/limpar', async (req, res) => {
     try {
       const snap = await db.collection('filaEnvios')
         .where('status', 'in', ['enviado', 'erro', 'cancelado']).limit(500).get()
+      const batch = db.batch()
+      snap.docs.forEach(d => batch.delete(d.ref))
+      await batch.commit()
+      res.json({ ok: true, removidos: snap.size })
+    } catch (err) { res.status(500).json({ error: err.message }) }
+  })
+
+  router.delete('/logs', async (req, res) => {
+    try {
+      const snap = await db.collection('logswhatsapp').limit(500).get()
       const batch = db.batch()
       snap.docs.forEach(d => batch.delete(d.ref))
       await batch.commit()
