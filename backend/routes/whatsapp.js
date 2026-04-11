@@ -417,6 +417,17 @@ export default function createWhatsAppRouter(db, admin) {
 
   cron.schedule('*/10 * * * * *', processarFila, { timezone: 'America/Sao_Paulo' })
 
+  // Restart automático da instância a cada 6 horas para manter conexão estável
+  cron.schedule('0 */6 * * *', async () => {
+    try {
+      console.log('[WA] 🔄 Restart automático da instância...')
+      await evoFetch(`/instance/restart/${INSTANCE}`, 'POST')
+      console.log('[WA] ✅ Restart enviado')
+    } catch (e) {
+      console.error('[WA] ❌ Erro no restart automático:', e.message)
+    }
+  }, { timezone: 'America/Sao_Paulo' })
+
   const iniciarCron = async () => {
     const config = await getConfig()
     const [hora, minuto] = (config.horario || '09:00').split(':').map(Number)
