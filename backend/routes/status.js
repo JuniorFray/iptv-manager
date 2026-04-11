@@ -1,6 +1,19 @@
 import express from 'express'
 import cron from 'node-cron'
-import { isJidUser } from '@whiskeysockets/baileys'
+
+const EVOLUTION_URL = process.env.EVOLUTION_API_URL || 'https://evolution-api-production-b45b.up.railway.app'
+const EVOLUTION_KEY  = process.env.EVOLUTION_API_KEY  || 'iptv123manager456'
+const INSTANCE       = process.env.EVOLUTION_INSTANCE  || 'conectatv'
+
+const evoFetch = async (path, method = 'GET', body = null) => {
+  const opts = {
+    method,
+    headers: { 'Content-Type': 'application/json', 'apikey': EVOLUTION_KEY },
+  }
+  if (body) opts.body = JSON.stringify(body)
+  const res = await fetch(`${EVOLUTION_URL}${path}`, opts)
+  return res.json()
+}
 
 export default function createStatusRouter(db, admin, getSock, isReady) {
   const router = express.Router()
@@ -53,50 +66,63 @@ export default function createStatusRouter(db, admin, getSock, isReady) {
     } catch (err) { res.status(500).json({ error: err.message }) }
   })
 
-  const normalizarJid = (tel) => {
+  const normalizarTelefone = (tel) => {
     let num = String(tel).replace(/\D/g, '')
-    if (!num.startsWith('55')) num = '55' + num
-    return num + '@s.whatsapp.net'
+    if (num.startsWith('5555')) num = num.substring(2)
+    else if (num.length <= 11 && !num.startsWith('55')) num = '55' + num
+    return num
   }
 
   const publicarStatus = async (data, ref) => {
-    const sock = getSock()
-    if (!sock || !isReady()) throw new Error('WhatsApp nao conectado')
-    const jid = 'status@broadcast'
+    // Verifica conexão
+    const inst = await evoFetch(`/instance/fetchInstances`)
+    const instData = Array.isArray(inst) ? inst.find(i => i.name === INSTANCE) : inst
+    if (instData?.connectionStatus !== 'open') throw new Error('WhatsApp nao conectado')
 
-    // Busca contatos do Firestore (clientes)
-    let statusJidList = []
+    // Busca contatos do Firestore
+    let contatos = []
     try {
       const snap = await db.collection('clientes').where('telefone', '!=', '').get()
-      const jids = snap.docs
+      const nums = snap.docs
         .map(d => d.data().telefone)
         .filter(Boolean)
-        .map(normalizarJid)
-      // Remove duplicatas
-      statusJidList = [...new Set(jids)]
-      console.log('[STATUS] statusJidList com ' + statusJidList.length + ' contatos do Firestore')
+        .map(normalizarTelefone)
+      contatos = [...new Set(nums)]
+      console.log('[STATUS] ' + contatos.length + ' contatos encontrados')
     } catch (e) {
       console.log('[STATUS] Erro ao buscar contatos:', e.message)
     }
 
-    // Filtra apenas JIDs de usuários válidos
-    const validJids = statusJidList.filter(j => isJidUser(j))
-    console.log('[STATUS] JIDs válidos: ' + validJids.length)
-
-    const opts = {
-      broadcast: true,
-      statusJidList: validJids.length > 0 ? validJids : statusJidList,
-    }
-
+    // Publica via Evolution API
+    let resultado
     if (data.midiaUrl && data.midiaTipo === 'imagem') {
-      await sock.sendMessage(jid, { image: { url: data.midiaUrl }, caption: data.legenda || '' }, opts)
+      resultado = await evoFetch(`/message/sendStatus/${INSTANCE}`, 'POST', {
+        type: 'image',
+        content: data.midiaUrl,
+        caption: data.legenda || '',
+        statusJidList: contatos,
+        allContacts: contatos.length === 0,
+      })
     } else if (data.midiaUrl && data.midiaTipo === 'video') {
-      await sock.sendMessage(jid, { video: { url: data.midiaUrl }, caption: data.legenda || '' }, opts)
+      resultado = await evoFetch(`/message/sendStatus/${INSTANCE}`, 'POST', {
+        type: 'video',
+        content: data.midiaUrl,
+        caption: data.legenda || '',
+        statusJidList: contatos,
+        allContacts: contatos.length === 0,
+      })
     } else {
-      await sock.sendMessage(jid, { text: data.legenda || '' }, opts)
+      resultado = await evoFetch(`/message/sendStatus/${INSTANCE}`, 'POST', {
+        type: 'text',
+        content: data.legenda || '',
+        statusJidList: contatos,
+        allContacts: contatos.length === 0,
+      })
     }
+
+    console.log('[STATUS] Resultado:', JSON.stringify(resultado))
     await ref.update({ status: 'publicado', publicadoEm: admin.firestore.FieldValue.serverTimestamp(), erro: null })
-    console.log('[STATUS] Postagem publicada: ' + ref.id + ' para ' + statusJidList.length + ' contatos')
+    console.log('[STATUS] Postagem publicada: ' + ref.id + ' para ' + contatos.length + ' contatos')
   }
 
   cron.schedule('* * * * *', async () => {
