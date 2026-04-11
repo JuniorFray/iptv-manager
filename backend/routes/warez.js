@@ -187,7 +187,7 @@ export default function createWarezRouter(enviarMensagemRenovacao) {
         }
       }
       // Envia msg de renovação via fila
-      if (telefone && enviarMensagemRenovacao) {
+      if (telefone && enviarMensagemRenovacao && !skipWA) {
         try {
           await enviarMensagemRenovacao(telefone, {
             nome: nome || '',
