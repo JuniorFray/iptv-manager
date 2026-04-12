@@ -300,6 +300,7 @@ export default function createWhatsAppRouter(db, admin) {
       { key: 'pos3',  diff: -3 },
     ]
     let adicionados = 0
+    const jaEnfileirado = new Set() // rastreia telefone+gatilho neste ciclo
 
     for (const cliente of clientes) {
       if (!cliente.telefone) continue
@@ -349,6 +350,15 @@ export default function createWhatsAppRouter(db, admin) {
         } else {
           mensagemFinal = await formatarMensagem(regra.mensagem, cliente)
         }
+
+        // Previne duplicata no mesmo ciclo (mesmo telefone+gatilho)
+        const chaveEnfila = `${cliente.telefone}|${key}`
+        if (jaEnfileirado.has(chaveEnfila)) continue
+        if (cliente.id && await jaEnviouHoje(cliente.id, key)) {
+          console.log(`[AUTO] Já enviado hoje, pulando: ${cliente.nome} (${key})`)
+          continue
+        }
+        jaEnfileirado.add(chaveEnfila)
 
         await db.collection('filaEnvios').add({
           clienteId:        cliente.id,
