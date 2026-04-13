@@ -212,19 +212,7 @@ export default function createWarezRouter(enviarMensagemRenovacao) {
   router.post('/painel/teste', async (req, res) => {
     try {
       const data = await wpFetch('/lines/trial', 'POST', req.body)
-      // Envia msg de renovação via fila
-      if (telefone && enviarMensagemRenovacao) {
-        try {
-          await enviarMensagemRenovacao(telefone, {
-            nome: nome || '',
-            usuario: usuario || '',
-            senha: senha || '',
-            vencimento: vencimento ?? 'Atualizado',
-          })
-        } catch(e) { console.error('[Warez] Erro msg renovacao:', e.message) }
-      }
-
-      res.json({ ...data, vencimento })
+      res.json(data)
     } catch (err) { res.status(500).json({ error: err.message }) }
   })
 
@@ -302,21 +290,6 @@ export default function createWarezRouter(enviarMensagemRenovacao) {
       res.json({ ok: true, usuario: data.username, senha: data.password, expira: data.exp_date, id: data.id })
     } catch (err) { res.status(500).json({ ok: false, error: err.message }) }
   })
-
-  router.get('/painel/saldo', async (req, res) => {
-    try {
-      const data = await wpFetch('/users/logged')
-      res.json({ ok: true, creditos: data?.credits ?? null })
-    } catch (err) { res.status(500).json({ ok: false, error: err.message }) }
-  })
-
-  router.post('/painel/criar-teste', async (req, res) => {
-    try {
-      const { horas = 4 } = req.body
-      const data = await wpFetch('/lines/test', 'POST', {
-        notes: 'TESTE SISTEMA', package_p2p: '5da17892133a1d61888029aa',
-        package_iptv: '95', testDuration: Number(horas), krator_package: '1',
-      })
       res.json({ ok: true, usuario: data.username, senha: data.password, expira: data.exp_date, id: data.id })
     } catch (err) { res.status(500).json({ ok: false, error: err.message }) }
   })
