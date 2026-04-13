@@ -217,10 +217,11 @@ export default function createWhatsAppRouter(db, admin) {
   const BASE_DELAY_MS  = 60000
 
   const processarFila = async () => {
-    const pronto = await isReady()
-    if (!pronto || processandoFila) return
-    processandoFila = true
+    if (processandoFila) return   // check síncrono ANTES de qualquer await
+    processandoFila = true        // lock imediato (síncrono)
     try {
+      const pronto = await isReady()
+      if (!pronto) return
       const agora     = admin.firestore.Timestamp.now()
       const config    = await getConfig()
       const intervalo = config.intervaloMs ?? 5000
