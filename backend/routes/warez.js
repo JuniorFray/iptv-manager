@@ -290,9 +290,6 @@ export default function createWarezRouter(enviarMensagemRenovacao) {
       res.json({ ok: true, usuario: data.username, senha: data.password, expira: data.exp_date, id: data.id })
     } catch (err) { res.status(500).json({ ok: false, error: err.message }) }
   })
-      res.json({ ok: true, usuario: data.username, senha: data.password, expira: data.exp_date, id: data.id })
-    } catch (err) { res.status(500).json({ ok: false, error: err.message }) }
-  })
 
   return { router }
 }
