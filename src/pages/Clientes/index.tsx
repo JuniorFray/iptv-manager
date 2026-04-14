@@ -518,6 +518,7 @@ export default function Clientes() {
         body: JSON.stringify({
           id:       buscarCentral.id,
           meses:    periodoRenovar,
+          system:   buscarCentral.system ?? 1,
           nome:     clienteParaRenovar.nome,
           telefone: clienteParaRenovar.telefone,
           usuario:  clienteParaRenovar.usuario,

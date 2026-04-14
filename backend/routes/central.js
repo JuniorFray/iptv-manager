@@ -228,10 +228,23 @@ export default function createCentralRouter(db, admin, enviarMensagemRenovacao) 
 
   router.post('/central/renovar', async (req, res) => {
     try {
-      const { id, nome, telefone, usuario, senha, skipWA } = req.body
+      const { id, nome, telefone, usuario, senha, skipWA, meses, system } = req.body
       if (!id) return res.status(400).json({ error: 'id obrigatorio' })
-      const packageId = Number(process.env.CENTRAL_PACKAGE_ID ?? 17)
-      const data = await centralFetch(`/users/${id}/renew`, 'POST', { package_id: packageId })
+      const n = Number(meses ?? 1)
+
+      let payload, data
+      if (system === 3) {
+        // Usuário híbrido (system:3) — API usa campo "mounth" (typo intencional da API)
+        payload = { mounth: n }
+        console.log(`[Central] renovar system:3 id=${id} mounth=${n}`)
+      } else {
+        // Usuário IPTV/P2P normal — usa package_id
+        const packageId = Number(process.env.CENTRAL_PACKAGE_ID ?? 17)
+        payload = { package_id: packageId }
+        console.log(`[Central] renovar normal id=${id} package_id=${packageId}`)
+      }
+
+      data = await centralFetch(`/users/${id}/renew`, 'POST', payload)
       const novaData = tsParaBR(data?.exp_date)
       if (enviarMensagemRenovacao && telefone && !skipWA) {
         enviarMensagemRenovacao(telefone, { nome, usuario, senha, vencimento: novaData })
@@ -256,18 +269,30 @@ export default function createCentralRouter(db, admin, enviarMensagemRenovacao) 
       const reseller = process.env.CENTRAL_USERNAME
       console.log(`[Central] buscar-linha: "${username}"`)
 
-      // Busca paginando até encontrar o username exato
+      // Helper: normaliza full_name para comparação (remove espaços, lowercase)
+      const normalizarNome = (str) => (str ?? '').toLowerCase().replace(/\s+/g, '')
+
+      // Busca paginando — tenta username exato e fallback por full_name (system:3)
       let page = 1
       while (page <= 10) {
         const data = await centralFetch(`/users?page=${page}&per=100&reseller=${reseller}&search=${encodeURIComponent(username)}`)
         const items = data?.data ?? []
         const totalPages = data?.meta?.pages ?? 1
 
-        const item = items.find(l => l.username?.toLowerCase() === username)
-        if (item) {
-          console.log(`[Central] buscar-linha encontrado: id=${item.id} username=${item.username} (página ${page})`)
-          return res.json({ ok: true, id: item.id, username: item.username })
+        // 1. Tenta username exato (IPTV/P2P normais)
+        const byUsername = items.find(l => l.username?.toLowerCase() === username)
+        if (byUsername) {
+          console.log(`[Central] buscar-linha encontrado por username: id=${byUsername.id} (página ${page})`)
+          return res.json({ ok: true, id: byUsername.id, username: byUsername.username, system: byUsername.system ?? 1 })
         }
+
+        // 2. Fallback: full_name sem espaços (system:3 híbrido — username é null)
+        const byNome = items.find(l => l.username === null && normalizarNome(l.full_name) === username)
+        if (byNome) {
+          console.log(`[Central] buscar-linha encontrado por full_name (system:3): id=${byNome.id} full_name=${byNome.full_name}`)
+          return res.json({ ok: true, id: byNome.id, username: null, system: byNome.system ?? 3, full_name: byNome.full_name })
+        }
+
         if (page >= totalPages) break
         page++
       }
