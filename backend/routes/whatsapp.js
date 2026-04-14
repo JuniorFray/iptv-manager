@@ -289,8 +289,9 @@ export default function createWhatsAppRouter(db, admin) {
     if (cronRodando) { console.log('Envio automático já em execução, ignorando disparo duplicado.'); return }
     cronRodando = true
     console.log('Iniciando envio automático...')
+    try {
     const config = await getConfig()
-    if (!config.ativo) { console.log('Envio automático desativado.'); cronRodando = false; return }
+    if (!config.ativo) { console.log('Envio automático desativado.'); return }
     const snapshot = await db.collection('clientes').get()
     const clientes = snapshot.docs.map(d => ({ id: d.id, ...d.data() }))
     const regrasMap = [
@@ -361,6 +362,17 @@ export default function createWhatsAppRouter(db, admin) {
         }
         jaEnfileirado.add(chaveEnfila)
 
+        // Evita duplicata se ja existe item pendente/enviando na fila para este cliente+gatilho
+        const filaPendente = await db.collection('filaEnvios')
+          .where('clienteId', '==', cliente.id)
+          .where('gatilho',   '==', key)
+          .where('status',    'in', ['pendente', 'enviando'])
+          .limit(1).get()
+        if (!filaPendente.empty) {
+          console.log(`[AUTO] Ja na fila, pulando: ${cliente.nome} (${key})`)
+          continue
+        }
+
         await db.collection('filaEnvios').add({
           clienteId:        cliente.id,
           clienteNome:      cliente.nome,
@@ -384,7 +396,9 @@ export default function createWhatsAppRouter(db, admin) {
       }
     }
     console.log(`Envio automático concluído. ${adicionados} mensagens enfileiradas.`)
-    cronRodando = false
+    } finally {
+      cronRodando = false
+    }
   }
 
   // ---- enviarMensagemRenovacao ----

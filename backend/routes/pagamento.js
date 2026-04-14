@@ -1,5 +1,6 @@
 // backend/routes/pagamento.js
 import express from 'express'
+import cron from 'node-cron'
 import { MercadoPagoConfig, Preference, Payment } from 'mercadopago'
 
 const PLANOS = [
@@ -115,15 +116,17 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
 
       if (mp.status !== 'approved') return res.sendStatus(200)
 
-      // Deduplicacao: ignora se mpPaymentId ja foi processado
+      // Deduplicacao atomica via transaction — impede race condition com webhooks simultaneos
       const mpPaymentId = String(mp.id)
-      const dupSnap = await db.collection('pagamentos')
-        .where('mpPaymentId', '==', mpPaymentId)
-        .where('status', '==', 'aprovado')
-        .limit(1)
-        .get()
-      if (!dupSnap.empty) {
-        console.log('[WEBHOOK] Duplicata ignorada - mpPaymentId=' + mpPaymentId + ' ja processado')
+      const lockRef = db.collection('webhookLocks').doc(mpPaymentId)
+      const claimed = await db.runTransaction(async t => {
+        const lockDoc = await t.get(lockRef)
+        if (lockDoc.exists) return false
+        t.set(lockRef, { criadoEm: admin.firestore.FieldValue.serverTimestamp() })
+        return true
+      })
+      if (!claimed) {
+        console.log('[WEBHOOK] Duplicata ignorada (lock atomico) - mpPaymentId=' + mpPaymentId)
         return res.sendStatus(200)
       }
 
@@ -185,7 +188,23 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
             console.log('[WEBHOOK] Central vencimento:', vencimento)
           } else { console.error('[WEBHOOK] Central buscar-linha falhou:', buscar.error) }
         }
-      } catch (e) { console.error('[WEBHOOK] renovar erro:', e.message) }
+      } catch (e) {
+        console.error('[WEBHOOK] renovar erro:', e.message)
+        // Salva para retry automatico
+        try {
+          await db.collection('filaRenovacoes').add({
+            clienteId, servidor, usuario,
+            telefone: telefone ?? '', senha: senha ?? '',
+            planoMeses: plano.meses, planoCreditos: plano.creditos, planoLabel: plano.label,
+            mpPaymentId,
+            status: 'pendente', tentativas: 0, maxTentativas: 5,
+            proximaTentativa: admin.firestore.Timestamp.fromDate(new Date(Date.now() + 2 * 60 * 1000)),
+            criadoEm: admin.firestore.FieldValue.serverTimestamp(),
+            erro: e.message,
+          })
+          console.log('[WEBHOOK] Renovacao salva para retry automatico:', usuario, servidor)
+        } catch (e2) { console.error('[WEBHOOK] Erro ao salvar retry:', e2.message) }
+      }
 
       // Atualiza vencimento do cliente no Firestore
       if (vencimento && clienteId && clienteSnap.exists) {
@@ -244,6 +263,97 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
       res.json({ ok: true, pagamentos: docs })
     } catch (err) { res.status(500).json({ ok: false, error: err.message }) }
   })
+
+  // ---- Fila de Renovacoes (retry automatico) ----
+
+  const processarFilaRenovacoes = async () => {
+    try {
+      const agora = admin.firestore.Timestamp.now()
+      const snap  = await db.collection('filaRenovacoes')
+        .where('status', '==', 'pendente')
+        .where('proximaTentativa', '<=', agora)
+        .limit(5).get()
+      if (snap.empty) return
+
+      const BACKEND = 'https://iptv-manager-production.up.railway.app'
+
+      for (const docSnap of snap.docs) {
+        const item = docSnap.data()
+        const ref  = docSnap.ref
+        await ref.update({ status: 'processando' })
+        try {
+          let vencimento = null
+          const { clienteId, servidor, usuario, telefone, senha, planoMeses, planoCreditos } = item
+
+          if (servidor.toUpperCase() === 'WAREZ') {
+            const buscar = await fetch(`${BACKEND}/painel/buscar-linha/${encodeURIComponent(usuario)}`).then(r => r.json())
+            if (buscar.ok) {
+              const ren = await fetch(`${BACKEND}/painel/renovar/${buscar.id}`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ credits: planoCreditos, nome: '', telefone, usuario, senha, skipWA: true })
+              }).then(r => r.json())
+              const expRaw = ren.exp_date ?? ren.expiry_date
+              if (expRaw) { const d = new Date(expRaw); if (!isNaN(d)) vencimento = d.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) }
+            }
+          } else if (servidor.toUpperCase() === 'ELITE') {
+            const buscar = await fetch(`${BACKEND}/elite/buscar-linha/${encodeURIComponent(usuario)}`).then(r => r.json())
+            if (buscar.ok) {
+              const ren = await fetch(`${BACKEND}/elite/renovar`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: buscar.id, tipo: buscar.tipo, meses: planoMeses, nome: '', telefone, usuario, senha, skipWA: true })
+              }).then(r => r.json())
+              vencimento = ren.vencimento ?? null
+            }
+          } else if (servidor.toUpperCase() === 'CENTRAL') {
+            const buscar = await fetch(`${BACKEND}/central/buscar-linha/${encodeURIComponent(usuario)}`).then(r => r.json())
+            if (buscar.ok) {
+              const ren = await fetch(`${BACKEND}/central/renovar`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: buscar.id, meses: planoMeses, nome: '', telefone, usuario, senha, skipWA: true })
+              }).then(r => r.json())
+              vencimento = ren.exp_date ?? ren.vencimento ?? null
+            }
+          }
+
+          // Atualiza cliente no Firestore
+          if (vencimento && clienteId) {
+            try { await db.collection('clientes').doc(clienteId).update({ vencimento, status: 'ativo' }) }
+            catch (e) { console.error('[RETRY] Erro ao atualizar cliente:', e.message) }
+          }
+
+          // Envia mensagem WA
+          if (telefone && enviarMensagemRenovacao) {
+            try {
+              const cSnap = await db.collection('clientes').doc(clienteId).get()
+              const cli   = cSnap.exists ? cSnap.data() : {}
+              await enviarMensagemRenovacao(telefone, {
+                nome: cli.nome ?? usuario, usuario,
+                senha: senha || cli.senha || '',
+                vencimento: vencimento ?? 'Atualizado',
+              })
+            } catch (e) { console.error('[RETRY] Erro WA:', e.message) }
+          }
+
+          await ref.update({ status: 'concluido', vencimento, erro: null })
+          console.log(`[RETRY] ✅ Renovacao concluida: ${usuario} ${servidor} venc=${vencimento}`)
+        } catch (err) {
+          console.error(`[RETRY] ❌ Erro: ${item.usuario} ${item.servidor}:`, err.message)
+          const tentativas = (item.tentativas || 0) + 1
+          if (tentativas >= item.maxTentativas) {
+            await ref.update({ status: 'erro', erro: err.message, tentativas })
+            console.log(`[RETRY] Desistindo apos ${tentativas} tentativas: ${item.usuario}`)
+          } else {
+            const proxima = new Date(Date.now() + 3 * 60 * 1000 * tentativas)
+            await ref.update({ status: 'pendente', tentativas, erro: err.message, proximaTentativa: admin.firestore.Timestamp.fromDate(proxima) })
+          }
+        }
+      }
+    } catch (err) { console.error('[RETRY] Cron erro:', err.message) }
+  }
+
+  // Processa fila de renovacoes a cada 3 minutos
+  cron.schedule('*/3 * * * *', processarFilaRenovacoes, { timezone: 'America/Sao_Paulo' })
+  console.log('[PAGAMENTO] Retry cron iniciado (a cada 3 min)')
 
   return { router }
 }

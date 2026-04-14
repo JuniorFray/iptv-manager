@@ -193,19 +193,7 @@ export default function createWarezRouter(enviarMensagemRenovacao) {
   router.get('/painel/planos', async (req, res) => {
     try {
       const data = await wpFetch('/products')
-      // Envia msg de renovação via fila
-      if (telefone && enviarMensagemRenovacao) {
-        try {
-          await enviarMensagemRenovacao(telefone, {
-            nome: nome || '',
-            usuario: usuario || '',
-            senha: senha || '',
-            vencimento: vencimento ?? 'Atualizado',
-          })
-        } catch(e) { console.error('[Warez] Erro msg renovacao:', e.message) }
-      }
-
-      res.json({ ...data, vencimento })
+      res.json(data)
     } catch (err) { res.status(500).json({ error: err.message }) }
   })
 
