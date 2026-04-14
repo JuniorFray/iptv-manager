@@ -434,6 +434,11 @@ export default function Notificacoes() {
         const d = parseData(c.vencimento)
         return d ? diferencaDias(d) < -7 : false
       })
+    } else if (filtro === 'venc7plus') {
+      lista = lista.filter(c => {
+        const d = parseData(c.vencimento)
+        return d ? diferencaDias(d) < -7 : false
+      })
     }
 
     if (filtro === 'srv_warez')   lista = lista.filter(c => c.servidor?.toUpperCase() === 'WAREZ')
