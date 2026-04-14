@@ -218,7 +218,7 @@ export default function createWhatsAppRouter(db, admin) {
 
   const processarFila = async () => {
     if (processandoFila) return   // check síncrono ANTES de qualquer await
-    processandoFila = true        // lock imediato (síncrono)
+    processandoFila = true        // lock in-memory (protege instância única)
     try {
       const pronto = await isReady()
       if (!pronto) return
@@ -231,13 +231,39 @@ export default function createWhatsAppRouter(db, admin) {
         .orderBy('proximaTentativa')
         .limit(10).get()
       if (snap.empty) return
-      console.log(`Processando ${snap.size} itens da fila...`)
+
+      // Claim atômico — apenas uma instância processa cada item,
+      // mesmo com múltiplos processos rodando (Railway zero-downtime deploy)
+      const claimed = []
       for (const docSnap of snap.docs) {
+        try {
+          await db.runTransaction(async t => {
+            const fresh = await t.get(docSnap.ref)
+            if (!fresh.exists || fresh.data().status !== 'pendente') {
+              throw new Error('already_claimed')
+            }
+            t.update(docSnap.ref, { status: 'enviando' })
+          })
+          claimed.push(docSnap)
+        } catch (e) {
+          if (e.message !== 'already_claimed') console.warn('[FILA] Claim err:', e.message)
+          // outro processo já pegou este item — pula
+        }
+      }
+
+      if (claimed.length === 0) return
+      console.log(`Processando ${claimed.length} itens da fila...`)
+
+      for (const docSnap of claimed) {
         const pronto2 = await isReady()
-        if (!pronto2) { console.log('Evolution API desconectou, pausando fila.'); break }
+        if (!pronto2) {
+          // Devolve itens não processados para pendente
+          console.log('Evolution API desconectou, pausando fila.')
+          await docSnap.ref.update({ status: 'pendente', proximaTentativa: admin.firestore.Timestamp.now() })
+          break
+        }
         const item = docSnap.data()
         const ref  = docSnap.ref
-        await ref.update({ status: 'enviando' })
         try {
           if (item.clienteId && item.gatilho && await jaEnviouHoje(item.clienteId, item.gatilho)) {
             await ref.update({ status: 'enviado', enviadoEm: admin.firestore.FieldValue.serverTimestamp(), erro: null })
