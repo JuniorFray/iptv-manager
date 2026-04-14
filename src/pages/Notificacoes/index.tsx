@@ -58,6 +58,7 @@ const filtros = [
   { id: 'venc4',       label: 'Vencendo em 4 dias',   cor: 'fbbf24', bg: 'rgba(245,158,11,0.15)',  border: 'rgba(245,158,11,0.3)'  },
   { id: 'venc7',       label: 'Vencendo em 7 dias',   cor: '818cf8', bg: 'rgba(99,102,241,0.15)',  border: 'rgba(99,102,241,0.3)'  },
   { id: 'vencidos',    label: 'Vencidos',             cor: 'ef4444', bg: 'rgba(239,68,68,0.15)',   border: 'rgba(239,68,68,0.3)'   },
+  { id: 'venc7plus',   label: 'Vencidos +7 dias',     cor: 'ef4444', bg: 'rgba(239,68,68,0.15)',   border: 'rgba(239,68,68,0.3)'   },
   { id: 'manual',      label: 'Mensagem Manual',      cor: '60a5fa', bg: 'rgba(59,130,246,0.15)',  border: 'rgba(59,130,246,0.3)'  },
   { id: 'srv_warez',   label: '📡 Warez',             cor: '60a5fa', bg: 'rgba(59,130,246,0.15)',  border: 'rgba(59,130,246,0.3)'  },
   { id: 'srv_elite',   label: '⚡ Elite',              cor: 'c084fc', bg: 'rgba(168,85,247,0.15)', border: 'rgba(168,85,247,0.3)'  },
@@ -427,6 +428,11 @@ export default function Notificacoes() {
       lista = lista.filter(c => {
         const d = parseData(c.vencimento)
         return d ? diferencaDias(d) < 0 : false
+      })
+    } else if (filtro === 'venc7plus') {
+      lista = lista.filter(c => {
+        const d = parseData(c.vencimento)
+        return d ? diferencaDias(d) < -7 : false
       })
     }
 
