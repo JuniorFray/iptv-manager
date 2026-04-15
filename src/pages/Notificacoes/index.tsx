@@ -864,10 +864,18 @@ export default function Notificacoes() {
               </div>
               <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end', marginBottom: '14px' }}>
                 <div style={{ flex: 1 }}>
-                  <label style={{ color: 'rgba(255,255,255,0.6)', fontSize: '13px', display: 'block', marginBottom: '6px' }}>Intervalo entre envios</label>
-                  <select value={setIntervaloMin} onChange={e => setIntervaloMin(Number(e.target.value))} style={{ ...inputStyle, cursor: 'pointer' }}>
-                    {intervalos.map(i => <option key={i.valor} value={i.valor} style={{ background: '#1e1e2e' }}>{i.label}</option>)}
-                  </select>
+                  <label style={{ color: 'rgba(255,255,255,0.6)', fontSize: '13px', display: 'block', marginBottom: '6px' }}>Intervalo entre envios (segundos)</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ color: 'rgba(255,255,255,0.35)', fontSize: '11px', display: 'block', marginBottom: '4px' }}>Mínimo</label>
+                      <input type="number" min="1" value={Math.round(intervaloMin/1000)} onChange={e => setIntervaloMin(Math.max(1, Number(e.target.value)) * 1000)} style={{ ...inputStyle }} />
+                    </div>
+                    <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: '14px', marginTop: '16px' }}>—</span>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ color: 'rgba(255,255,255,0.35)', fontSize: '11px', display: 'block', marginBottom: '4px' }}>Máximo</label>
+                      <input type="number" min="1" value={Math.round(intervaloMax/1000)} onChange={e => setIntervaloMax(Math.max(Number(e.target.value), Math.round(intervaloMin/1000)) * 1000)} style={{ ...inputStyle }} />
+                    </div>
+                  </div>
                 </div>
                 <div style={{ background: filtroAtual.bg, border: `1px solid ${filtroAtual.border}`, borderRadius: '10px', padding: '10px 16px', textAlign: 'center' }}>
                   <span style={{ color: `#${filtroAtual.cor}`, fontWeight: 'bold', fontSize: '18px' }}>{clientesFiltrados.length}</span>
