@@ -865,7 +865,7 @@ export default function Notificacoes() {
               <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end', marginBottom: '14px' }}>
                 <div style={{ flex: 1 }}>
                   <label style={{ color: 'rgba(255,255,255,0.6)', fontSize: '13px', display: 'block', marginBottom: '6px' }}>Intervalo entre envios</label>
-                  <select value={intervalo} onChange={e => setIntervalo(Number(e.target.value))} style={{ ...inputStyle, cursor: 'pointer' }}>
+                  <select value={setIntervaloMin} onChange={e => setIntervaloMin(Number(e.target.value))} style={{ ...inputStyle, cursor: 'pointer' }}>
                     {intervalos.map(i => <option key={i.valor} value={i.valor} style={{ background: '#1e1e2e' }}>{i.label}</option>)}
                   </select>
                 </div>
