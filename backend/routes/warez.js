@@ -162,7 +162,11 @@ export default function createWarezRouter(enviarMensagemRenovacao) {
       const lineId  = req.params.lineId
       const credits = req.body?.credits ?? 1
       const { nome, telefone, usuario, senha, skipWA } = req.body ?? {}
-      const data    = await wpFetch(`/lines/extend/${lineId}`, 'PATCH', { credits })
+      // 6 meses: usa endpoint v2 com { months } — aplica desconto automatico (5 creditos)
+      // Demais periodos: endpoint normal com { credits }
+      const data = Number(credits) === 6
+        ? await wpFetch(`/lines/v2/extend/${lineId}`, 'PATCH', { months: 6 })
+        : await wpFetch(`/lines/extend/${lineId}`, 'PATCH', { credits })
       console.log(`[RENOVAR WAREZ] lineId=${lineId} credits=${credits} resposta=`, JSON.stringify(data))
 
       // Extrai nova data de vencimento
