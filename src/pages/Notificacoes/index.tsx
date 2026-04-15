@@ -67,14 +67,6 @@ const filtros = [
   { id: 'srv_central', label: '🌐 Central',           cor: '34d399', bg: 'rgba(52,211,153,0.15)',  border: 'rgba(52,211,153,0.3)'  },
 ]
 
-const intervalos = [
-  { label: '1 segundo',   valor: 1000  },
-  { label: '2 segundos',  valor: 2000  },
-  { label: '3 segundos',  valor: 3000  },
-  { label: '5 segundos',  valor: 5000  },
-  { label: '10 segundos', valor: 10000 },
-  { label: '30 segundos', valor: 30000 },
-]
 
 const REGRAS_INFO = [
   { key: 'dias7', label: '7 dias antes',         cor: '59,130,246' },
