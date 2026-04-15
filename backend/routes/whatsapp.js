@@ -222,9 +222,10 @@ export default function createWhatsAppRouter(db, admin) {
     try {
       const pronto = await isReady()
       if (!pronto) return
-      const agora     = admin.firestore.Timestamp.now()
-      const config    = await getConfig()
-      const intervalo = config.intervaloMs ?? 5000
+      const agora      = admin.firestore.Timestamp.now()
+      const config     = await getConfig()
+      const intervaloMin = config.intervaloMin ?? config.intervaloMs ?? 5000
+      const intervaloMax = config.intervaloMax ?? intervaloMin
       const snap      = await db.collection('filaEnvios')
         .where('status',           '==', 'pendente')
         .where('proximaTentativa', '<',  agora)
@@ -287,7 +288,11 @@ export default function createWhatsAppRouter(db, admin) {
             })
           }
           console.log(`[FILA] ✅ Enviado para ${item.clienteNome} (${item.telefone})`)
-          await sleep(intervalo)
+          const espera = intervaloMin === intervaloMax
+            ? intervaloMin
+            : Math.floor(Math.random() * (intervaloMax - intervaloMin + 1)) + intervaloMin
+          console.log(`[FILA] ⏱ Aguardando ${(espera/1000).toFixed(1)}s antes do próximo...`)
+          await sleep(espera)
         } catch (err) {
           console.error(`[FILA] ❌ Erro ao enviar para ${item.clienteNome}:`, err.message)
           const tentativas = (item.tentativas || 0) + 1

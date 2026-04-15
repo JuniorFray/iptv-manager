@@ -15,6 +15,8 @@ interface Config {
   horario: string
   ativo: boolean
   intervaloMs: number
+  intervaloMin?: number
+  intervaloMax?: number
   regras: { dias7: Regra; dias4: Regra; dia0: Regra; pos1: Regra; pos3: Regra }
 }
 interface FilaItem {
@@ -92,7 +94,8 @@ export default function Notificacoes() {
   const [mensagem, setMensagem]           = useState('')
   const [template, setTemplate]           = useState('')
   const [busca, setBusca]                 = useState('')
-  const [intervalo, setIntervalo]         = useState(2000)
+  const [intervaloMin, setIntervaloMin]   = useState(5000)
+  const [intervaloMax, setIntervaloMax]   = useState(15000)
   const [modalModelo, setModalModelo]     = useState(false)
   const [novoTitulo, setNovoTitulo]       = useState('')
   const [novoTexto, setNovoTexto]         = useState('')
@@ -184,7 +187,11 @@ export default function Notificacoes() {
   }, [])
 
   useEffect(() => {
-    axios.get(`${API}/config`).then(res => setConfig(res.data)).catch(() => {})
+    axios.get(`${API}/config`).then(res => {
+      setConfig(res.data)
+      if (res.data.intervaloMin) setIntervaloMin(res.data.intervaloMin)
+      if (res.data.intervaloMax) setIntervaloMax(res.data.intervaloMax)
+    }).catch(() => {})
   }, [])
 
   const carregarTemplateRenovacao = async () => {
@@ -570,7 +577,7 @@ export default function Notificacoes() {
     if (!config) return
     setSalvando(true)
     try {
-      await axios.post(`${API}/config`, config)
+      await axios.post(`${API}/config`, { ...config, intervaloMin, intervaloMax })
       // Salva template renovação com mídia no Firestore
       const { setDoc, doc: fsDoc } = await import('firebase/firestore')
       const renovDoc: any = { mensagem: templateRenovacao }
