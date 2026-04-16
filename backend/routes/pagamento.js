@@ -69,7 +69,6 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
                 { id: 'consumer_credits' },
                 { id: 'digital_currency' },
                 { id: 'digital_wallet' },
-                { id: 'account_money' },
               ],
               default_payment_method_id: 'pix',
               installments: 1,
