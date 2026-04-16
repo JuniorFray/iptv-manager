@@ -1,0 +1,35 @@
+{
+  "providers": ["node"],
+  "nodejs": {
+    "version": "20"
+  },
+  "phases": {
+    "setup": {
+      "aptPkgs": [
+        "libnss3",
+        "libatk1.0-0",
+        "libatk-bridge2.0-0",
+        "libcups2",
+        "libgbm1",
+        "libasound2",
+        "libpango-1.0-0",
+        "libcairo2",
+        "libxcomposite1",
+        "libxdamage1",
+        "libxfixes3",
+        "libxrandr2",
+        "libxkbcommon0",
+        "libdrm2"
+      ]
+    },
+    "install": {
+      "cmds": ["npm install --legacy-peer-deps"]
+    },
+    "build": {
+      "cmds": ["npx playwright install chromium"]
+    }
+  },
+  "start": {
+    "cmd": "node server.js"
+  }
+}
