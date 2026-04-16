@@ -28,11 +28,6 @@
       "cmds": [
         "npm install --legacy-peer-deps"
       ]
-    },
-    "build": {
-      "cmds": [
-        "npx playwright install chromium"
-      ]
     }
   },
   "start": {
