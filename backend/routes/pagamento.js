@@ -237,12 +237,14 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
         })
       }
 
-      if (telefone && enviarMensagemRenovacao) {
+      if (telefone && enviarMensagemRenovacao && vencimento) {
         await enviarMensagemRenovacao(telefone, {
           nome: cliente?.nome ?? usuario, usuario,
           senha: senha || cliente?.senha || '',
-          vencimento: vencimento ?? 'Atualizado',
+          vencimento,
         })
+      } else if (!vencimento) {
+        console.log('[WEBHOOK] Mensagem de renovacao NAO enviada — renovacao nao confirmada')
       }
 
       res.sendStatus(200)
@@ -321,17 +323,19 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
             catch (e) { console.error('[RETRY] Erro ao atualizar cliente:', e.message) }
           }
 
-          // Envia mensagem WA
-          if (telefone && enviarMensagemRenovacao) {
+          // Envia mensagem WA — apenas se renovacao confirmada
+          if (telefone && enviarMensagemRenovacao && vencimento) {
             try {
               const cSnap = await db.collection('clientes').doc(clienteId).get()
               const cli   = cSnap.exists ? cSnap.data() : {}
               await enviarMensagemRenovacao(telefone, {
                 nome: cli.nome ?? usuario, usuario,
                 senha: senha || cli.senha || '',
-                vencimento: vencimento ?? 'Atualizado',
+                vencimento,
               })
             } catch (e) { console.error('[RETRY] Erro WA:', e.message) }
+          } else if (!vencimento) {
+            console.log(`[RETRY] Mensagem NAO enviada — renovacao nao confirmada: ${usuario}`)
           }
 
           await ref.update({ status: 'concluido', vencimento, erro: null })
