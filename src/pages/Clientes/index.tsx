@@ -173,13 +173,6 @@ export default function Clientes() {
     await deleteDoc(doc(db, 'clientes', id))
   }
 
-  const formatarData = (ts: any): string => {
-    if (!ts) return '—'
-    if (typeof ts === 'string') return ts
-    if (ts?.toDate) return ts.toDate().toLocaleDateString('pt-BR')
-    return '—'
-  }
-
   const diffDias = (venc: string): number | null => {
     if (!venc) return null
     const [d, m, y] = venc.split('/').map(Number)
