@@ -460,10 +460,10 @@ export default function createWhatsAppRouter(db, admin) {
         : `✅ *Renovação realizada!*\n\nSeu serviço foi renovado com sucesso.\n\n📋 *Seus dados de acesso:*\n👤 Usuário: *{usuario}*\n🔑 Senha: *{senha}*\n📅 Válido até: *{vencimento}*\n\nEm caso de dúvidas, fale comigo! 😊`
 
       const mensagem = template
-        .replace(/\{nome\}/g, dados.nome ?? '')
-        .replace(/\{usuario\}/g, dados.usuario ?? '')
-        .replace(/\{senha\}/g, dados.senha ?? '')
-        .replace(/\{vencimento\}/g, dados.vencimento ?? '')
+        .replace(/\{nome\}/gi, dados.nome ?? '')
+        .replace(/\{usuario\}/gi, dados.usuario ?? '')
+        .replace(/\{senha\}/gi, dados.senha ?? '')
+        .replace(/\{vencimento\}/gi, dados.vencimento ?? '')
 
       const midiaUrl  = snap.exists ? (snap.data().midiaUrl  || null) : null
       const midiaTipo = snap.exists ? (snap.data().midiaTipo || null) : null
