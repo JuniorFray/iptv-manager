@@ -519,6 +519,10 @@ export default function Notificacoes() {
     if (!mensagem.trim() && !midiaManual) return
     cancelarEnvioRef.current = false
     setEnviando(true); setProgresso(0)
+    // Salva intervalo no Firestore antes de enviar
+    try {
+      await axios.post(`${API}/config`, { ...config, intervaloMin, intervaloMax })
+    } catch (e) { console.error('Erro ao salvar intervalo:', e) }
     const base = template || mensagem
     const processados = new Set<string>()
     let adicionados = 0

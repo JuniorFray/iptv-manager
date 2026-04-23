@@ -919,6 +919,25 @@ export default function Clientes() {
                         >
                           💳 {gerandoLinkId === c.id ? 'Gerando...' : 'Gerar Links'}
                         </button>
+                        {/* Copiar dados */}
+                        <button
+                          onClick={() => {
+                            setMenuAbertoId(null)
+                            const texto = [
+                              `Nome: ${c.nome || ''}`,
+                              `Usuário: ${c.usuario || ''}`,
+                              `Senha: ${c.senha || ''}`,
+                              `Vencimento: ${c.vencimento || ''}`,
+                            ].join('\n')
+                            navigator.clipboard.writeText(texto)
+                          }}
+                          style={{ width: '100%', padding: '9px 12px', borderRadius: '7px', border: 'none', cursor: 'pointer', background: 'transparent', textAlign: 'left', color: '#94a3b8', fontSize: '13px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px' }}
+                          onMouseEnter={e => (e.currentTarget.style.background = 'rgba(148,163,184,0.1)')}
+                          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                        >
+                          📋 Copiar dados
+                        </button>
+
                         <button
                           onClick={() => { setMenuAbertoId(null); excluirCliente(c.id) }}
                           style={{ width: '100%', padding: '9px 12px', borderRadius: '7px', border: 'none', cursor: 'pointer', background: 'transparent', textAlign: 'left', color: '#f87171', fontSize: '13px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px' }}
