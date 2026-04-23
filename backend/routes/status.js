@@ -94,30 +94,38 @@ export default function createStatusRouter(db, admin, getSock, isReady) {
       console.log('[STATUS] Erro ao buscar contatos:', e.message)
     }
 
-    // Publica via Evolution API
+    // Publica via Evolution API — payload com wrapper statusMessage (formato correto v2)
     let resultado
     if (data.midiaUrl && data.midiaTipo === 'imagem') {
       resultado = await evoFetch(`/message/sendStatus/${INSTANCE}`, 'POST', {
-        type: 'image',
-        content: data.midiaUrl,
-        caption: data.legenda || '',
-        statusJidList: contatos,
-        allContacts: contatos.length === 0,
+        statusMessage: {
+          type: 'image',
+          content: data.midiaUrl,
+          caption: data.legenda || '',
+          statusJidList: contatos,
+          allContacts: contatos.length === 0,
+        }
       }, 20000)
     } else if (data.midiaUrl && data.midiaTipo === 'video') {
       resultado = await evoFetch(`/message/sendStatus/${INSTANCE}`, 'POST', {
-        type: 'video',
-        content: data.midiaUrl,
-        caption: data.legenda || '',
-        statusJidList: contatos,
-        allContacts: contatos.length === 0,
+        statusMessage: {
+          type: 'video',
+          content: data.midiaUrl,
+          caption: data.legenda || '',
+          statusJidList: contatos,
+          allContacts: contatos.length === 0,
+        }
       }, 20000)
     } else {
       resultado = await evoFetch(`/message/sendStatus/${INSTANCE}`, 'POST', {
-        type: 'text',
-        content: data.legenda || '',
-        statusJidList: contatos,
-        allContacts: contatos.length === 0,
+        statusMessage: {
+          type: 'text',
+          content: data.legenda || '',
+          backgroundColor: '#06CF9C',
+          font: 1,
+          statusJidList: contatos,
+          allContacts: contatos.length === 0,
+        }
       }, 20000)
     }
 
