@@ -520,7 +520,19 @@ export default function createWhatsAppRouter(db, admin) {
       const data = await evoFetch(`/instance/fetchInstances`)
       const inst = Array.isArray(data) ? data.find(i => i.name === INSTANCE) : data
       const ready = inst?.connectionStatus === 'open'
-      res.json({ ready, numero: inst?.ownerJid || 'Não detectado', qr: null })
+
+      // Busca QR quando desconectado
+      let qr = null
+      if (!ready) {
+        try {
+          const conn = await evoFetch(`/instance/connect/${INSTANCE}`)
+          // Evolution API retorna base64 direto ou dentro de .base64
+          const raw = conn?.base64 ?? conn?.qrcode?.base64 ?? conn?.code ?? null
+          if (raw) qr = raw.startsWith('data:') ? raw : `data:image/png;base64,${raw}`
+        } catch { /* ignora erro de QR */ }
+      }
+
+      res.json({ ready, numero: inst?.ownerJid || 'Não detectado', qr })
     } catch {
       res.json({ ready: false, numero: 'Erro', qr: null })
     }
