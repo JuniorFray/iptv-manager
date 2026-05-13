@@ -308,7 +308,7 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
       const original = Number(valorOriginal) || 0
       const desconto = c.tipo === '%' ? (original * c.valor / 100) : c.valor
       const final    = Math.max(0, original - desconto)
-      res.json({ ok: true, codigo: c.codigo, tipo: c.tipo, valor: c.valor, desconto, final })
+      res.json({ ok: true, codigo: c.codigo, tipo: c.tipo, valor: c.valor, desconto, final, validade: c.validade || null })
     } catch (e) { res.status(500).json({ error: e.message }) }
   })
 

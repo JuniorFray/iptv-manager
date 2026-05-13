@@ -496,12 +496,10 @@ export default function Notificacoes() {
         const cRes = await axios.post(`${API}/pagamento/cupom/validar`, { codigo: cupomMassa.trim(), valorOriginal: parseFloat(String(clienteSel.valor || '35').replace(',','.')) || 35 })
         if (cRes.data.ok) {
           const ci = cRes.data
-          const desc = ci.tipo === '%' ? ((parseFloat(String(clienteSel.valor||'35').replace(',','.'))||35) * ci.valor / 100) : ci.valor
-          const vDesc = Math.max(0, (parseFloat(String(clienteSel.valor||'35').replace(',','.'))||35) - desc).toFixed(2).replace('.',',')
           mensagemEnvio = mensagemEnvio
             .replace(/{CUPOM}/gi, ci.codigo)
-            .replace(/{DESCONTO}/gi, 'R$ ' + desc.toFixed(2).replace('.',','))
-            .replace(/{VALOR_COM_DESCONTO}/gi, 'R$ ' + vDesc)
+            .replace(/{DESCONTO}/gi, 'R$ ' + String(ci.desconto).replace('.',','))
+            .replace(/{VALOR_COM_DESCONTO}/gi, 'R$ ' + String(ci.final).replace('.',','))
             .replace(/{VALIDADE_CUPOM}/gi, ci.validade || '')
         }
       } catch {}
