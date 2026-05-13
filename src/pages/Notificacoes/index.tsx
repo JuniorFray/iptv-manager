@@ -563,7 +563,7 @@ export default function Notificacoes() {
     try {
       if (!midiaManual) {
         // Só texto
-        const res = await fetch(`${API}/send`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, message: mensagemEnvio, cliente: clienteSel }) })
+        const res = await fetch(`${API}/send`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, message: msgFinal }) })
         const data = await res.json()
         if (data.success) setResultado({ tipo: 'ok', msg: `Mensagem enviada para ${clienteSel.nome}!` })
         else setResultado({ tipo: 'erro', msg: data.error || 'Erro ao enviar.' })
