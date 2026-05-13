@@ -459,8 +459,7 @@ export default function Notificacoes() {
     const valor = c.valor ? `R$ ${parseFloat(c.valor).toFixed(2).replace('.', ',')}` : ''
     return texto
       .replace(/{NOME}/gi, c.nome ?? '').replace(/{VENCIMENTO}/gi, c.vencimento ?? '')
-      .replace(/{SERVIDOR}/gi, c.servidor ?? '').replace(/{USUARIO}/gi, c.usuario ?? '')
-      .replace(/{SENHA}/gi, c.senha ?? '').replace(/{VALOR}/gi, valor)
+      .replace(/{SERVIDOR}/gi, c.servidor ?? '').replace(/{VALOR}/gi, valor)
   }
 
   const formatarTelefone = (tel: string) => {
