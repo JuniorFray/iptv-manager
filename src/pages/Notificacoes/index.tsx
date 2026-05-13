@@ -89,6 +89,7 @@ export default function Notificacoes() {
   const [busca, setBusca]                 = useState('')
   const [intervaloMin, setIntervaloMin]   = useState(5000)
   const [intervaloMax, setIntervaloMax]   = useState(15000)
+  const [cupomMassa, setCupomMassa]       = useState('')
   const [modalModelo, setModalModelo]     = useState(false)
   const [novoTitulo, setNovoTitulo]       = useState('')
   const [novoTexto, setNovoTexto]         = useState('')
@@ -409,8 +410,8 @@ export default function Notificacoes() {
   const clientesFiltrados = (() => {
     // Inativos só aparecem se o filtro 'inativos' estiver selecionado
     let lista = filtro === 'inativos'
-      ? clientes.filter(c => c.telefone && c.status === 'inativo')
-      : clientes.filter(c => c.telefone && c.status !== 'inativo')
+      ? clientes.filter(c => c.telefone && (c.status?.toLowerCase() === 'inativo' || !c.status))
+      : clientes.filter(c => c.telefone && c.status?.toLowerCase() !== 'inativo' && c.status)
 
     if (filtro === 'venchoje') {
       lista = lista.filter(c => {
@@ -527,6 +528,16 @@ export default function Notificacoes() {
     try {
       await axios.post(`${API}/config`, { ...config, intervaloMin, intervaloMax })
     } catch (e) { console.error('Erro ao salvar intervalo:', e) }
+
+    // Valida cupom se informado
+    let cupomInfo: any = null
+    if (cupomMassa.trim()) {
+      try {
+        const res = await axios.post(`${API}/cupom/validar`, { codigo: cupomMassa.trim(), valorOriginal: 35 })
+        if (res.data.ok) cupomInfo = res.data
+        else alert('Cupom inválido: ' + res.data.error)
+      } catch {}
+    }
     const base = template || mensagem
     const processados = new Set<string>()
     let adicionados = 0
@@ -711,7 +722,7 @@ export default function Notificacoes() {
                         : f.id === 'vencidos'
                         ? clientes.filter(c => { const d = parseData(c.vencimento); return d ? diferencaDias(d) < 0 : false }).length
                         : f.id === 'inativos'
-                        ? clientes.filter(c => c.telefone && c.status === 'inativo').length
+                        ? clientes.filter(c => c.status?.toLowerCase() === 'inativo' || (!c.status && c.telefone)).length
                         : f.id === 'venc7plus'
                         ? clientes.filter(c => { const d = parseData(c.vencimento); return c.status !== 'inativo' && (d ? diferencaDias(d) < -7 : false) }).length
                         : f.id === 'srv_warez'
@@ -866,7 +877,12 @@ export default function Notificacoes() {
               </div>
               <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end', marginBottom: '14px' }}>
                 <div style={{ flex: 1 }}>
-                  <label style={{ color: 'rgba(255,255,255,0.6)', fontSize: '13px', display: 'block', marginBottom: '6px' }}>Intervalo entre envios (segundos)</label>
+                  <div style={{ marginBottom: '12px' }}>
+                <label style={{ color: 'rgba(255,255,255,0.6)', fontSize: '13px', display: 'block', marginBottom: '6px' }}>🎟️ Cupom de desconto (opcional)</label>
+                <input value={cupomMassa} onChange={e => setCupomMassa(e.target.value.toUpperCase())} placeholder="Ex: VOLTA10" style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.06)', color: 'white', fontSize: '13px', outline: 'none', fontFamily: 'monospace', letterSpacing: '0.05em', boxSizing: 'border-box' as any }} />
+                <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: '11px', margin: '4px 0 0' }}>Use nas mensagens: {'{CUPOM}'} {'{DESCONTO}'} {'{VALOR_COM_DESCONTO}'}</p>
+              </div>
+              <label style={{ color: 'rgba(255,255,255,0.6)', fontSize: '13px', display: 'block', marginBottom: '6px' }}>Intervalo entre envios (segundos)</label>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <div style={{ flex: 1 }}>
                       <label style={{ color: 'rgba(255,255,255,0.35)', fontSize: '11px', display: 'block', marginBottom: '4px' }}>Mínimo</label>
