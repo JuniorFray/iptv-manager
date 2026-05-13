@@ -530,11 +530,11 @@ export default function Notificacoes() {
     } catch (e) { console.error('Erro ao salvar intervalo:', e) }
 
     // Valida cupom se informado
-    let cupomInfo: any = null
+    let __cupomInfo: any = null
     if (cupomMassa.trim()) {
       try {
         const res = await axios.post(`${API}/cupom/validar`, { codigo: cupomMassa.trim(), valorOriginal: 35 })
-        if (res.data.ok) cupomInfo = res.data
+        if (res.data.ok) _cupomInfo = res.data
         else alert('Cupom inválido: ' + res.data.error)
       } catch {}
     }
