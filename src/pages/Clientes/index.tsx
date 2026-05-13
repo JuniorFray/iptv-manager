@@ -50,6 +50,8 @@ export default function Clientes() {
   const [carregando, setCarregando] = useState(false)
   const [renovandoId, setRenovandoId]     = useState<string | null>(null)
   const [gerandoLinkId, setGerandoLinkId] = useState<string | null>(null)
+  const [cupomLink, setCupomLink]           = useState('')
+  const [cupomModal, setCupomModal]         = useState<any>(null)
   const [linksModal, setLinksModal]       = useState<{clienteNome: string, links: {ponto?: string, plano: string, valor: number, link: string}[], pontos?: boolean} | null>(null)
   const [importandoId, setImportandoId] = useState<string | null>(null)
   const [menuAbertoId, setMenuAbertoId] = useState<string | null>(null)
