@@ -109,10 +109,9 @@ export default function createWhatsAppRouter(db, admin) {
     return msg
   }
 
-  const gerarLinksCliente = async (cliente) => {
+  const gerarLinksCliente = async (cliente, cupomCodigo) => {
     try {
       const BACKEND = 'https://iptv-manager-production.up.railway.app'
-      console.log('[LINKS] gerando para:', cliente.nome, '| usuario:', cliente.usuario, '| servidor:', cliente.servidor)
       const res = await fetch(`${BACKEND}/pagamento/criar`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -120,6 +119,7 @@ export default function createWhatsAppRouter(db, admin) {
           telefone: cliente.telefone, servidor: cliente.servidor,
           usuario: cliente.usuario, senha: cliente.senha,
           valor: cliente.valor, valor3meses: cliente.valor3meses, valor6meses: cliente.valor6meses,
+          cupomCodigo: cupomCodigo || undefined,
         })
       })
       const data = await res.json()
@@ -379,7 +379,7 @@ export default function createWhatsAppRouter(db, admin) {
         if (pontos.length > 1) {
           let pontosTexto = ''
           for (const p of pontos) {
-            const links = await gerarLinksCliente(p)
+            const links = await gerarLinksCliente(p)  // auto-send sem cupom (cupom é só manual)
             const venc  = p.vencimento || '—'
             const fmt   = (v, fb) => v ? `R$ ${parseFloat(String(v).replace(',','.')).toFixed(2).replace('.',',')}` : fb
             const cv1   = fmt(p.valor, 'R$ 35,00')
@@ -590,14 +590,14 @@ export default function createWhatsAppRouter(db, admin) {
 
   router.post('/fila/adicionar', async (req, res) => {
     try {
-      const { clienteId, clienteNome, telefone, mensagem, gatilho, midiaUrl, midiaTipo, midiaNome, modoEnvio, cliente, pontos } = req.body
+      const { clienteId, clienteNome, telefone, mensagem, gatilho, midiaUrl, midiaTipo, midiaNome, modoEnvio, cliente, pontos, cupomCodigo } = req.body
       if (!telefone || !mensagem) return res.status(400).json({ error: 'telefone e mensagem obrigatórios' })
 
       let mensagemFinal
       if (pontos && pontos.length > 1) {
         let pontosTexto = ''
         for (const p of pontos) {
-          const links = await gerarLinksCliente(p)
+          const links = await gerarLinksCliente(p, cupomCodigo)
           const venc  = p.vencimento || '—'
           const fmt   = (v, fb) => v ? `R$ ${parseFloat(String(v).replace(',','.')).toFixed(2).replace('.',',')}` : fb
           const val1  = fmt(p.valor, 'R$ 35,00')
@@ -623,7 +623,7 @@ export default function createWhatsAppRouter(db, admin) {
           : mensagem
         mensagemFinal = msgBase + '\n' + pontosTexto
       } else if (cliente) {
-        mensagemFinal = await formatarMensagem(mensagem, cliente)
+        mensagemFinal = await formatarMensagem(mensagem, cliente, cupomCodigo)
       } else {
         mensagemFinal = mensagem
       }

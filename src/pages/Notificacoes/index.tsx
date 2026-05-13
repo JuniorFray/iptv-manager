@@ -633,6 +633,7 @@ export default function Notificacoes() {
             telefone:    c.telefone,
             mensagem:    base,
             cliente:     c,
+            cupomCodigo: cupomMassa.trim() || undefined,
             pontos:      pontos.length > 1 ? pontos : undefined,
             gatilho:     'manual',
             midiaUrl:    midiaManual?.url    ?? null,
