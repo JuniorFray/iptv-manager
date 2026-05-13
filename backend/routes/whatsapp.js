@@ -110,6 +110,7 @@ export default function createWhatsAppRouter(db, admin) {
   const gerarLinksCliente = async (cliente) => {
     try {
       const BACKEND = 'https://iptv-manager-production.up.railway.app'
+      console.log('[LINKS] gerando para:', cliente.nome, '| usuario:', cliente.usuario, '| servidor:', cliente.servidor)
       const res = await fetch(`${BACKEND}/pagamento/criar`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -120,6 +121,7 @@ export default function createWhatsAppRouter(db, admin) {
         })
       })
       const data = await res.json()
+      console.log('[LINKS] resposta pagamento:', JSON.stringify(data).substring(0,200))
       if (!data.ok) return null
       const links = {}
       for (const l of data.links) {
