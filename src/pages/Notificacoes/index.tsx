@@ -458,8 +458,9 @@ export default function Notificacoes() {
   const substituir = (texto: string, c: Cliente) => {
     const valor = c.valor ? `R$ ${parseFloat(c.valor).toFixed(2).replace('.', ',')}` : ''
     return texto
-      .replace(/NOME/gi, c.nome).replace(/VENCIMENTO/gi, c.vencimento)
-      .replace(/SERVIDOR/gi, c.servidor).replace(/VALOR/gi, valor)
+      .replace(/{NOME}/gi, c.nome ?? '').replace(/{VENCIMENTO}/gi, c.vencimento ?? '')
+      .replace(/{SERVIDOR}/gi, c.servidor ?? '').replace(/{USUARIO}/gi, c.usuario ?? '')
+      .replace(/{SENHA}/gi, c.senha ?? '').replace(/{VALOR}/gi, valor)
   }
 
   const formatarTelefone = (tel: string) => {
@@ -489,10 +490,28 @@ export default function Notificacoes() {
     if (!mensagem.trim() && !midiaManual) return
     const textoFinal = substituir(mensagem, clienteSel)
     const phone = formatarTelefone(clienteSel.telefone)
+    // Substitui variáveis de cupom na mensagem
+    let mensagemEnvio = mensagem
+    if (cupomMassa.trim()) {
+      try {
+        const cRes = await axios.post(`${API}/pagamento/cupom/validar`, { codigo: cupomMassa.trim(), valorOriginal: parseFloat(String(clienteSel.valor || '35').replace(',','.')) || 35 })
+        if (cRes.data.ok) {
+          const ci = cRes.data
+          const desc = ci.tipo === '%' ? ((parseFloat(String(clienteSel.valor||'35').replace(',','.'))||35) * ci.valor / 100) : ci.valor
+          const vDesc = Math.max(0, (parseFloat(String(clienteSel.valor||'35').replace(',','.'))||35) - desc).toFixed(2).replace('.',',')
+          mensagemEnvio = mensagemEnvio
+            .replace(/{CUPOM}/gi, ci.codigo)
+            .replace(/{DESCONTO}/gi, ci.tipo === '%' ? ci.valor + '%' : 'R$ ' + desc.toFixed(2).replace('.',','))
+            .replace(/{VALOR_COM_DESCONTO}/gi, 'R$ ' + vDesc)
+            .replace(/{VALIDADE_CUPOM}/gi, ci.validade || '')
+        }
+      } catch {}
+    }
+
     try {
       if (!midiaManual) {
         // Só texto
-        const res = await fetch(`${API}/send`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, message: mensagem, cliente: clienteSel }) })
+        const res = await fetch(`${API}/send`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, message: mensagemEnvio, cliente: clienteSel }) })
         const data = await res.json()
         if (data.success) setResultado({ tipo: 'ok', msg: `Mensagem enviada para ${clienteSel.nome}!` })
         else setResultado({ tipo: 'erro', msg: data.error || 'Erro ao enviar.' })
