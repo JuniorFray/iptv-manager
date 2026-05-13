@@ -288,15 +288,14 @@ export default function Clientes() {
   }
 
   // ---- Renovar Warez ----
-  const gerarLinkPagamento = async (cliente: Cliente) => {
+  const gerarLinkPagamento = async (cliente: Cliente, cupom?: string) => {
+    setCupomModal(null)
     setGerandoLinkId(cliente.id)
     try {
-      // Agrupa pontos pelo responsável (ou pelo próprio telefone)
       const telResp = cliente.responsavel?.trim() || cliente.telefone
       const pontos = clientes.filter(c =>
         (c.responsavel?.trim() || c.telefone) === telResp && c.status === 'ativo'
       )
-      // Gera links para cada ponto separadamente
       const allLinks: { ponto: string; plano: string; valor: number; link: string }[] = []
       for (const ponto of pontos) {
         const res = await fetch(`${BACKEND_URL}/pagamento/criar`, {
@@ -306,6 +305,7 @@ export default function Clientes() {
             telefone: telResp, servidor: ponto.servidor,
             usuario: ponto.usuario, senha: ponto.senha,
             valor: ponto.valor, valor3meses: ponto.valor3meses, valor6meses: ponto.valor6meses,
+            cupomCodigo: cupom || undefined,
           }),
         })
         const data = await res.json()
@@ -317,6 +317,7 @@ export default function Clientes() {
       else mostrarMsgPainel('erro', 'Falha ao gerar links')
     } catch { mostrarMsgPainel('erro', 'Backend offline.') }
     setGerandoLinkId(null)
+    setCupomLink('')
   }
 
   const renovarClienteWarez = async (cliente: Cliente, credits: number = 1) => {
@@ -911,7 +912,7 @@ export default function Clientes() {
 
                         {/* Excluir */}
                         <button
-                          onClick={() => { setMenuAbertoId(null); gerarLinkPagamento(c) }}
+                          onClick={() => { setMenuAbertoId(null); setCupomModal(c); setCupomLink('') }}
                           disabled={gerandoLinkId === c.id}
                           style={{ width: '100%', padding: '9px 12px', borderRadius: '7px', border: 'none', cursor: 'pointer', background: 'transparent', textAlign: 'left', color: '#34d399', fontSize: '13px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px', opacity: gerandoLinkId === c.id ? 0.5 : 1 }}
                           onMouseEnter={e => (e.currentTarget.style.background = 'rgba(52,211,153,0.1)')}
@@ -1128,6 +1129,28 @@ export default function Clientes() {
       )}
 
       {/* Modal Links Pagamento */}
+      {/* Modal Cupom */}
+      {cupomModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60 }}>
+          <div className="glass-card" style={{ padding: '28px', width: '100%', maxWidth: '380px' }}>
+            <h3 style={{ color: 'white', margin: '0 0 6px', fontSize: '17px' }}>💳 Gerar Links</h3>
+            <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '13px', margin: '0 0 20px' }}>{cupomModal.nome}</p>
+            <label style={{ color: 'rgba(255,255,255,0.6)', fontSize: '13px', display: 'block', marginBottom: '6px' }}>Cupom de desconto (opcional)</label>
+            <input
+              value={cupomLink} onChange={e => setCupomLink(e.target.value.toUpperCase())}
+              placeholder="Ex: MAIO10"
+              style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.06)', color: 'white', fontSize: '14px', outline: 'none', marginBottom: '16px', boxSizing: 'border-box', fontFamily: 'monospace', letterSpacing: '0.05em' }}
+            />
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button onClick={() => { setCupomModal(null); setCupomLink('') }} style={{ flex: 1, padding: '11px', borderRadius: '10px', cursor: 'pointer', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.5)', fontWeight: '600' }}>Cancelar</button>
+              <button onClick={() => gerarLinkPagamento(cupomModal, cupomLink || undefined)} style={{ flex: 2, padding: '11px', borderRadius: '10px', cursor: 'pointer', background: 'linear-gradient(135deg,#3b82f6,#6366f1)', border: 'none', color: 'white', fontWeight: '700', fontSize: '14px' }}>
+                {cupomLink ? `🎟️ Aplicar "${cupomLink}" e Gerar` : '🔗 Gerar sem cupom'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {linksModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
           <div style={{ background: '#1a1a2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', padding: '28px', width: '100%', maxWidth: '420px' }}>

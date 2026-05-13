@@ -60,6 +60,7 @@ const filtros = [
   { id: 'venc4',       label: 'Vencendo em 4 dias',   cor: 'fbbf24', bg: 'rgba(245,158,11,0.15)',  border: 'rgba(245,158,11,0.3)'  },
   { id: 'venc7',       label: 'Vencendo em 7 dias',   cor: '818cf8', bg: 'rgba(99,102,241,0.15)',  border: 'rgba(99,102,241,0.3)'  },
   { id: 'vencidos',    label: 'Vencidos',             cor: 'ef4444', bg: 'rgba(239,68,68,0.15)',   border: 'rgba(239,68,68,0.3)'   },
+  { id: 'inativos',    label: 'Inativos',             cor: '94a3b8', bg: 'rgba(148,163,184,0.15)', border: 'rgba(148,163,184,0.3)'  },
   { id: 'venc7plus',   label: 'Vencidos +7 dias',     cor: 'ef4444', bg: 'rgba(239,68,68,0.15)',   border: 'rgba(239,68,68,0.3)'   },
   { id: 'manual',      label: 'Mensagem Manual',      cor: '60a5fa', bg: 'rgba(59,130,246,0.15)',  border: 'rgba(59,130,246,0.3)'  },
   { id: 'srv_warez',   label: '📡 Warez',             cor: '60a5fa', bg: 'rgba(59,130,246,0.15)',  border: 'rgba(59,130,246,0.3)'  },
@@ -76,7 +77,7 @@ const REGRAS_INFO = [
   { key: 'pos3',  label: '3 dias após vencer',   cor: '239,68,68'  },
 ]
 
-const VARIAVEIS = ['{NOME}', '{VENCIMENTO}', '{SERVIDOR}', '{VALOR}', '{VALOR_3MESES}', '{VALOR_6MESES}', '{LINK_1MES}', '{LINK_3MESES}', '{LINK_6MESES}']
+const VARIAVEIS = ['{NOME}', '{VENCIMENTO}', '{SERVIDOR}', '{VALOR}', '{VALOR_3MESES}', '{VALOR_6MESES}', '{LINK_1MES}', '{LINK_3MESES}', '{LINK_6MESES}', '{CUPOM}', '{DESCONTO}', '{VALOR_COM_DESCONTO}', '{VALIDADE_CUPOM}']
 
 export default function Notificacoes() {
   const [clientes, setClientes]           = useState<Cliente[]>([])
@@ -406,7 +407,10 @@ export default function Notificacoes() {
   const filtroAtual = filtros.find(f => f.id === filtro)!
 
   const clientesFiltrados = (() => {
-    let lista = clientes.filter(c => c.telefone)
+    // Inativos só aparecem se o filtro 'inativos' estiver selecionado
+    let lista = filtro === 'inativos'
+      ? clientes.filter(c => c.telefone && c.status === 'inativo')
+      : clientes.filter(c => c.telefone && c.status !== 'inativo')
 
     if (filtro === 'venchoje') {
       lista = lista.filter(c => {
@@ -706,8 +710,10 @@ export default function Notificacoes() {
                         ? clientes.filter(c => { const d = parseData(c.vencimento); return d ? diferencaDias(d) === 7 : false }).length
                         : f.id === 'vencidos'
                         ? clientes.filter(c => { const d = parseData(c.vencimento); return d ? diferencaDias(d) < 0 : false }).length
+                        : f.id === 'inativos'
+                        ? clientes.filter(c => c.telefone && c.status === 'inativo').length
                         : f.id === 'venc7plus'
-                        ? clientes.filter(c => { const d = parseData(c.vencimento); return d ? diferencaDias(d) < -7 : false }).length
+                        ? clientes.filter(c => { const d = parseData(c.vencimento); return c.status !== 'inativo' && (d ? diferencaDias(d) < -7 : false) }).length
                         : f.id === 'srv_warez'
                         ? clientes.filter(c => c.telefone && c.servidor?.toUpperCase() === 'WAREZ').length
                         : f.id === 'srv_elite'

@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import Posicionamento from "./pages/Posicionamento";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import Login from "./pages/Login";
 import Layout from "./pages/Layout";
@@ -32,6 +33,7 @@ function App() {
             <Route path="notificacoes" element={<Notificacoes />} />
             <Route path="financeiro" element={<DashboardFinanceiro />} />
             <Route path="pagamentos" element={<Pagamentos />} />
+            <Route path="posicionamento" element={<Posicionamento />} />
           </Route>
           <Route path="*" element={<Navigate to="/login" />} />
         </Routes>

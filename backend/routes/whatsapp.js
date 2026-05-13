@@ -354,6 +354,7 @@ export default function createWhatsAppRouter(db, admin) {
 
     for (const cliente of clientes) {
       if (!cliente.telefone) continue
+      if (cliente.status === 'inativo') continue   // não envia para inativos
       if (cliente.responsavel?.trim()) continue
       const diff = diffDias(cliente.vencimento)
       if (diff === null) continue

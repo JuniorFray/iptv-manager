@@ -20,7 +20,7 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
 
   router.post('/pagamento/criar', async (req, res) => {
     try {
-      const { clienteId, clienteNome, telefone, servidor, usuario, senha, valor, valor3meses, valor6meses } = req.body
+      const { clienteId, clienteNome, telefone, servidor, usuario, senha, valor, valor3meses, valor6meses, cupomCodigo } = req.body
       if (!clienteId || !clienteNome || !servidor || !usuario) {
         return res.status(400).json({ error: 'Campos obrigatorios faltando' })
       }
@@ -264,6 +264,69 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
       }))
       res.json({ ok: true, pagamentos: docs })
     } catch (err) { res.status(500).json({ ok: false, error: err.message }) }
+  })
+
+  // ---- Cupons ----
+
+  router.post('/cupom', async (req, res) => {
+    try {
+      const { codigo, tipo, valor, maxUsos, validade } = req.body
+      if (!codigo || !tipo || !valor) return res.status(400).json({ error: 'codigo, tipo e valor obrigatorios' })
+      const ref = db.collection('cupons').doc(codigo.toUpperCase())
+      const snap = await ref.get()
+      if (snap.exists) return res.status(400).json({ error: 'Cupom ja existe' })
+      await ref.set({
+        codigo: codigo.toUpperCase(), tipo, valor: Number(valor),
+        maxUsos: maxUsos ? Number(maxUsos) : null, usos: 0,
+        validade: validade || null, ativo: true,
+        criadoEm: admin.firestore.FieldValue.serverTimestamp(),
+      })
+      res.json({ ok: true })
+    } catch (e) { res.status(500).json({ error: e.message }) }
+  })
+
+  router.get('/cupons', async (req, res) => {
+    try {
+      const snap = await db.collection('cupons').orderBy('criadoEm', 'desc').get()
+      res.json(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+    } catch (e) { res.status(500).json({ error: e.message }) }
+  })
+
+  router.post('/cupom/validar', async (req, res) => {
+    try {
+      const { codigo, valorOriginal } = req.body
+      if (!codigo) return res.status(400).json({ error: 'codigo obrigatorio' })
+      const snap = await db.collection('cupons').doc(codigo.toUpperCase()).get()
+      if (!snap.exists) return res.status(404).json({ ok: false, error: 'Cupom nao encontrado' })
+      const c = snap.data()
+      if (!c.ativo) return res.status(400).json({ ok: false, error: 'Cupom inativo' })
+      if (c.maxUsos && c.usos >= c.maxUsos) return res.status(400).json({ ok: false, error: 'Cupom esgotado' })
+      if (c.validade) {
+        const [d, m, a] = c.validade.split('/').map(Number)
+        if (new Date(a, m - 1, d) < new Date()) return res.status(400).json({ ok: false, error: 'Cupom expirado' })
+      }
+      const original = Number(valorOriginal) || 0
+      const desconto = c.tipo === '%' ? (original * c.valor / 100) : c.valor
+      const final    = Math.max(0, original - desconto)
+      res.json({ ok: true, codigo: c.codigo, tipo: c.tipo, valor: c.valor, desconto, final })
+    } catch (e) { res.status(500).json({ error: e.message }) }
+  })
+
+  router.patch('/cupom/:codigo/toggle', async (req, res) => {
+    try {
+      const ref = db.collection('cupons').doc(req.params.codigo.toUpperCase())
+      const snap = await ref.get()
+      if (!snap.exists) return res.status(404).json({ error: 'Cupom nao encontrado' })
+      await ref.update({ ativo: !snap.data().ativo })
+      res.json({ ok: true })
+    } catch (e) { res.status(500).json({ error: e.message }) }
+  })
+
+  router.delete('/cupom/:codigo', async (req, res) => {
+    try {
+      await db.collection('cupons').doc(req.params.codigo.toUpperCase()).delete()
+      res.json({ ok: true })
+    } catch (e) { res.status(500).json({ error: e.message }) }
   })
 
   // ---- Fila de Renovacoes (retry automatico) ----
