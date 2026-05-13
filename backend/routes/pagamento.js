@@ -268,7 +268,7 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
 
   // ---- Cupons ----
 
-  router.post('/cupom', async (req, res) => {
+  router.post('/pagamento/cupom', async (req, res) => {
     try {
       const { codigo, tipo, valor, maxUsos, validade } = req.body
       if (!codigo || !tipo || !valor) return res.status(400).json({ error: 'codigo, tipo e valor obrigatorios' })
@@ -285,14 +285,14 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
     } catch (e) { res.status(500).json({ error: e.message }) }
   })
 
-  router.get('/cupons', async (req, res) => {
+  router.get('/pagamento/cupons', async (req, res) => {
     try {
       const snap = await db.collection('cupons').orderBy('criadoEm', 'desc').get()
       res.json(snap.docs.map(d => ({ id: d.id, ...d.data() })))
     } catch (e) { res.status(500).json({ error: e.message }) }
   })
 
-  router.post('/cupom/validar', async (req, res) => {
+  router.post('/pagamento/cupom/validar', async (req, res) => {
     try {
       const { codigo, valorOriginal } = req.body
       if (!codigo) return res.status(400).json({ error: 'codigo obrigatorio' })
@@ -312,7 +312,7 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
     } catch (e) { res.status(500).json({ error: e.message }) }
   })
 
-  router.patch('/cupom/:codigo/toggle', async (req, res) => {
+  router.patch('/pagamento/cupom/:codigo/toggle', async (req, res) => {
     try {
       const ref = db.collection('cupons').doc(req.params.codigo.toUpperCase())
       const snap = await ref.get()
@@ -322,7 +322,7 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
     } catch (e) { res.status(500).json({ error: e.message }) }
   })
 
-  router.delete('/cupom/:codigo', async (req, res) => {
+  router.delete('/pagamento/cupom/:codigo', async (req, res) => {
     try {
       await db.collection('cupons').doc(req.params.codigo.toUpperCase()).delete()
       res.json({ ok: true })
