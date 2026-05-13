@@ -500,7 +500,7 @@ export default function Notificacoes() {
           const vDesc = Math.max(0, (parseFloat(String(clienteSel.valor||'35').replace(',','.'))||35) - desc).toFixed(2).replace('.',',')
           mensagemEnvio = mensagemEnvio
             .replace(/{CUPOM}/gi, ci.codigo)
-            .replace(/{DESCONTO}/gi, ci.tipo === '%' ? ci.valor + '%' : 'R$ ' + desc.toFixed(2).replace('.',','))
+            .replace(/{DESCONTO}/gi, 'R$ ' + desc.toFixed(2).replace('.',','))
             .replace(/{VALOR_COM_DESCONTO}/gi, 'R$ ' + vDesc)
             .replace(/{VALIDADE_CUPOM}/gi, ci.validade || '')
         }
