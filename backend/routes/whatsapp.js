@@ -84,11 +84,11 @@ export default function createWhatsAppRouter(db, admin) {
     })
   }
 
-  const formatarMensagem = async (template, cliente) => {
+  const formatarMensagem = async (template, cliente, cupomCodigo) => {
     const fmtValor = v => v ? `R$ ${parseFloat(String(v).replace(',','.')).toFixed(2).replace('.', ',')}` : ''
     const v3 = cliente.valor3meses || '95.00'
     const v6 = cliente.valor6meses || '170.00'
-    const links = await gerarLinksCliente(cliente)
+    const links = await gerarLinksCliente(cliente, cupomCodigo)
     let msg = template
       .replace(/\{NOME\}/gi,         cliente.nome        || '')
       .replace(/\{VENCIMENTO\}/gi,   cliente.vencimento   || '')
