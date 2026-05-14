@@ -42,7 +42,11 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
           if (cSnap.exists) {
             const c = cSnap.data()
             console.log('[PAGAMENTO] cupom:', c.codigo, '| ativo:', c.ativo, '| usos:', c.usos, '| maxUsos:', c.maxUsos)
-            if (c.ativo && (!c.maxUsos || c.usos < c.maxUsos)) {
+            const validadeOk = !c.validade || (() => {
+                const [d, m, a] = c.validade.split('/').map(Number)
+                return new Date(a, m - 1, d, 23, 59, 59) >= new Date()
+              })()
+            if (c.ativo && validadeOk && (!c.maxUsos || c.usos < c.maxUsos)) {
               const desc = (val) => c.tipo === '%' ? Math.max(0, val - val * c.valor / 100) : Math.max(0, val - c.valor)
               v1 = Math.round(desc(v1) * 100) / 100
               v3 = Math.round(desc(v3) * 100) / 100
@@ -322,7 +326,8 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
       if (c.maxUsos && c.usos >= c.maxUsos) return res.status(400).json({ ok: false, error: 'Cupom esgotado' })
       if (c.validade) {
         const [d, m, a] = c.validade.split('/').map(Number)
-        if (new Date(a, m - 1, d) < new Date()) return res.status(400).json({ ok: false, error: 'Cupom expirado' })
+        const fimDia = new Date(a, m - 1, d, 23, 59, 59)
+        if (fimDia < new Date()) return res.status(400).json({ ok: false, error: 'Cupom expirado' })
       }
       const original = Number(valorOriginal) || 0
       const desconto = c.tipo === '%' ? (original * c.valor / 100) : c.valor
