@@ -36,6 +36,7 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
 
       console.log('[PAGAMENTO] criar — cupomCodigo:', cupomCodigo, '| v1:', v1, '| v3:', v3)
       // Aplica desconto do cupom se informado
+      let cupomData = null
       if (cupomCodigo) {
         try {
           const cSnap = await db.collection('cupons').doc(cupomCodigo.toUpperCase()).get()
@@ -51,6 +52,7 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
               v1 = Math.round(desc(v1) * 100) / 100
               v3 = Math.round(desc(v3) * 100) / 100
               v6 = Math.round(desc(v6) * 100) / 100
+              cupomData = c
             }
           }
         } catch (e) { console.error('[PAGAMENTO] Erro cupom:', e.message) }
@@ -99,8 +101,8 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
             expires:              true,
             expiration_date_to:   (() => {
               const padrao = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-              if (cupomInfo?.validade) {
-                const [d, m, a] = cupomInfo.validade.split('/').map(Number)
+              if (cupomData?.validade) {
+                const [d, m, a] = cupomData.validade.split('/').map(Number)
                 const vencCupom = new Date(a, m - 1, d, 23, 59, 59)
                 return (vencCupom < padrao ? vencCupom : padrao).toISOString()
               }
