@@ -337,6 +337,19 @@ export default function createWhatsAppRouter(db, admin) {
 
   // ---- Envio Automático ----
 
+
+  // Remove linhas de preço e link do template para multi-ponto
+  const stripLinksDoTemplate = (template) => {
+    const linhas = template.split('\n')
+    const remover = new Set()
+    for (let i = 0; i < linhas.length; i++) {
+      if (/\{LINK_(1MES|3MESES|6MESES)\}/i.test(linhas[i])) {
+        remover.add(i)           // remove linha {LINK_*}
+        if (i > 0) remover.add(i - 1) // remove linha de preço acima
+      }
+    }
+    return linhas.filter((_, i) => !remover.has(i)).join('\n').replace(/\n{3,}/g, '\n\n').trim()
+  }
   const executarEnvioAutomatico = async () => {
     if (cronRodando) { console.log('Envio automático já em execução, ignorando disparo duplicado.'); return }
     cronRodando = true
