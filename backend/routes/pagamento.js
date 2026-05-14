@@ -97,7 +97,15 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
               installments: 1,
             },
             expires:              true,
-            expiration_date_to:   new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+            expiration_date_to:   (() => {
+              const padrao = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+              if (cupomInfo?.validade) {
+                const [d, m, a] = cupomInfo.validade.split('/').map(Number)
+                const vencCupom = new Date(a, m - 1, d, 23, 59, 59)
+                return (vencCupom < padrao ? vencCupom : padrao).toISOString()
+              }
+              return padrao.toISOString()
+            })(),
           }
         })
 
