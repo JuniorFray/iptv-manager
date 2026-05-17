@@ -45,7 +45,7 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
             console.log('[PAGAMENTO] cupom:', c.codigo, '| ativo:', c.ativo, '| usos:', c.usos, '| maxUsos:', c.maxUsos)
             const validadeOk = !c.validade || (() => {
                 const [d, m, a] = c.validade.split('/').map(Number)
-                return new Date(a, m - 1, d, 23, 59, 59) >= new Date()
+                return new Date(Date.UTC(a, m - 1, d, 26, 59, 59)) >= new Date() // 23:59:59 BRT
               })()
             if (c.ativo && validadeOk && (!c.maxUsos || c.usos < c.maxUsos)) {
               const desc = (val) => c.tipo === '%' ? Math.max(0, val - val * c.valor / 100) : Math.max(0, val - c.valor)
@@ -103,7 +103,7 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
               const padrao = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
               if (cupomData?.validade) {
                 const [d, m, a] = cupomData.validade.split('/').map(Number)
-                const vencCupom = new Date(a, m - 1, d, 23, 59, 59)
+                const vencCupom = new Date(Date.UTC(a, m - 1, d, 26, 59, 59)) // 23:59:59 BRT
                 return (vencCupom < padrao ? vencCupom : padrao).toISOString()
               }
               return padrao.toISOString()
@@ -336,7 +336,7 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
       if (c.maxUsos && c.usos >= c.maxUsos) return res.status(400).json({ ok: false, error: 'Cupom esgotado' })
       if (c.validade) {
         const [d, m, a] = c.validade.split('/').map(Number)
-        const fimDia = new Date(a, m - 1, d, 23, 59, 59)
+        const fimDia = new Date(Date.UTC(a, m - 1, d, 26, 59, 59)) // 23:59:59 BRT
         if (fimDia < new Date()) return res.status(400).json({ ok: false, error: 'Cupom expirado' })
       }
       const original = Number(valorOriginal) || 0
