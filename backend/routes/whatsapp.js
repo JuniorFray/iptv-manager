@@ -427,7 +427,7 @@ export default function createWhatsAppRouter(db, admin) {
             }
           }
           const fmtV = (v, fb) => v ? `R$ ${parseFloat(String(v).replace(',','.')).toFixed(2).replace('.',',')}` : fb
-          const msgBase = regra.mensagem
+          const msgBase = stripLinksDoTemplate(regra.mensagem)
             .replace(/\{NOME\}/gi, cliente.nome).replace(/NOME/gi, cliente.nome)
             .replace(/\{VENCIMENTO\}/gi, cliente.vencimento || '').replace(/VENCIMENTO/gi, cliente.vencimento || '')
             .replace(/\{SERVIDOR\}/gi, cliente.servidor || '').replace(/SERVIDOR/gi, cliente.servidor || '')
