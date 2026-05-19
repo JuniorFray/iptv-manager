@@ -9,6 +9,7 @@ import Servidores from "./pages/Servidores";
 import Notificacoes from "./pages/Notificacoes";
 import DashboardFinanceiro from "./pages/DashboardFinanceiro";
 import Pagamentos from "./pages/Pagamentos";
+import Followup from "./pages/Followup";
 
 function RotasProtegidas({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
@@ -34,6 +35,7 @@ function App() {
             <Route path="financeiro" element={<DashboardFinanceiro />} />
             <Route path="pagamentos" element={<Pagamentos />} />
             <Route path="posicionamento" element={<Posicionamento />} />
+            <Route path="followup" element={<Followup />} />
           </Route>
           <Route path="*" element={<Navigate to="/login" />} />
         </Routes>
