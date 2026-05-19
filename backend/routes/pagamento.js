@@ -76,7 +76,7 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
               unit_price:  plano.valor,
               currency_id: 'BRL',
             }],
-            payer:               { name: clienteNome },
+            payer:               { name: clienteNome, email: (telefone ? telefone.replace(/\D/g,'') + '@pag.com' : 'cliente@pag.com') },
             external_reference:  externalRef,
             back_urls: {
               success: `${process.env.FRONTEND_URL ?? 'https://sistema-tv.up.railway.app'}/dashboard`,
