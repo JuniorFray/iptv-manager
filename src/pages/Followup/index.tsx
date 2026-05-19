@@ -20,7 +20,7 @@ export default function Followup() {
     setLoading(true)
     setResultado(null)
     try {
-      const res  = await fetch(`${API}/whatsapp/followup/contatos`)
+      const res  = await fetch(`${API}/followup/contatos`)
       const data = await res.json()
       if (data.ok) {
         setContatos(data.contatos)
@@ -61,7 +61,7 @@ export default function Followup() {
     setResultado(null)
     try {
       const contatosSel = contatos.filter(c => selecionados.has(c.telefone))
-      const res  = await fetch(`${API}/whatsapp/followup/enviar`, {
+      const res  = await fetch(`${API}/followup/enviar`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contatos: contatosSel, mensagem }),
       })
