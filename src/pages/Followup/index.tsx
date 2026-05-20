@@ -19,7 +19,9 @@ export default function Followup() {
   const [loading,      setLoading]      = useState(false)
   const [busca,        setBusca]        = useState('')
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set())
-  const [msgs,         setMsgs]         = useState(['', '', ''])
+  const [msgs,         setMsgs]         = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem('followup_msgs') || '["","",""]') } catch { return ['','',''] }
+  })
   const [tamLote,      setTamLote]      = useState(10)
   const [enviando,     setEnviando]     = useState(false)
   const [resultado,    setResultado]    = useState<{tipo:'ok'|'erro', msg:string} | null>(null)
@@ -33,9 +35,8 @@ export default function Followup() {
   }, [contatos])
 
   useEffect(() => {
-    if (totalBuscado !== null) localStorage.setItem('followup_total', String(totalBuscado))
-    carregarEnviados()
-  }, [])
+    localStorage.setItem('followup_msgs', JSON.stringify(msgs))
+  }, [msgs])
 
   const carregarEnviados = async () => {
     try {
@@ -44,6 +45,8 @@ export default function Followup() {
       if (data.ok) setEnviados(data.enviados)
     } catch {}
   }
+
+  useEffect(() => { carregarEnviados() }, [])
 
   const buscarContatos = async () => {
     setLoading(true); setResultado(null)

@@ -842,6 +842,7 @@ export default function createWhatsAppRouter(db, admin) {
           midiaUrl: null, midiaTipo: null, gatilho: 'followup',
           status: 'pendente',
           tentativas: 0,
+          maxTentativas: 3,
           proximaTentativa: admin.firestore.Timestamp.now(),
           criadoEm: admin.firestore.FieldValue.serverTimestamp(),
         })
