@@ -786,9 +786,23 @@ export default function createWhatsAppRouter(db, admin) {
         if (tel && c.pushName) nomeMap.set(tel, c.pushName)
       }
 
-      // Clientes já cadastrados
+      // Clientes já cadastrados — gera variantes com e sem o 9 extra (reforma BR)
       const snap = await db.collection('clientes').get()
-      const cadastrados = new Set(snap.docs.map(d => normalizarTelefone(d.data().telefone || '')))
+      const cadastrados = new Set()
+      snap.docs.forEach(d => {
+        const tel = normalizarTelefone(d.data().telefone || '')
+        cadastrados.add(tel)
+        // variante sem o 9 extra (13 → 12 digitos): 55 + DDD(2) + 9 + XXXXXXXX → 55 + DDD + XXXXXXXX
+        if (tel.length === 13 && tel.startsWith('55')) {
+          const semNove = tel.substring(0, 4) + tel.substring(5) // remove o 5º dígito (o 9)
+          cadastrados.add(semNove)
+        }
+        // variante com o 9 extra (12 → 13 digitos)
+        if (tel.length === 12 && tel.startsWith('55')) {
+          const comNove = tel.substring(0, 4) + '9' + tel.substring(4)
+          cadastrados.add(comNove)
+        }
+      })
 
       // Filtra chats individuais não cadastrados
       const vistos = new Set()
