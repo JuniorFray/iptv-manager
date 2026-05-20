@@ -840,7 +840,10 @@ export default function createWhatsAppRouter(db, admin) {
           clienteNome: c.nome || 'Contato', telefone: phone,
           mensagem: msg.replace(/\{NOME\}/gi, c.nome || ''),
           midiaUrl: null, midiaTipo: null, gatilho: 'followup',
-          status: 'pendente', criadoEm: admin.firestore.FieldValue.serverTimestamp(),
+          status: 'pendente',
+          tentativas: 0,
+          proximaTentativa: admin.firestore.Timestamp.now(),
+          criadoEm: admin.firestore.FieldValue.serverTimestamp(),
         })
         await db.collection('followupEnviados').doc(phone).set({
           telefone: phone, nome: c.nome || 'Contato', enviadoEm: agora
