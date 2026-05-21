@@ -107,6 +107,7 @@ export default function Notificacoes() {
   const [modoEnquete,   setModoEnquete]     = useState(false)
   const [enqueteTitulo, setEnqueteTitulo]   = useState('')
   const [enqueteOpcoes, setEnqueteOpcoes]   = useState<string[]>(['', '', ''])
+  const [enqueteMultipla, setEnqueteMultipla] = useState(false)
   const [uploadManualProg, setUploadManualProg] = useState(-1)
   const cancelarEnvioRef = useRef(false)
   const [modalMidiaRegra, setModalMidiaRegra]   = useState<string | null>(null)
@@ -501,7 +502,7 @@ export default function Notificacoes() {
     try {
       await fetch(`${API}/send/poll`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, titulo: enqueteTitulo.trim(), opcoes })
+        body: JSON.stringify({ phone, titulo: enqueteTitulo.trim(), opcoes, selectableCount: enqueteMultipla ? opcoes.length : 1 })
       })
     } catch {}
   }
@@ -518,7 +519,7 @@ export default function Notificacoes() {
       try {
         await fetch(`${API}/send/poll`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phone: formatarTelefone(c.telefone), titulo: enqueteTitulo.trim(), opcoes })
+          body: JSON.stringify({ phone: formatarTelefone(c.telefone), titulo: enqueteTitulo.trim(), opcoes, selectableCount: enqueteMultipla ? opcoes.length : 1 })
         })
         adicionados++
       } catch {}
@@ -930,6 +931,10 @@ export default function Notificacoes() {
                     )}
                   </div>
                   <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: '11px', margin: 0 }}>Mínimo 2 opções • Máximo 12 opções</p>
+                  <div style={{ display: 'flex', gap: '4px', background: 'rgba(255,255,255,0.05)', borderRadius: '8px', padding: '3px', alignSelf: 'flex-start', marginTop: '4px' }}>
+                    <button onClick={() => setEnqueteMultipla(false)} style={{ padding: '4px 12px', borderRadius: '6px', cursor: 'pointer', border: 'none', background: !enqueteMultipla ? 'rgba(99,102,241,0.4)' : 'transparent', color: !enqueteMultipla ? '#a5b4fc' : 'rgba(255,255,255,0.4)', fontSize: '12px', fontWeight: '600' }}>☑️ Escolha única</button>
+                    <button onClick={() => setEnqueteMultipla(true)}  style={{ padding: '4px 12px', borderRadius: '6px', cursor: 'pointer', border: 'none', background:  enqueteMultipla ? 'rgba(99,102,241,0.4)' : 'transparent', color:  enqueteMultipla ? '#a5b4fc' : 'rgba(255,255,255,0.4)', fontSize: '12px', fontWeight: '600' }}>☑️ Múltipla escolha</button>
+                  </div>
                 </div>
               )}
               {/* Campo Cupom Global */}

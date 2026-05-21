@@ -858,14 +858,14 @@ export default function createWhatsAppRouter(db, admin) {
   // Envia enquete via Evolution API
   router.post('/send/poll', async (req, res) => {
     try {
-      const { phone, titulo, opcoes } = req.body
+      const { phone, titulo, opcoes, selectableCount } = req.body
       if (!phone || !titulo || !opcoes?.length) return res.status(400).json({ error: 'phone, titulo e opcoes sao obrigatorios' })
       const num = normalizarTelefone(phone)
       const result = await evoFetch('/message/sendPoll/' + INSTANCE, 'POST', {
         number: num,
         name: titulo,
         values: opcoes,
-        selectableCount: 1,
+        selectableCount: selectableCount ?? 1,
       })
       res.json({ ok: true, result })
     } catch (e) {
