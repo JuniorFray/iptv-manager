@@ -860,8 +860,12 @@ export default function createWhatsAppRouter(db, admin) {
     res.sendStatus(200)
     try {
       const body = req.body
+      // DEBUG - loga tudo que chega
+      console.log('[WEBHOOK] evento:', body?.event, '| keys:', Object.keys(body || {}).join(','))
+      if (body?.data) console.log('[WEBHOOK] data sample:', JSON.stringify(body.data).substring(0, 300))
       const msgs = body?.data?.messages ?? (Array.isArray(body?.data) ? body.data : [])
       for (const msg of msgs) {
+        console.log('[WEBHOOK] msg type:', msg?.messageType, '| keys:', Object.keys(msg?.message || {}).join(','))
         const poll = msg?.message?.pollUpdateMessage
         if (!poll) continue
         const votante   = (msg.key?.remoteJid || '').replace('@s.whatsapp.net', '')
