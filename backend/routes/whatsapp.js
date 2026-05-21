@@ -855,6 +855,25 @@ export default function createWhatsAppRouter(db, admin) {
     } catch (e) { res.status(500).json({ error: e.message }) }
   })
 
+  // Envia enquete via Evolution API
+  router.post('/send/poll', async (req, res) => {
+    try {
+      const { phone, titulo, opcoes } = req.body
+      if (!phone || !titulo || !opcoes?.length) return res.status(400).json({ error: 'phone, titulo e opcoes sao obrigatorios' })
+      const num = normalizarTelefone(phone)
+      const result = await evoFetch('/message/sendPoll/' + INSTANCE, 'POST', {
+        number: num,
+        name: titulo,
+        values: opcoes,
+        selectableCount: 1,
+      })
+      res.json({ ok: true, result })
+    } catch (e) {
+      console.error('[POLL]', e.message)
+      res.status(500).json({ error: e.message })
+    }
+  })
+
   // Webhook Evolution API - votos de enquete
   router.post('/webhook/whatsapp', async (req, res) => {
     res.sendStatus(200)
