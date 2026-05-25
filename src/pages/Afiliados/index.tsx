@@ -19,7 +19,6 @@ export default function Afiliados() {
   const [form,        setForm]        = useState({ nome: '', email: '', senha: '', comissaoTipo: 'percent', comissaoValor: '10', ativo: true })
   const [showSenha,   setShowSenha]   = useState(false)
   const [resultado,   setResultado]   = useState<{tipo:'ok'|'erro', msg:string} | null>(null)
-  const [vendaDetail, setVendaDetail] = useState<string | null>(null)
 
   const carregar = async () => {
     setLoading(true)

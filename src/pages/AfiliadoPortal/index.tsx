@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Tv, LogIn, Send, Eye, EyeOff, LogOut, Clock, CheckCircle, DollarSign, Users } from 'lucide-react'
+import { Tv, LogIn, Send, Eye, EyeOff, LogOut, Clock, DollarSign, Users } from 'lucide-react'
 
 const API = 'https://iptv-manager-production.up.railway.app'
 
@@ -10,7 +10,6 @@ export default function AfiliadoPortal() {
   const [token,    setToken]    = useState(() => localStorage.getItem('afiliado_token') || '')
   const [afiliado, setAfiliado] = useState<any>(null)
   const [dados,    setDados]    = useState<any>(null)
-  const [loading,  setLoading]  = useState(false)
   const [aba,      setAba]      = useState<'dashboard'|'novo'>('dashboard')
 
   // Login form
