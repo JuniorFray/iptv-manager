@@ -25,6 +25,8 @@ export default function AfiliadoPortal() {
   const [testeRes,    setTesteRes]    = useState<any>(null)
   const [testeErro,   setTesteErro]   = useState('')
   const [enviandoTeste, setEnviandoTeste] = useState(false)
+  const [excluindoTeste, setExcluindoTeste] = useState<string | null>(null)
+  const [testeAberto, setTesteAberto] = useState<string | null>(null)
 
   const carregar = async (tk: string) => {
     setLoading(true)
@@ -74,6 +76,14 @@ export default function AfiliadoPortal() {
       carregar(token)
     } else setTesteErro(data.error || 'Erro ao gerar teste')
     setEnviandoTeste(false)
+  }
+
+  const excluirTeste = async (id: string) => {
+    if (!confirm('Excluir este teste?')) return
+    setExcluindoTeste(id)
+    await fetch(`${API}/afiliado/teste/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
+    setExcluindoTeste(null)
+    carregar(token)
   }
 
   const inputStyle: React.CSSProperties = { width: '100%', padding: '12px 14px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.06)', color: 'white', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }
@@ -136,7 +146,7 @@ export default function AfiliadoPortal() {
 
         {/* Abas */}
         <div style={{ display: 'flex', gap: '4px', background: 'rgba(255,255,255,0.05)', borderRadius: '10px', padding: '4px', marginBottom: '24px' }}>
-          {[{ id: 'dashboard', label: '📊 Dashboard' }, { id: 'novo', label: '➕ Gerar Teste' }].map(a => (
+          {[{ id: 'dashboard', label: '📊 Dashboard' }, { id: 'testes', label: '🧪 Meus Testes' }, { id: 'novo', label: '➕ Gerar Teste' }].map(a => (
             <button key={a.id} onClick={() => setAba(a.id as any)} style={{ flex: 1, padding: '9px', borderRadius: '7px', cursor: 'pointer', border: 'none', background: aba === a.id ? 'rgba(99,102,241,0.4)' : 'transparent', color: aba === a.id ? '#a5b4fc' : 'rgba(255,255,255,0.5)', fontWeight: '600', fontSize: '13px' }}>{a.label}</button>
           ))}
         </div>
@@ -191,6 +201,64 @@ export default function AfiliadoPortal() {
               )}
             </div>
           </>
+        )}
+
+        {aba === 'testes' && (
+          <div className="glass-card" style={{ overflow: 'hidden' }}>
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+              <h3 style={{ color: 'white', margin: 0, fontSize: '15px', fontWeight: '600' }}>Testes criados ({dados?.testes?.length ?? 0})</h3>
+            </div>
+            {!dados?.testes?.length ? (
+              <p style={{ color: 'rgba(255,255,255,0.3)', textAlign: 'center', padding: '40px 0', fontSize: '13px' }}>Nenhum teste gerado ainda.</p>
+            ) : (
+              <div>
+                {dados.testes.map((t: any) => (
+                  <div key={t.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', padding: '14px 20px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <p style={{ color: 'white', fontWeight: '600', margin: '0 0 4px', fontSize: '14px' }}>{t.clienteNome}</p>
+                        <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '12px', margin: 0 }}>{t.clienteTelefone} · {t.usuario} · {new Date(t.criadoEm?._seconds * 1000 || 0).toLocaleDateString('pt-BR')}</p>
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button onClick={() => setTesteAberto(testeAberto === t.id ? null : t.id)}
+                          style={{ padding: '5px 12px', borderRadius: '7px', cursor: 'pointer', background: 'rgba(99,102,241,0.2)', border: '1px solid rgba(99,102,241,0.3)', color: '#a5b4fc', fontSize: '12px' }}>
+                          {testeAberto === t.id ? '▲ Fechar' : '▼ Ver dados'}
+                        </button>
+                        <button onClick={() => excluirTeste(t.id)} disabled={excluindoTeste === t.id}
+                          style={{ padding: '5px 10px', borderRadius: '7px', cursor: 'pointer', background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.25)', color: '#f87171', fontSize: '12px' }}>
+                          🗑
+                        </button>
+                      </div>
+                    </div>
+                    {testeAberto === t.id && (
+                      <div style={{ marginTop: '12px', background: 'rgba(255,255,255,0.04)', borderRadius: '10px', padding: '14px' }}>
+                        <div style={{ display: 'flex', gap: '20px', marginBottom: '10px', flexWrap: 'wrap' }}>
+                          {[['Usuário', t.usuario], ['Senha', t.senha], ['Expira', t.expira || '3h']].map(([k, v]) => (
+                            <div key={k}>
+                              <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '11px', margin: '0 0 2px' }}>{k}</p>
+                              <p style={{ color: 'white', fontWeight: '600', fontFamily: 'monospace', fontSize: '13px', margin: 0 }}>{v}</p>
+                            </div>
+                          ))}
+                          <button onClick={() => {
+                            const txt = ['Usuário: ' + t.usuario, 'Senha: ' + t.senha, '', 'Links:', ...(t.links || []).map((l: any) => l.plano + ': ' + l.link)].join('\n')
+                            navigator.clipboard.writeText(txt)
+                          }} style={{ marginLeft: 'auto', padding: '5px 12px', borderRadius: '7px', cursor: 'pointer', background: 'rgba(99,102,241,0.2)', border: '1px solid rgba(99,102,241,0.3)', color: '#a5b4fc', fontSize: '12px', alignSelf: 'center' }}>
+                            📋 Copiar
+                          </button>
+                        </div>
+                        {(t.links || []).map((l: any) => (
+                          <div key={l.plano} style={{ marginBottom: '4px', fontSize: '12px' }}>
+                            <span style={{ color: 'rgba(255,255,255,0.5)' }}>{l.plano} — R$ {String(l.valor).replace('.', ',')} → </span>
+                            <a href={l.link} target="_blank" rel="noreferrer" style={{ color: '#60a5fa', wordBreak: 'break-all' }}>{l.link}</a>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         )}
 
         {aba === 'novo' && (

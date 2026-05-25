@@ -90,6 +90,7 @@ export default function createAfiliadoRouter(db, admin) {
         usuario,
         senha,
         expira:           expira || null,
+        links:            linksRes.links || [],
         criadoEm:         admin.firestore.FieldValue.serverTimestamp(),
       })
 
@@ -146,6 +147,17 @@ export default function createAfiliadoRouter(db, admin) {
 
       res.json({ ok: true, vendas, testes, totalComissao, totalPendente, totalPago,
         comissaoTipo: af.comissaoTipo, comissaoValor: af.comissaoValor })
+    } catch (e) { res.status(500).json({ error: e.message }) }
+  })
+
+  // ── AFILIADO: EXCLUIR TESTE ─────────────────────────────────────────────
+  router.delete('/afiliado/teste/:id', authAfiliado, async (req, res) => {
+    try {
+      const doc = await db.collection('afiliadoTestes').doc(req.params.id).get()
+      if (!doc.exists || doc.data().afiliadoId !== req.afiliadoId)
+        return res.status(403).json({ error: 'Sem permissão' })
+      await db.collection('afiliadoTestes').doc(req.params.id).delete()
+      res.json({ ok: true })
     } catch (e) { res.status(500).json({ error: e.message }) }
   })
 
