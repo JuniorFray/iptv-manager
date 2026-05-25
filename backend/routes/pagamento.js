@@ -20,7 +20,7 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
 
   router.post('/pagamento/criar', async (req, res) => {
     try {
-      const { clienteId, clienteNome, telefone, servidor, usuario, senha, valor, valor3meses, valor6meses, cupomCodigo } = req.body
+      const { clienteId, clienteNome, telefone, servidor, usuario, senha, valor, valor3meses, valor6meses, cupomCodigo, afiliadoId } = req.body
       if (!clienteId || !clienteNome || !servidor || !usuario) {
         return res.status(400).json({ error: 'Campos obrigatorios faltando' })
       }
@@ -65,7 +65,7 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
       ]
 
       for (const plano of planosCliente) {
-        const externalRef = `${clienteId}|${servidor}|${usuario}|${telefone ?? ''}|${senha ?? ''}|${plano.id}`
+        const externalRef = `${clienteId}|${servidor}|${usuario}|${telefone ?? ''}|${senha ?? ''}|${plano.id}|${afiliadoId ?? ''}`
 
         const result = await preference.create({
           body: {
@@ -268,6 +268,32 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
           renovadoEm: admin.firestore.FieldValue.serverTimestamp(),
           criadoEm:   admin.firestore.FieldValue.serverTimestamp(),
         })
+      }
+
+      // Registra comissão do afiliado se houver
+      const afiliadoIdRef = parts[6] ?? ''
+      if (afiliadoIdRef) {
+        try {
+          const afDoc = await db.collection('afiliados').doc(afiliadoIdRef).get()
+          if (afDoc.exists && afDoc.data().ativo) {
+            const af = afDoc.data()
+            const comissao = af.comissaoTipo === 'percent'
+              ? Math.round(valorPago * af.comissaoValor / 100 * 100) / 100
+              : af.comissaoValor
+            await db.collection('afiliadoVendas').add({
+              afiliadoId: afiliadoIdRef,
+              afiliadoNome: af.nome,
+              clienteNome: cliente?.nome ?? usuario,
+              clienteTelefone: telefone ?? '',
+              servidor, usuario, plano: plano.label,
+              valor: valorPago, comissao,
+              mpPaymentId,
+              status: 'pendente',
+              criadoEm: admin.firestore.FieldValue.serverTimestamp(),
+            })
+            console.log('[WEBHOOK] Comissao registrada — afiliado:', af.nome, 'valor:', comissao)
+          }
+        } catch (e) { console.error('[WEBHOOK] Erro comissao afiliado:', e.message) }
       }
 
       if (telefone && enviarMensagemRenovacao && vencimento) {

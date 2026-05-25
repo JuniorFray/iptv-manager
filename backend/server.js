@@ -17,6 +17,7 @@ import createEliteRouter    from './routes/elite.js'
 import createCentralRouter  from './routes/central.js'
 import createPagamentoRouter from './routes/pagamento.js'
 import createStatusRouter    from './routes/status.js'
+import createAfiliadoRouter  from './routes/afiliado.js'
 
 const require = createRequire(import.meta.url)
 const serviceAccount = JSON.parse(process.env.SERVICEACCOUNTKEY)
@@ -40,8 +41,10 @@ app.use('/', warezRouter)
 app.use('/', eliteRouter)
 app.use('/', centralRouter)
 app.use('/', pagamentoRouter)
-const { router: statusRouter } = createStatusRouter(db, admin, getSock, isReady)
+const { router: statusRouter }  = createStatusRouter(db, admin, getSock, isReady)
 app.use('/', statusRouter)
+const { router: afiliadoRouter } = createAfiliadoRouter(db, admin)
+app.use('/', afiliadoRouter)
 
 // Inicializar WhatsApp (conexão + cron)
 inicializarWA()

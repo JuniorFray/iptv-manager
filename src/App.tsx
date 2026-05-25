@@ -10,6 +10,8 @@ import Notificacoes from "./pages/Notificacoes";
 import DashboardFinanceiro from "./pages/DashboardFinanceiro";
 import Pagamentos from "./pages/Pagamentos";
 import Followup from "./pages/Followup";
+import Afiliados from "./pages/Afiliados";
+import AfiliadoPortal from "./pages/AfiliadoPortal";
 
 function RotasProtegidas({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
@@ -36,7 +38,10 @@ function App() {
             <Route path="pagamentos" element={<Pagamentos />} />
             <Route path="posicionamento" element={<Posicionamento />} />
             <Route path="followup" element={<Followup />} />
+            <Route path="afiliados" element={<Afiliados />} />
           </Route>
+          <Route path="afiliado" element={<AfiliadoPortal />} />
+          <Route path="afiliado/*" element={<AfiliadoPortal />} />
           <Route path="*" element={<Navigate to="/login" />} />
         </Routes>
       </BrowserRouter>
