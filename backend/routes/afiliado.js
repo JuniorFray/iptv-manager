@@ -95,14 +95,15 @@ export default function createAfiliadoRouter(db, admin) {
 
       // Cria cliente temporario no Firestore para gerar links
       const clienteRef = await db.collection('clientes').add({
-        nome:      clienteNome,
-        telefone:  clienteTelefone,
-        servidor:  srv,
+        nome:       clienteNome,
+        telefone:   clienteTelefone,
+        servidor:   srv,
         usuario,
         senha,
-        status:    'teste',
+        status:     'teste',
+        obs:        'Afiliado: ' + afiliado.nome,
         afiliadoId: req.afiliadoId,
-        criadoEm:  admin.firestore.FieldValue.serverTimestamp(),
+        criadoEm:   admin.firestore.FieldValue.serverTimestamp(),
       })
 
       // Gera links de pagamento com afiliadoId
@@ -130,8 +131,8 @@ export default function createAfiliadoRouter(db, admin) {
   router.get('/afiliado/vendas', authAfiliado, async (req, res) => {
     try {
       const [vendasSnap, testesSnap, afiliadoDoc] = await Promise.all([
-        db.collection('afiliadoVendas').where('afiliadoId', '==', req.afiliadoId).orderBy('criadoEm', 'desc').get(),
-        db.collection('afiliadoTestes').where('afiliadoId', '==', req.afiliadoId).orderBy('criadoEm', 'desc').get(),
+        db.collection('afiliadoVendas').where('afiliadoId', '==', req.afiliadoId).get(),
+        db.collection('afiliadoTestes').where('afiliadoId', '==', req.afiliadoId).get(),
         db.collection('afiliados').doc(req.afiliadoId).get(),
       ])
 

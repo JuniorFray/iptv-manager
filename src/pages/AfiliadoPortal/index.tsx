@@ -22,7 +22,6 @@ export default function AfiliadoPortal() {
   // Novo teste
   const [clienteNome, setClienteNome] = useState('')
   const [clienteTel,  setClienteTel]  = useState('')
-  const [servidor,    setServidor]    = useState('WAREZ')
   const [testeRes,    setTesteRes]    = useState<any>(null)
   const [testeErro,   setTesteErro]   = useState('')
   const [enviandoTeste, setEnviandoTeste] = useState(false)
@@ -66,7 +65,7 @@ export default function AfiliadoPortal() {
     setEnviandoTeste(true); setTesteErro(''); setTesteRes(null)
     const res  = await fetch(`${API}/afiliado/teste`, {
       method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ clienteNome, clienteTelefone: clienteTel, servidor })
+      body: JSON.stringify({ clienteNome, clienteTelefone: clienteTel, servidor: 'WAREZ' })
     })
     const data = await res.json()
     if (data.ok) {
@@ -206,20 +205,29 @@ export default function AfiliadoPortal() {
                 <label style={{ color: 'rgba(255,255,255,0.6)', fontSize: '12px', display: 'block', marginBottom: '6px' }}>Telefone (com DDD)</label>
                 <input value={clienteTel} onChange={e => setClienteTel(e.target.value)} placeholder="19999999999" style={inputStyle}/>
               </div>
-              <div>
-                <label style={{ color: 'rgba(255,255,255,0.6)', fontSize: '12px', display: 'block', marginBottom: '6px' }}>Servidor</label>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  {['WAREZ', 'ELITE'].map(s => (
-                    <button key={s} onClick={() => setServidor(s)} style={{ flex: 1, padding: '10px', borderRadius: '8px', cursor: 'pointer', border: servidor === s ? '1px solid rgba(99,102,241,0.5)' : '1px solid rgba(255,255,255,0.1)', background: servidor === s ? 'rgba(99,102,241,0.2)' : 'transparent', color: servidor === s ? '#a5b4fc' : 'rgba(255,255,255,0.5)', fontWeight: '600', fontSize: '14px' }}>{s}</button>
-                  ))}
-                </div>
-              </div>
+
 
               {testeErro && <p style={{ color: '#f87171', fontSize: '13px', margin: 0 }}>{testeErro}</p>}
 
               {testeRes && (
                 <div style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: '10px', padding: '16px' }}>
-                  <p style={{ color: '#4ade80', fontWeight: '700', margin: '0 0 12px', fontSize: '14px' }}>✅ Teste criado com sucesso!</p>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                  <p style={{ color: '#4ade80', fontWeight: '700', margin: 0, fontSize: '14px' }}>✅ Teste criado com sucesso!</p>
+                  <button onClick={() => {
+                    const txt = [
+                      'Olá! Segue seu acesso de teste:',
+                      'Usuário: ' + testeRes.usuario,
+                      'Senha: ' + testeRes.senha,
+                      'Expira em: ' + (testeRes.expira || '3 horas'),
+                      '',
+                      'Links para assinar:',
+                      ...(testeRes.links || []).map((l: any) => l.plano + ' — R$ ' + String(l.valor).replace('.',',') + ': ' + l.link)
+                    ].join('\n')
+                    navigator.clipboard.writeText(txt)
+                  }} style={{ padding: '5px 12px', borderRadius: '7px', cursor: 'pointer', background: 'rgba(99,102,241,0.3)', border: '1px solid rgba(99,102,241,0.4)', color: '#a5b4fc', fontSize: '12px', fontWeight: '600' }}>
+                    📋 Copiar tudo
+                  </button>
+                </div>
                   <div style={{ display: 'grid', gap: '6px' }}>
                     {[['Usuário', testeRes.usuario], ['Senha', testeRes.senha], ['Expira em', testeRes.expira || '3 horas']].map(([k, v]) => (
                       <div key={k} style={{ display: 'flex', gap: '8px' }}>
