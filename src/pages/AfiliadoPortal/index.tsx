@@ -11,7 +11,7 @@ export default function AfiliadoPortal() {
   const [_loading, setLoading]  = useState(false)
   const [afiliado, setAfiliado] = useState<any>(null)
   const [dados,    setDados]    = useState<any>(null)
-  const [aba,      setAba]      = useState<'dashboard'|'novo'>('dashboard')
+  const [aba,      setAba]      = useState<'dashboard'|'testes'|'novo'>('dashboard')
 
   // Login form
   const [email,      setEmail]      = useState('')
