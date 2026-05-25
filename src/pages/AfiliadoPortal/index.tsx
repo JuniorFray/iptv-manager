@@ -8,6 +8,7 @@ const fmtR$   = (v: number)   => `R$ ${v.toFixed(2).replace('.', ',')}`
 
 export default function AfiliadoPortal() {
   const [token,    setToken]    = useState(() => localStorage.getItem('afiliado_token') || '')
+  const [_loading, setLoading]  = useState(false)
   const [afiliado, setAfiliado] = useState<any>(null)
   const [dados,    setDados]    = useState<any>(null)
   const [aba,      setAba]      = useState<'dashboard'|'novo'>('dashboard')
