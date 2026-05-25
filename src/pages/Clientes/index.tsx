@@ -1115,6 +1115,7 @@ export default function Clientes() {
                 <select value={clienteEditando.status} onChange={e => setClienteEditando(prev => ({ ...prev, status: e.target.value }))}
                   style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '8px', padding: '10px 14px', color: 'white', fontSize: '14px', outline: 'none' }}>
                   <option value="ativo" style={{ background: '#1a1a2e' }}>Ativo</option>
+                  <option value="teste" style={{ background: '#1a1a2e' }}>Teste</option>
                   <option value="suspenso" style={{ background: '#1a1a2e' }}>Suspenso</option>
                   <option value="inativo" style={{ background: '#1a1a2e' }}>Inativo</option>
                 </select>
