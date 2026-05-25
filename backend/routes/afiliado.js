@@ -82,15 +82,20 @@ export default function createAfiliadoRouter(db, admin) {
 
       // Cria cliente temporario no Firestore para gerar links
       const clienteRef = await db.collection('clientes').add({
-        nome:       clienteNome,
-        telefone:   clienteTelefone,
-        servidor:   srv,
+        nome:          clienteNome,
+        telefone:      clienteTelefone,
+        servidor:      srv,
         usuario,
         senha,
-        status:     'teste',
-        obs:        'Afiliado: ' + afiliado.nome,
-        afiliadoId: req.afiliadoId,
-        criadoEm:   admin.firestore.FieldValue.serverTimestamp(),
+        tipo:          'P2P',
+        valor:         35,
+        valor3meses:   95,
+        valor6meses:   170,
+        vencimento:    (() => { try { const d = typeof expira === 'number' ? new Date(expira*1000) : new Date(expira); return d.getDate().toString().padStart(2,'0')+'/'+( d.getMonth()+1).toString().padStart(2,'0')+'/'+d.getFullYear() } catch{ return '' } })(),
+        status:        'teste',
+        obs:           'Afiliado: ' + afiliado.nome,
+        afiliadoId:    req.afiliadoId,
+        criadoEm:      admin.firestore.FieldValue.serverTimestamp(),
       })
 
       // Gera links de pagamento com afiliadoId
