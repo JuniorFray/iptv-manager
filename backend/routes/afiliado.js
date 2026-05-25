@@ -76,23 +76,9 @@ export default function createAfiliadoRouter(db, admin) {
 
       const { usuario, senha, expira } = testeRes
 
-      // Salva o teste vinculado ao afiliado
+      // Busca dados do afiliado
       const afiliadoDoc = await db.collection('afiliados').doc(req.afiliadoId).get()
       const afiliado    = afiliadoDoc.data()
-
-      await db.collection('afiliadoTestes').add({
-        afiliadoId:       req.afiliadoId,
-        afiliadoNome:     afiliado.nome,
-        afiliadoCodigo:   afiliado.codigo,
-        clienteNome,
-        clienteTelefone,
-        servidor:         srv,
-        usuario,
-        senha,
-        expira:           expira || null,
-        links:            linksRes.links || [],
-        criadoEm:         admin.firestore.FieldValue.serverTimestamp(),
-      })
 
       // Cria cliente temporario no Firestore para gerar links
       const clienteRef = await db.collection('clientes').add({
@@ -120,6 +106,21 @@ export default function createAfiliadoRouter(db, admin) {
           afiliadoId:  req.afiliadoId,
         })
       }).then(r => r.json())
+
+      // Salva o teste vinculado ao afiliado (com links gerados)
+      await db.collection('afiliadoTestes').add({
+        afiliadoId:       req.afiliadoId,
+        afiliadoNome:     afiliado.nome,
+        afiliadoCodigo:   afiliado.codigo,
+        clienteNome,
+        clienteTelefone,
+        servidor:         srv,
+        usuario,
+        senha,
+        expira:           expira || null,
+        links:            linksRes.links || [],
+        criadoEm:         admin.firestore.FieldValue.serverTimestamp(),
+      })
 
       res.json({ ok: true, usuario, senha, expira, links: linksRes.links })
     } catch (e) {
