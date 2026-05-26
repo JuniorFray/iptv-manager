@@ -271,7 +271,14 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
       }
 
       // Registra comissão do afiliado se houver
-      const afiliadoIdRef = parts[6] ?? ''
+      // Tenta pegar afiliadoId do external_reference ou do cliente no Firestore
+      let afiliadoIdRef = parts[6] ?? ''
+      if (!afiliadoIdRef && clienteId) {
+        try {
+          const cDoc = await db.collection('clientes').doc(clienteId).get()
+          if (cDoc.exists) afiliadoIdRef = cDoc.data().afiliadoId ?? ''
+        } catch {}
+      }
       if (afiliadoIdRef) {
         try {
           const afDoc = await db.collection('afiliados').doc(afiliadoIdRef).get()
