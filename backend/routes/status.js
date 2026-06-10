@@ -86,7 +86,7 @@ export default function createStatusRouter(db, admin, getSock, isReady) {
     return `${num}@s.whatsapp.net`
   }
 
-  const publicarStatus = async (data, ref) => {
+    const publicarStatus = async (data, ref) => {
     // Verifica conexão
     const inst = await evoFetch(`/instance/fetchInstances`)
     const instData = Array.isArray(inst) ? inst.find(i => i.name === INSTANCE) : inst
@@ -108,45 +108,41 @@ export default function createStatusRouter(db, admin, getSock, isReady) {
 
     const enviarParaTodos = contatos.length === 0
 
-    // Publica via Evolution API
+    // Publica via Evolution API — Payload sem o wrapper 'statusMessage' (Propriedades na raiz)
     let resultado
     if (data.midiaUrl && data.midiaTipo === 'imagem') {
       resultado = await evoFetch(`/message/sendStatus/${INSTANCE}`, 'POST', {
-        statusMessage: {
-          type: 'image',
-          url: data.midiaUrl,
-          caption: data.legenda || '',
-          statusJidList: contatos,
-          allContacts: enviarParaTodos,
-        }
+        type: 'image',
+        url: data.midiaUrl,
+        caption: data.legenda || '',
+        statusJidList: contatos,
+        allContacts: enviarParaTodos,
       }, 20000)
     } else if (data.midiaUrl && data.midiaTipo === 'video') {
       resultado = await evoFetch(`/message/sendStatus/${INSTANCE}`, 'POST', {
-        statusMessage: {
-          type: 'video',
-          url: data.midiaUrl,
-          caption: data.legenda || '',
-          statusJidList: contatos,
-          allContacts: enviarParaTodos,
-        }
+        type: 'video',
+        url: data.midiaUrl,
+        caption: data.legenda || '',
+        statusJidList: contatos,
+        allContacts: enviarParaTodos,
       }, 20000)
     } else {
       resultado = await evoFetch(`/message/sendStatus/${INSTANCE}`, 'POST', {
-        statusMessage: {
-          type: 'text',
-          content: data.legenda || '',
-          backgroundColor: '#06CF9C',
-          font: 1,
-          statusJidList: contatos,
-          allContacts: enviarParaTodos,
-        }
+        type: 'text',
+        content: data.legenda || '',
+        backgroundColor: '#06CF9C',
+        font: 1,
+        statusJidList: contatos,
+        allContacts: enviarParaTodos,
       }, 20000)
     }
 
     console.log('[STATUS] Resposta da API:', JSON.stringify(resultado))
 
-    if (!resultado || resultado.error) {
-      throw new Error(resultado?.message || 'Falha silenciosa ou timeout na Evolution API')
+    // Se a API retornar um objeto com a propriedade error ou status >= 400
+    if (!resultado || resultado.error || resultado.status >= 400) {
+      const msgErro = resultado?.response?.message?.[0]?.[0] || resultado?.message || 'Erro na requisição'
+      throw new Error(`Evolution API rejeitou: ${msgErro}`)
     }
 
     await ref.update({
@@ -156,6 +152,7 @@ export default function createStatusRouter(db, admin, getSock, isReady) {
     })
     console.log('[STATUS] Postagem publicada: ' + ref.id + ' para ' + contatos.length + ' contatos')
   }
+
 
   cron.schedule('* * * * *', async () => {
     try {
