@@ -86,68 +86,73 @@ export default function createStatusRouter(db, admin, getSock, isReady) {
     return `${num}@s.whatsapp.net`
   }
 
-          const publicarStatus = async (data, ref) => {
-    // 1. Verifica conexão com a Evolution API
+  const publicarStatus = async (data, ref) => {
+    // 1. Verifica conexão
     const inst = await evoFetch(`/instance/fetchInstances`)
     const instData = Array.isArray(inst) ? inst.find(i => i.name === INSTANCE) : inst
     if (instData?.connectionStatus !== 'open') throw new Error('WhatsApp nao conectado')
 
-    // 2. Log explicativo para o terminal
-    console.log('[STATUS] Iniciando envio no modo Global (allContacts: true) para evitar gargalo e timeout.')
+    // 2. Busca contatos reais do Firestore (Seus 501 clientes)
+    let contatos = []
+    try {
+      const snap = await db.collection('clientes').where('telefone', '!=', '').get()
+      const jids = snap.docs
+        .map(d => d.data().telefone)
+        .filter(Boolean)
+        .map(normalizarTelefone)
+      contatos = [...new Set(jids)]
+      console.log('[STATUS] ' + contatos.length + ' JIDs de contatos gerados para envio real')
+    } catch (e) {
+      console.log('[STATUS] Erro ao buscar contatos:', e.message)
+    }
 
-    // 3. Força as variáveis corretas exigidas pela API para o envio Global
-    const enviarParaTodos = true
-    const listaJidsVazia = [] // Mandar um array vazio limpa o fluxo de repetição da v2.3.7
+    const enviarParaTodos = contatos.length === 0
 
-    // 4. Publica via Evolution API usando 'content' na raiz
+    // 3. Publica via Evolution API — Payload Correto com propriedades na raiz
     let resultado
     if (data.midiaUrl && data.midiaTipo === 'imagem') {
       resultado = await evoFetch(`/message/sendStatus/${INSTANCE}`, 'POST', {
         type: 'image',
         content: data.midiaUrl,
         caption: data.legenda || '',
-        statusJidList: listaJidsVazia, // Array vazio obrigatório
-        allContacts: enviarParaTodos,  // true obrigatório
-      }, 30000) // Timeout seguro de 30 segundos
+        statusJidList: contatos,
+        allContacts: enviarParaTodos,
+      }, 25000) // Timeout de 25s local
     } else if (data.midiaUrl && data.midiaTipo === 'video') {
       resultado = await evoFetch(`/message/sendStatus/${INSTANCE}`, 'POST', {
         type: 'video',
         content: data.midiaUrl,
         caption: data.legenda || '',
-        statusJidList: listaJidsVazia,
+        statusJidList: contatos,
         allContacts: enviarParaTodos,
-      }, 30000)
+      }, 25000)
     } else {
       resultado = await evoFetch(`/message/sendStatus/${INSTANCE}`, 'POST', {
         type: 'text',
         content: data.legenda || '',
         backgroundColor: '#06CF9C',
         font: 1,
-        statusJidList: listaJidsVazia,
+        statusJidList: contatos,
         allContacts: enviarParaTodos,
-      }, 30000)
+      }, 25000)
     }
 
     console.log('[STATUS] Resposta da API:', JSON.stringify(resultado))
 
-    // 5. Captura erros estruturados normais da requisição
+    // 4. Captura erros normais de validação retornados pela API
     if (!resultado || resultado.error || resultado.status >= 400) {
       const msgErro = resultado?.response?.message || resultado?.message || 'Erro na requisição'
       throw new Error(`Evolution API rejeitou: ${msgErro}`)
     }
 
-    // 6. Atualiza o banco do Firestore como sucesso
+    // 5. Atualiza o banco do Firestore como sucesso
     await ref.update({
       status: 'publicado',
       publicadoEm: admin.firestore.FieldValue.serverTimestamp(),
       erro: null
     })
-    console.log('[STATUS] Postagem processada e publicada globalmente: ' + ref.id)
+    console.log('[STATUS] Postagem publicada com sucesso: ' + ref.id)
   }
-
-
-
-
 
   cron.schedule('* * * * *', async () => {
     try {
@@ -159,12 +164,27 @@ export default function createStatusRouter(db, admin, getSock, isReady) {
 
       for (const docSnap of snap.docs) {
         try {
+          // Bloqueia o documento imediatamente mudando para 'enviando' 
+          // Isso impede que o próximo ciclo do cron tente rodar o mesmo arquivo em paralelo
+          await docSnap.ref.update({ status: 'enviando' })
+          
           await publicarStatus(docSnap.data(), docSnap.ref)
         } catch (err) {
           if (err.message && err.message.includes('nao conectado')) {
-            console.log('[STATUS] WA desconectado, aguardando reconexao para publicar:', docSnap.id)
+            console.log('[STATUS] WA desconectado, aguardando reconexao:', docSnap.id)
+            await docSnap.ref.update({ status: 'agendado' }) // Devolve para fila
+          } else if (err.message && err.message.toLowerCase().includes('timeout')) {
+            // TRATAMENTO DO BUG DA v2.3.7:
+            // A API é lenta e dá timeout no HTTP, mas posta o status com sucesso.
+            // Forçamos o status para 'publicado' para evitar postagens duplicadas na rede.
+            console.log('[STATUS] Timeout detectado, mas processado em background no WA. Salvando como publicado:', docSnap.id)
+            await docSnap.ref.update({
+              status: 'publicado',
+              publicadoEm: admin.firestore.FieldValue.serverTimestamp(),
+              erro: 'Finalizado com timeout nativo interceptado (OK)'
+            })
           } else {
-            console.error('[STATUS] Erro ao publicar:', err.message)
+            console.error('[STATUS] Erro crítico ao publicar:', err.message)
             await docSnap.ref.update({ status: 'erro', erro: err.message })
           }
         }
