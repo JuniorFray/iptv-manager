@@ -86,75 +86,65 @@ export default function createStatusRouter(db, admin, getSock, isReady) {
     return `${num}@s.whatsapp.net`
   }
 
-        const publicarStatus = async (data, ref) => {
-    // Verifica conexão
+          const publicarStatus = async (data, ref) => {
+    // 1. Verifica conexão com a Evolution API
     const inst = await evoFetch(`/instance/fetchInstances`)
     const instData = Array.isArray(inst) ? inst.find(i => i.name === INSTANCE) : inst
     if (instData?.connectionStatus !== 'open') throw new Error('WhatsApp nao conectado')
 
-    // Busca contatos do Firestore
-    let contatos = []
-    try {
-      const snap = await db.collection('clientes').where('telefone', '!=', '').get()
-      const jids = snap.docs
-        .map(d => d.data().telefone)
-        .filter(Boolean)
-        .map(normalizarTelefone)
-      contatos = [...new Set(jids)]
-      console.log('[STATUS] ' + contatos.length + ' JIDs de contatos gerados')
-    } catch (e) {
-      console.log('[STATUS] Erro ao buscar contatos:', e.message)
-    }
+    // 2. Log explicativo para o terminal
+    console.log('[STATUS] Iniciando envio no modo Global (allContacts: true) para evitar gargalo e timeout.')
 
-    const enviarParaTodos = contatos.length === 0
+    // 3. Força as variáveis corretas exigidas pela API para o envio Global
+    const enviarParaTodos = true
+    const listaJidsVazia = [] // Mandar um array vazio limpa o fluxo de repetição da v2.3.7
 
-    // Aumentamos o timeout para 120000ms (2 minutos) devido aos 501 contatos
-    const TIMEOUT_STATUS = 120000 
-
-    // Publica via Evolution API
+    // 4. Publica via Evolution API usando 'content' na raiz
     let resultado
     if (data.midiaUrl && data.midiaTipo === 'imagem') {
       resultado = await evoFetch(`/message/sendStatus/${INSTANCE}`, 'POST', {
         type: 'image',
         content: data.midiaUrl,
         caption: data.legenda || '',
-        statusJidList: contatos,
-        allContacts: enviarParaTodos,
-      }, TIMEOUT_STATUS)
+        statusJidList: listaJidsVazia, // Array vazio obrigatório
+        allContacts: enviarParaTodos,  // true obrigatório
+      }, 30000) // Timeout seguro de 30 segundos
     } else if (data.midiaUrl && data.midiaTipo === 'video') {
       resultado = await evoFetch(`/message/sendStatus/${INSTANCE}`, 'POST', {
         type: 'video',
         content: data.midiaUrl,
         caption: data.legenda || '',
-        statusJidList: contatos,
+        statusJidList: listaJidsVazia,
         allContacts: enviarParaTodos,
-      }, TIMEOUT_STATUS)
+      }, 30000)
     } else {
       resultado = await evoFetch(`/message/sendStatus/${INSTANCE}`, 'POST', {
         type: 'text',
         content: data.legenda || '',
         backgroundColor: '#06CF9C',
         font: 1,
-        statusJidList: contatos,
+        statusJidList: listaJidsVazia,
         allContacts: enviarParaTodos,
-      }, TIMEOUT_STATUS)
+      }, 30000)
     }
 
     console.log('[STATUS] Resposta da API:', JSON.stringify(resultado))
 
-    // Captura erros estruturados ou HTTP Status >= 400
+    // 5. Captura erros estruturados normais da requisição
     if (!resultado || resultado.error || resultado.status >= 400) {
       const msgErro = resultado?.response?.message || resultado?.message || 'Erro na requisição'
       throw new Error(`Evolution API rejeitou: ${msgErro}`)
     }
 
+    // 6. Atualiza o banco do Firestore como sucesso
     await ref.update({
       status: 'publicado',
       publicadoEm: admin.firestore.FieldValue.serverTimestamp(),
       erro: null
     })
-    console.log('[STATUS] Postagem publicada: ' + ref.id + ' para ' + contatos.length + ' contatos')
+    console.log('[STATUS] Postagem processada e publicada globalmente: ' + ref.id)
   }
+
 
 
 
