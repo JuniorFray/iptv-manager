@@ -86,7 +86,7 @@ export default function createStatusRouter(db, admin, getSock, isReady) {
     return `${num}@s.whatsapp.net`
   }
 
-    const publicarStatus = async (data, ref) => {
+      const publicarStatus = async (data, ref) => {
     // Verifica conexão
     const inst = await evoFetch(`/instance/fetchInstances`)
     const instData = Array.isArray(inst) ? inst.find(i => i.name === INSTANCE) : inst
@@ -108,12 +108,12 @@ export default function createStatusRouter(db, admin, getSock, isReady) {
 
     const enviarParaTodos = contatos.length === 0
 
-    // Publica via Evolution API — Payload sem o wrapper 'statusMessage' (Propriedades na raiz)
+    // Publica via Evolution API — Payload Unificado usando 'content' na raiz para mídias e textos
     let resultado
     if (data.midiaUrl && data.midiaTipo === 'imagem') {
       resultado = await evoFetch(`/message/sendStatus/${INSTANCE}`, 'POST', {
         type: 'image',
-        url: data.midiaUrl,
+        content: data.midiaUrl, // AJUSTE: Voltamos para content, mas mantendo na raiz
         caption: data.legenda || '',
         statusJidList: contatos,
         allContacts: enviarParaTodos,
@@ -121,7 +121,7 @@ export default function createStatusRouter(db, admin, getSock, isReady) {
     } else if (data.midiaUrl && data.midiaTipo === 'video') {
       resultado = await evoFetch(`/message/sendStatus/${INSTANCE}`, 'POST', {
         type: 'video',
-        url: data.midiaUrl,
+        content: data.midiaUrl, // AJUSTE: Voltamos para content, mas mantendo na raiz
         caption: data.legenda || '',
         statusJidList: contatos,
         allContacts: enviarParaTodos,
@@ -139,9 +139,9 @@ export default function createStatusRouter(db, admin, getSock, isReady) {
 
     console.log('[STATUS] Resposta da API:', JSON.stringify(resultado))
 
-    // Se a API retornar um objeto com a propriedade error ou status >= 400
+    // Captura erros estruturados ou HTTP Status >= 400
     if (!resultado || resultado.error || resultado.status >= 400) {
-      const msgErro = resultado?.response?.message?.[0]?.[0] || resultado?.message || 'Erro na requisição'
+      const msgErro = resultado?.response?.message?.[0] || resultado?.message || 'Erro na requisição'
       throw new Error(`Evolution API rejeitou: ${msgErro}`)
     }
 
@@ -152,6 +152,7 @@ export default function createStatusRouter(db, admin, getSock, isReady) {
     })
     console.log('[STATUS] Postagem publicada: ' + ref.id + ' para ' + contatos.length + ' contatos')
   }
+
 
 
   cron.schedule('* * * * *', async () => {
