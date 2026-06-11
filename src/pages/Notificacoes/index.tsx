@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEnquete } from './Enquete'
 import { collection, onSnapshot, addDoc, deleteDoc, doc, getDocs } from 'firebase/firestore'
 import { db, storage } from '../../firebase'
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage'
@@ -104,10 +105,6 @@ export default function Notificacoes() {
   const [midiaManual, setMidiaManual]       = useState<Midia | null>(null)
   const [modalMidias, setModalMidias]       = useState(false)
   const [modoEnvioMidia, setModoEnvioMidia] = useState<'junto' | 'separado'>('junto')
-  const [modoEnquete,   setModoEnquete]     = useState(false)
-  const [enqueteTitulo, setEnqueteTitulo]   = useState('')
-  const [enqueteOpcoes, setEnqueteOpcoes]   = useState<string[]>(['', '', ''])
-  const [enqueteMultipla, setEnqueteMultipla] = useState(false)
   const [uploadManualProg, setUploadManualProg] = useState(-1)
   const cancelarEnvioRef = useRef(false)
   const [modalMidiaRegra, setModalMidiaRegra]   = useState<string | null>(null)
@@ -494,40 +491,7 @@ export default function Notificacoes() {
   }
 
 
-  const enviarEnqueteUm = async () => {
-    if (!clienteSel) return
-    const opcoes = enqueteOpcoes.filter(o => o.trim())
-    if (!enqueteTitulo.trim() || opcoes.length < 2) return
-    const phone = formatarTelefone(clienteSel.telefone)
-    try {
-      await fetch(`${API}/send/poll`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, titulo: enqueteTitulo.trim(), opcoes, selectableCount: enqueteMultipla ? opcoes.length : 1 })
-      })
-    } catch {}
-  }
-
-  const enviarEnqueteTodos = async () => {
-    const opcoes = enqueteOpcoes.filter(o => o.trim())
-    if (!enqueteTitulo.trim() || opcoes.length < 2) return
-    setEnviando(true)
-    let adicionados = 0
-    const processados = new Set<string>()
-    for (const c of clientesFiltrados) {
-      if (!c.telefone || processados.has(c.telefone)) continue
-      processados.add(c.telefone)
-      try {
-        await fetch(`${API}/send/poll`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phone: formatarTelefone(c.telefone), titulo: enqueteTitulo.trim(), opcoes, selectableCount: enqueteMultipla ? opcoes.length : 1 })
-        })
-        adicionados++
-      } catch {}
-      await new Promise(r => setTimeout(r, 1500))
-    }
-    setResultado({ tipo: 'ok', msg: `${adicionados} enquetes enviadas!` })
-    setEnviando(false)
-  }
+  const { modoEnquete, setModoEnquete, enqueteValido, enviarEnqueteUm, enviarEnqueteTodos, EnqueteForm } = useEnquete({ clienteSel, clientesFiltrados, formatarTelefone, setResultado, setEnviando })
 
   const enviarUm = async () => {
     if (!clienteSel) return
@@ -910,33 +874,7 @@ export default function Notificacoes() {
                   <button onClick={() => setModoEnquete(true)}  style={{ padding: '4px 12px', borderRadius: '6px', cursor: 'pointer', border: 'none', background: modoEnquete  ? 'rgba(99,102,241,0.4)' : 'transparent', color: modoEnquete  ? '#a5b4fc' : 'rgba(255,255,255,0.4)', fontSize: '12px', fontWeight: '600' }}>📊 Enquete</button>
                 </div>
               </div>
-              {modoEnquete && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '12px' }}>
-                  <input value={enqueteTitulo} onChange={e => setEnqueteTitulo(e.target.value)} placeholder="Título da enquete (ex: Qual plano você prefere?)"
-                    style={{ padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.05)', color: 'white', fontSize: '13px', outline: 'none' }} />
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    {enqueteOpcoes.map((op, i) => (
-                      <div key={i} style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                        <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: '12px', width: '20px', textAlign: 'right' }}>{i+1}.</span>
-                        <input value={op} onChange={e => { const arr = [...enqueteOpcoes]; arr[i] = e.target.value; setEnqueteOpcoes(arr) }}
-                          placeholder={`Opção ${i+1}`}
-                          style={{ flex: 1, padding: '8px 10px', borderRadius: '7px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: 'white', fontSize: '12px', outline: 'none' }} />
-                        {enqueteOpcoes.length > 2 && (
-                          <button onClick={() => setEnqueteOpcoes(enqueteOpcoes.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(239,68,68,0.6)', padding: '4px' }}>✕</button>
-                        )}
-                      </div>
-                    ))}
-                    {enqueteOpcoes.length < 12 && (
-                      <button onClick={() => setEnqueteOpcoes([...enqueteOpcoes, ''])} style={{ alignSelf: 'flex-start', padding: '4px 12px', borderRadius: '6px', cursor: 'pointer', background: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.3)', color: '#a5b4fc', fontSize: '12px' }}>+ Adicionar opção</button>
-                    )}
-                  </div>
-                  <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: '11px', margin: 0 }}>Mínimo 2 opções • Máximo 12 opções</p>
-                  <div style={{ display: 'flex', gap: '4px', background: 'rgba(255,255,255,0.05)', borderRadius: '8px', padding: '3px', alignSelf: 'flex-start', marginTop: '4px' }}>
-                    <button onClick={() => setEnqueteMultipla(false)} style={{ padding: '4px 12px', borderRadius: '6px', cursor: 'pointer', border: 'none', background: !enqueteMultipla ? 'rgba(99,102,241,0.4)' : 'transparent', color: !enqueteMultipla ? '#a5b4fc' : 'rgba(255,255,255,0.4)', fontSize: '12px', fontWeight: '600' }}>☑️ Escolha única</button>
-                    <button onClick={() => setEnqueteMultipla(true)}  style={{ padding: '4px 12px', borderRadius: '6px', cursor: 'pointer', border: 'none', background:  enqueteMultipla ? 'rgba(99,102,241,0.4)' : 'transparent', color:  enqueteMultipla ? '#a5b4fc' : 'rgba(255,255,255,0.4)', fontSize: '12px', fontWeight: '600' }}>☑️ Múltipla escolha</button>
-                  </div>
-                </div>
-              )}
+              <EnqueteForm />
               {/* Campo Cupom Global */}
               <div style={{ marginBottom: '14px', padding: '10px 14px', borderRadius: '10px', background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)' }}>
                 <label style={{ color: '#a5b4fc', fontSize: '12px', fontWeight: '600', display: 'block', marginBottom: '6px' }}>🎟️ Cupom de desconto (opcional)</label>
@@ -1032,7 +970,7 @@ export default function Notificacoes() {
                 </div>
               )}
 
-              <button onClick={modoEnquete ? enviarEnqueteUm : enviarUm} disabled={!clienteSel || (!modoEnquete ? (!mensagem.trim() && !midiaManual) : (!enqueteTitulo.trim() || enqueteOpcoes.filter(o=>o.trim()).length < 2)) || !whatsReady} style={{ width: '100%', marginTop: '12px', padding: '13px', borderRadius: '12px', border: 'none', cursor: !clienteSel || (!mensagem.trim() && !midiaManual) || !whatsReady ? 'not-allowed' : 'pointer', background: !clienteSel || (!mensagem.trim() && !midiaManual) || !whatsReady ? 'rgba(255,255,255,0.08)' : 'linear-gradient(135deg,#25d366,#128c7e)', color: !clienteSel || (!mensagem.trim() && !midiaManual) || !whatsReady ? 'rgba(255,255,255,0.3)' : 'white', fontWeight: 'bold', fontSize: '15px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+              <button onClick={modoEnquete ? enviarEnqueteUm : enviarUm} disabled={!clienteSel || (!modoEnquete ? (!mensagem.trim() && !midiaManual) : !enqueteValido) || !whatsReady} style={{ width: '100%', marginTop: '12px', padding: '13px', borderRadius: '12px', border: 'none', cursor: !clienteSel || (!mensagem.trim() && !midiaManual) || !whatsReady ? 'not-allowed' : 'pointer', background: !clienteSel || (!mensagem.trim() && !midiaManual) || !whatsReady ? 'rgba(255,255,255,0.08)' : 'linear-gradient(135deg,#25d366,#128c7e)', color: !clienteSel || (!mensagem.trim() && !midiaManual) || !whatsReady ? 'rgba(255,255,255,0.3)' : 'white', fontWeight: 'bold', fontSize: '15px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
                 <Send size={18} /> {!whatsReady ? 'WhatsApp desconectado' : `Enviar para ${clienteSel ? clienteSel.nome : '...'}`}
               </button>
             </div>
@@ -1074,7 +1012,7 @@ export default function Notificacoes() {
                 </div>
               )}
               <div style={{ display: 'flex', gap: '8px' }}>
-                <button onClick={modoEnquete ? enviarEnqueteTodos : enviarTodos} disabled={enviando || clientesFiltrados.length === 0 || (!modoEnquete ? (!mensagem.trim() && !midiaManual) : (!enqueteTitulo.trim() || enqueteOpcoes.filter(o=>o.trim()).length < 2)) || !whatsReady} style={{ flex: 1, padding: '13px', borderRadius: '12px', border: `1px solid ${filtroAtual.border}`, background: enviando || !whatsReady ? 'rgba(255,255,255,0.05)' : filtroAtual.bg, color: enviando || !whatsReady ? 'rgba(255,255,255,0.3)' : `#${filtroAtual.cor}`, cursor: enviando || !whatsReady ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                <button onClick={modoEnquete ? enviarEnqueteTodos : enviarTodos} disabled={enviando || clientesFiltrados.length === 0 || (!modoEnquete ? (!mensagem.trim() && !midiaManual) : !enqueteValido) || !whatsReady} style={{ flex: 1, padding: '13px', borderRadius: '12px', border: `1px solid ${filtroAtual.border}`, background: enviando || !whatsReady ? 'rgba(255,255,255,0.05)' : filtroAtual.bg, color: enviando || !whatsReady ? 'rgba(255,255,255,0.3)' : `#${filtroAtual.cor}`, cursor: enviando || !whatsReady ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
                   <Send size={16} /> {enviando ? `Adicionando... ${progresso}/${clientesFiltrados.length}` : `Enviar todos (${clientesFiltrados.length})`}
                 </button>
                 {enviando && (
