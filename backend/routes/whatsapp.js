@@ -867,6 +867,7 @@ export default function createWhatsAppRouter(db, admin) {
         values: opcoes,
         selectableCount: selectableCount ?? 1,
       })
+      console.log('[POLL] Resposta completa do envio:', JSON.stringify(result))
       res.json({ ok: true, result })
     } catch (e) {
       console.error('[POLL]', e.message)
@@ -881,7 +882,7 @@ export default function createWhatsAppRouter(db, admin) {
       const body = req.body
       // DEBUG - loga tudo que chega
       console.log('[WEBHOOK] evento:', body?.event, '| keys:', Object.keys(body || {}).join(','))
-      if (body?.data) console.log('[WEBHOOK] data sample:', JSON.stringify(body.data).substring(0, 300))
+      if (body?.data) console.log('[WEBHOOK] data FULL:', JSON.stringify(body.data))
       const msgs = body?.data?.messages ?? (Array.isArray(body?.data) ? body.data : [])
       for (const msg of msgs) {
         console.log('[WEBHOOK] msg type:', msg?.messageType, '| keys:', Object.keys(msg?.message || {}).join(','))
