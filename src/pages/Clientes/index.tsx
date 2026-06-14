@@ -20,11 +20,14 @@ interface Cliente {
   responsavel?: string  // telefone do responsável pelo pagamento (para múltiplos pontos)
   valor3meses?: string
   valor6meses?: string
+  grupoLinha?: string
+  vencimentoLinha?: string
 }
 
 const clienteVazio: Omit<Cliente, 'id'> = {
   nome: '', telefone: '', tipo: 'IPTV', servidor: '', usuario: '',
   senha: '', vencimento: '', valor: '', status: 'ativo', obs: '', responsavel: '', valor3meses: '', valor6meses: '',
+  grupoLinha: '', vencimentoLinha: '',
 }
 
 // Converte "YYYY-MM-DD" ou "YYYY-MM-DD HH:mm:ss" → "DD/MM/YYYY"
@@ -1091,6 +1094,8 @@ export default function Clientes() {
                 { label: 'Valor 3 Meses (R$)', field: 'valor3meses', type: 'number' },
                 { label: 'Valor 6 Meses (R$)', field: 'valor6meses', type: 'number' },
                 { label: 'Responsável (tel.)', field: 'responsavel', type: 'text' },
+                { label: 'Grupo (Linha compartilhada)', field: 'grupoLinha', type: 'text' },
+                { label: 'Vencimento da Linha (DD/MM/AAAA)', field: 'vencimentoLinha', type: 'text' },
               ] as { label: string; field: keyof Omit<Cliente, 'id'>; type: string }[]).map(({ label, field, type }) => (
                 <div key={field} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   <label style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</label>

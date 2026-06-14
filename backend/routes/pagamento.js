@@ -9,6 +9,27 @@ const PLANOS = [
   { id: '6meses', label: '6 Meses', valor: 170.00, meses: 6, creditos: 6 },
 ]
 
+// ---- Helpers de data (grupoLinha) ----
+function parseDataBR(str) {
+  if (!str) return null
+  const p = String(str).split('/')
+  if (p.length !== 3) return null
+  const [d, m, a] = p.map(Number)
+  if (!d || !m || !a) return null
+  return new Date(a, m - 1, d)
+}
+function formatDataBR(date) {
+  const d = String(date.getDate()).padStart(2, '0')
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const a = date.getFullYear()
+  return `${d}/${m}/${a}`
+}
+function addMonths(date, months) {
+  const d = new Date(date)
+  d.setMonth(d.getMonth() + months)
+  return d
+}
+
 export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao) {
   const router = express.Router()
 
@@ -179,7 +200,56 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
       let vencimento = null
       const BACKEND  = 'https://iptv-manager-production.up.railway.app'
       try {
-        if (servidor.toUpperCase() === 'WAREZ') {
+        if (servidor.toUpperCase() === 'WAREZ' && cliente?.grupoLinha) {
+          // ---- Linha compartilhada (grupoLinha) ----
+          const hoje = new Date()
+          const baseCliente = parseDataBR(cliente.vencimento) || hoje
+          let novoVenc = addMonths(baseCliente, plano.meses)
+          if (novoVenc < hoje) novoVenc = addMonths(hoje, plano.meses)
+
+          const vencLinhaAtual = parseDataBR(cliente.vencimentoLinha || cliente.vencimento) || hoje
+
+          console.log(`[WEBHOOK][GRUPO] ${cliente.grupoLinha} | vencimento atual cliente=${cliente.vencimento} | vencimentoLinha atual=${cliente.vencimentoLinha || cliente.vencimento} | novoVenc=${formatDataBR(novoVenc)}`)
+
+          if (novoVenc > vencLinhaAtual) {
+            // Precisa estender a linha compartilhada na Warez
+            const buscar = await fetch(`${BACKEND}/painel/buscar-linha/${encodeURIComponent(usuario)}`).then(r => r.json())
+            console.log('[WEBHOOK][GRUPO] Warez buscar-linha resultado:', JSON.stringify(buscar))
+            if (buscar.ok) {
+              const ren = await fetch(`${BACKEND}/painel/renovar/${buscar.id}`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ credits: plano.creditos, nome: cliente?.nome, telefone, usuario, senha, skipWA: true })
+              }).then(r => r.json())
+              const expRaw = ren.exp_date ?? ren.expiry_date
+              let vencLinhaNova = novoVenc
+              if (expRaw) {
+                const dExp = new Date(expRaw)
+                if (!isNaN(dExp.getTime())) {
+                  const dWarez = parseDataBR(dExp.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }))
+                  if (dWarez && dWarez > vencLinhaNova) vencLinhaNova = dWarez
+                }
+              }
+              const vencLinhaFmt = formatDataBR(vencLinhaNova)
+              vencimento = formatDataBR(novoVenc)
+              console.log(`[WEBHOOK][GRUPO] Linha estendida na Warez. vencimentoLinha=${vencLinhaFmt} | vencimento individual=${vencimento}`)
+
+              // Sincroniza vencimentoLinha em todos os membros do grupo
+              try {
+                const grupoSnap = await db.collection('clientes').where('grupoLinha', '==', cliente.grupoLinha).get()
+                const batch = db.batch()
+                grupoSnap.docs.forEach(d => batch.update(d.ref, { vencimentoLinha: vencLinhaFmt }))
+                await batch.commit()
+                console.log(`[WEBHOOK][GRUPO] vencimentoLinha sincronizado para ${grupoSnap.size} clientes do grupo ${cliente.grupoLinha}`)
+              } catch (e) { console.error('[WEBHOOK][GRUPO] erro ao sincronizar vencimentoLinha:', e.message) }
+            } else {
+              console.error('[WEBHOOK][GRUPO] buscar-linha falhou:', buscar.error)
+            }
+          } else {
+            // Linha ja cobre o periodo - nao chama a Warez, so atualiza o vencimento individual
+            vencimento = formatDataBR(novoVenc)
+            console.log(`[WEBHOOK][GRUPO] Linha ja coberta (vencimentoLinha=${cliente.vencimentoLinha || cliente.vencimento}) - sem chamada a Warez. Novo vencimento individual=${vencimento}`)
+          }
+        } else if (servidor.toUpperCase() === 'WAREZ') {
           const buscar = await fetch(`${BACKEND}/painel/buscar-linha/${encodeURIComponent(usuario)}`).then(r => r.json())
           console.log('[WEBHOOK] Warez buscar-linha resultado:', JSON.stringify(buscar))
           if (buscar.ok) {
