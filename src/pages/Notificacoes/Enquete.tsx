@@ -14,9 +14,11 @@ interface UseEnqueteParams {
   setEnviando: (v: boolean) => void
   blocoTamanho?: number
   blocoPausaMin?: number
+  intervaloMin?: number
+  intervaloMax?: number
 }
 
-export function useEnquete({ clienteSel, clientesFiltrados, formatarTelefone, setResultado, setEnviando, blocoTamanho = 0, blocoPausaMin = 0 }: UseEnqueteParams) {
+export function useEnquete({ clienteSel, clientesFiltrados, formatarTelefone, setResultado, setEnviando, blocoTamanho = 0, blocoPausaMin = 0, intervaloMin = 5000, intervaloMax = 15000 }: UseEnqueteParams) {
   const [modoEnquete,     setModoEnquete]     = useState(false)
   const [enqueteTitulo,   setEnqueteTitulo]   = useState('')
   const [enqueteOpcoes,   setEnqueteOpcoes]   = useState<string[]>(['', '', ''])
@@ -55,7 +57,10 @@ export function useEnquete({ clienteSel, clientesFiltrados, formatarTelefone, se
         adicionados++
       } catch {}
       enviosNoBloco++
-      await new Promise(r => setTimeout(r, 1500))
+      const espera = intervaloMin === intervaloMax
+        ? intervaloMin
+        : Math.floor(Math.random() * (intervaloMax - intervaloMin + 1)) + intervaloMin
+      await new Promise(r => setTimeout(r, espera))
       if (blocoTamanho > 0 && blocoPausaMin > 0 && enviosNoBloco >= blocoTamanho) {
         await new Promise(r => setTimeout(r, blocoPausaMin * 60000))
         enviosNoBloco = 0

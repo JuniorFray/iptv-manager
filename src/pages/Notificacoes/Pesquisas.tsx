@@ -49,7 +49,7 @@ const inputStyle: React.CSSProperties = {
   background: 'rgba(255,255,255,0.05)', color: 'white', fontSize: '14px', outline: 'none', boxSizing: 'border-box',
 }
 
-export default function Pesquisas({ clientes, whatsReady, blocoTamanho = 0, blocoPausaMin = 0 }: { clientes: Cliente[]; whatsReady: boolean; blocoTamanho?: number; blocoPausaMin?: number }) {
+export default function Pesquisas({ clientes, whatsReady, blocoTamanho = 0, blocoPausaMin = 0, intervaloMin = 5000, intervaloMax = 15000 }: { clientes: Cliente[]; whatsReady: boolean; blocoTamanho?: number; blocoPausaMin?: number; intervaloMin?: number; intervaloMax?: number }) {
   const [titulo, setTitulo] = useState('')
   const [opcoes, setOpcoes] = useState<string[]>(['', '', ''])
   const [multipla, setMultipla] = useState(false)
@@ -142,7 +142,10 @@ export default function Pesquisas({ clientes, whatsReady, blocoTamanho = 0, bloc
       } catch {}
       enviosNoBloco++
       setProgresso(i + 1)
-      await new Promise(r => setTimeout(r, 1500))
+      const espera = intervaloMin === intervaloMax
+        ? intervaloMin
+        : Math.floor(Math.random() * (intervaloMax - intervaloMin + 1)) + intervaloMin
+      await new Promise(r => setTimeout(r, espera))
       if (blocoTamanho > 0 && blocoPausaMin > 0 && enviosNoBloco >= blocoTamanho) {
         await new Promise(r => setTimeout(r, blocoPausaMin * 60000))
         enviosNoBloco = 0

@@ -497,7 +497,7 @@ export default function Notificacoes() {
   }
 
 
-  const { modoEnquete, setModoEnquete, enqueteValido, enviarEnqueteUm, enviarEnqueteTodos, EnqueteForm } = useEnquete({ clienteSel, clientesFiltrados, formatarTelefone, setResultado, setEnviando, blocoTamanho, blocoPausaMin })
+  const { modoEnquete, setModoEnquete, enqueteValido, enviarEnqueteUm, enviarEnqueteTodos, EnqueteForm } = useEnquete({ clienteSel, clientesFiltrados, formatarTelefone, setResultado, setEnviando, blocoTamanho, blocoPausaMin, intervaloMin, intervaloMax })
 
   const enviarUm = async () => {
     if (!clienteSel) return
@@ -1616,7 +1616,7 @@ export default function Notificacoes() {
 
       {/* ── ABA PESQUISAS ── */}
       {aba === 'pesquisas' && (
-        <Pesquisas clientes={clientes} whatsReady={whatsReady} blocoTamanho={blocoTamanho} blocoPausaMin={blocoPausaMin} />
+        <Pesquisas clientes={clientes} whatsReady={whatsReady} blocoTamanho={blocoTamanho} blocoPausaMin={blocoPausaMin} intervaloMin={intervaloMin} intervaloMax={intervaloMax} />
       )}
 
       {/* Modal QR */}
