@@ -1,9 +1,10 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useEnquete } from './Enquete'
+import Pesquisas from './Pesquisas'
 import { collection, onSnapshot, addDoc, deleteDoc, doc, getDocs } from 'firebase/firestore'
 import { db, storage } from '../../firebase'
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage'
-import { Send, Users, CheckCircle, Plus, Trash2, X, BookOpen, Wifi, WifiOff, QrCode, Settings, Clock, CheckCircle2, XCircle, Play, Save, RefreshCw, Image, Music, FileText, Upload } from 'lucide-react'
+import { Send, Users, CheckCircle, Plus, Trash2, X, BookOpen, Wifi, WifiOff, QrCode, Settings, Clock, CheckCircle2, XCircle, Play, Save, RefreshCw, Image, Music, FileText, Upload, BarChart3 } from 'lucide-react'
 import axios from 'axios'
 
 const API = 'https://iptv-manager-production.up.railway.app'
@@ -124,7 +125,7 @@ export default function Notificacoes() {
   const [qrCode, setQrCode]               = useState<string | null>(null)
   const [mostrarQR, setMostrarQR]         = useState(false)
   const [resultado, setResultado]         = useState<{ tipo: 'ok' | 'erro'; msg: string } | null>(null)
-  const [aba, setAba]                     = useState<'manual' | 'auto' | 'fila' | 'log' | 'midias' | 'status'>('manual')
+  const [aba, setAba]                     = useState<'manual' | 'auto' | 'fila' | 'log' | 'midias' | 'status' | 'pesquisas'>('manual')
   const [logs, setLogs]                   = useState<LogEntry[]>([])
   const [salvando, setSalvando]           = useState(false)
   const [saved, setSaved]                 = useState(false)
@@ -786,6 +787,7 @@ export default function Notificacoes() {
           { key: 'log',    label: 'Histórico',        icon: <Clock size={15} />    },
           { key: 'midias', label: 'Mídias',            icon: <Image size={15} />    },
           { key: 'status', label: 'Status WA',          icon: <Play size={15} />     },
+          { key: 'pesquisas', label: 'Pesquisas',       icon: <BarChart3 size={15} /> },
         ].map(a => (
           <button key={a.key} onClick={() => { setAba(a.key as any); if (a.key === 'log') carregarLogs(); if (a.key === 'fila') carregarFila(); if (a.key === 'midias') carregarMidias(); if (a.key === 'auto') carregarTemplateRenovacao(); if (a.key === 'status') carregarStatus() }} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px', background: aba === a.key ? 'rgba(99,102,241,0.3)' : 'rgba(255,255,255,0.05)', border: aba === a.key ? '1px solid rgba(99,102,241,0.5)' : '1px solid rgba(255,255,255,0.1)', color: aba === a.key ? 'white' : 'rgba(255,255,255,0.5)' }}>
             {a.icon}{a.label}
@@ -1580,6 +1582,11 @@ export default function Notificacoes() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {/* ── ABA PESQUISAS ── */}
+      {aba === 'pesquisas' && (
+        <Pesquisas clientes={clientes} whatsReady={whatsReady} />
       )}
 
       {/* Modal QR */}

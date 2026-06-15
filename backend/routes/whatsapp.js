@@ -875,6 +875,66 @@ export default function createWhatsAppRouter(db, admin) {
     }
   })
 
+  // ── PESQUISAS (numeradas, com captura de resposta) ──
+  router.post('/pesquisa/criar', async (req, res) => {
+    try {
+      const { titulo, opcoes } = req.body
+      if (!titulo?.trim() || !opcoes?.length || opcoes.length < 2) return res.status(400).json({ error: 'titulo e opcoes (min 2) sao obrigatorios' })
+      const resultado = {}
+      opcoes.forEach(o => { resultado[o.trim()] = 0 })
+      const ref = await db.collection('pesquisas').add({
+        titulo: titulo.trim(),
+        opcoes: opcoes.map(o => o.trim()),
+        totalEnviado: 0,
+        totalRespondido: 0,
+        resultado,
+        criadoEm: admin.firestore.FieldValue.serverTimestamp(),
+      })
+      res.json({ ok: true, id: ref.id })
+    } catch (e) { res.status(500).json({ error: e.message }) }
+  })
+
+  router.post('/pesquisa/enviar', async (req, res) => {
+    try {
+      const { pesquisaId, phone } = req.body
+      if (!pesquisaId || !phone) return res.status(400).json({ error: 'pesquisaId e phone sao obrigatorios' })
+      const pesqDoc = await db.collection('pesquisas').doc(pesquisaId).get()
+      if (!pesqDoc.exists) return res.status(404).json({ error: 'Pesquisa nao encontrada' })
+      const { titulo, opcoes } = pesqDoc.data()
+      const num   = normalizarTelefone(phone)
+      const texto = `📋 ${titulo}\n\n${opcoes.map((o, i) => `${i + 1}. ${o}`).join('\n')}\n\nResponda só com o número da opção 👆`
+      await enviarTexto(phone, texto)
+      await db.collection('pesquisaAguardando').doc(num).set({
+        pesquisaId, opcoes,
+        enviadoEm: admin.firestore.FieldValue.serverTimestamp(),
+      })
+      await db.collection('pesquisas').doc(pesquisaId).update({ totalEnviado: admin.firestore.FieldValue.increment(1) })
+      res.json({ ok: true })
+    } catch (e) {
+      console.error('[PESQUISA] erro enviar:', e.message)
+      res.status(500).json({ error: e.message })
+    }
+  })
+
+  router.get('/pesquisa/listar', async (req, res) => {
+    try {
+      const snap = await db.collection('pesquisas').orderBy('criadoEm', 'desc').get()
+      res.json(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+    } catch (e) { res.status(500).json({ error: e.message }) }
+  })
+
+  router.delete('/pesquisa/:id', async (req, res) => {
+    try {
+      const id = req.params.id
+      await db.collection('pesquisas').doc(id).delete()
+      const aguardSnap = await db.collection('pesquisaAguardando').where('pesquisaId', '==', id).get()
+      const batch = db.batch()
+      aguardSnap.docs.forEach(d => batch.delete(d.ref))
+      await batch.commit()
+      res.json({ ok: true })
+    } catch (e) { res.status(500).json({ error: e.message }) }
+  })
+
   // Webhook Evolution API - votos de enquete
   router.post('/webhook/whatsapp', async (req, res) => {
     res.sendStatus(200)
@@ -886,6 +946,46 @@ export default function createWhatsAppRouter(db, admin) {
       const msgs = body?.data?.messages ?? (Array.isArray(body?.data) ? body.data : [])
       for (const msg of msgs) {
         console.log('[WEBHOOK] msg type:', msg?.messageType, '| keys:', Object.keys(msg?.message || {}).join(','))
+        // Captura de resposta de pesquisa (numero ou texto da opcao)
+        if (!msg.key?.fromMe) {
+          const texto = (msg.message?.conversation || msg.message?.extendedTextMessage?.text || '').trim()
+          const telefoneResp = (msg.key?.remoteJid || '').replace('@s.whatsapp.net', '').replace(/\D/g, '')
+          if (texto && telefoneResp) {
+            try {
+              const aguardDoc = await db.collection('pesquisaAguardando').doc(telefoneResp).get()
+              if (aguardDoc.exists) {
+                const { pesquisaId, opcoes } = aguardDoc.data()
+                const normalizar = (str) => String(str).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
+                const textoNorm = normalizar(texto)
+                let opcaoEscolhida = null
+                const numMatch = texto.match(/\d+/)
+                if (numMatch) {
+                  const idx = parseInt(numMatch[0], 10) - 1
+                  if (idx >= 0 && idx < opcoes.length) opcaoEscolhida = opcoes[idx]
+                }
+                if (!opcaoEscolhida) {
+                  opcaoEscolhida = opcoes.find(o => {
+                    const oNorm = normalizar(o)
+                    return textoNorm.includes(oNorm) || oNorm.includes(textoNorm)
+                  })
+                }
+                if (opcaoEscolhida) {
+                  const pesqRef = db.collection('pesquisas').doc(pesquisaId)
+                  await db.runTransaction(async t => {
+                    const pSnap = await t.get(pesqRef)
+                    if (!pSnap.exists) return
+                    const data = pSnap.data()
+                    const novoResultado = { ...data.resultado }
+                    novoResultado[opcaoEscolhida] = (novoResultado[opcaoEscolhida] || 0) + 1
+                    t.update(pesqRef, { totalRespondido: admin.firestore.FieldValue.increment(1), resultado: novoResultado })
+                  })
+                  await aguardDoc.ref.delete()
+                  console.log(`[PESQUISA] Voto registrado: ${telefoneResp} -> "${opcaoEscolhida}"`)
+                }
+              }
+            } catch (e) { console.error('[PESQUISA] erro ao processar resposta:', e.message) }
+          }
+        }
         const poll = msg?.message?.pollUpdateMessage
         if (!poll) continue
         const votante   = (msg.key?.remoteJid || '').replace('@s.whatsapp.net', '')
