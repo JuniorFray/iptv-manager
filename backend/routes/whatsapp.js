@@ -943,7 +943,7 @@ export default function createWhatsAppRouter(db, admin) {
       // DEBUG - loga tudo que chega
       console.log('[WEBHOOK] evento:', body?.event, '| keys:', Object.keys(body || {}).join(','))
       if (body?.data) console.log('[WEBHOOK] data FULL:', JSON.stringify(body.data))
-      const msgs = body?.data?.messages ?? (Array.isArray(body?.data) ? body.data : [])
+      const msgs = body?.data?.messages ?? (Array.isArray(body?.data) ? body.data : (body?.data?.key ? [body.data] : []))
       for (const msg of msgs) {
         console.log('[WEBHOOK] msg type:', msg?.messageType, '| keys:', Object.keys(msg?.message || {}).join(','))
         // Captura de resposta de pesquisa (numero ou texto da opcao)
