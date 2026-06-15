@@ -93,6 +93,7 @@ export default function Notificacoes() {
   const [intervaloMax, setIntervaloMax]   = useState(15000)
   const [blocoTamanho, setBlocoTamanho]   = useState(20)
   const [blocoPausaMin, setBlocoPausaMin] = useState(5)
+  const [pausaSalva, setPausaSalva]       = useState(false)
   const [cupomMassa, setCupomMassa]       = useState('')
   const [modalModelo, setModalModelo]     = useState(false)
   const [novoTitulo, setNovoTitulo]       = useState('')
@@ -613,6 +614,14 @@ export default function Notificacoes() {
     setTimeout(() => setResultado(null), 5000)
   }
 
+  const salvarPausaBloco = async () => {
+    try {
+      await axios.post(`${API}/config`, { ...config, intervaloMin, intervaloMax, blocoTamanho, blocoPausaMin })
+      setPausaSalva(true)
+      setTimeout(() => setPausaSalva(false), 2500)
+    } catch (e) { console.error('Erro ao salvar pausa em blocos:', e) }
+  }
+
   const enviarTodos = async () => {
     if (enviando || clientesFiltrados.length === 0) return
     if (!mensagem.trim() && !midiaManual) return
@@ -1014,6 +1023,9 @@ export default function Notificacoes() {
                     </div>
                   </div>
                   <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: '11px', margin: '4px 0 0' }}>0 = desativado</p>
+                  <button onClick={salvarPausaBloco} style={{ marginTop: '8px', padding: '6px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: '600', background: pausaSalva ? 'rgba(34,197,94,0.2)' : 'rgba(99,102,241,0.15)', border: pausaSalva ? '1px solid rgba(34,197,94,0.4)' : '1px solid rgba(99,102,241,0.3)', color: pausaSalva ? '#4ade80' : '#a5b4fc' }}>
+                    {pausaSalva ? '✓ Salvo!' : '💾 Salvar'}
+                  </button>
                 </div>
                 <div style={{ background: filtroAtual.bg, border: `1px solid ${filtroAtual.border}`, borderRadius: '10px', padding: '10px 16px', textAlign: 'center' }}>
                   <span style={{ color: `#${filtroAtual.cor}`, fontWeight: 'bold', fontSize: '18px' }}>{clientesFiltrados.length}</span>
