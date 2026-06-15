@@ -38,6 +38,7 @@ export default function createWhatsAppRouter(db, admin) {
   let cronJob     = null
   let cronRodando = false
   let processandoFila = false
+  let enviosDesdeUltimaPausa = 0
 
   // ---- Helpers ----
 
@@ -268,6 +269,8 @@ export default function createWhatsAppRouter(db, admin) {
       const config     = await getConfig()
       const intervaloMin = config.intervaloMin ?? config.intervaloMs ?? 5000
       const intervaloMax = config.intervaloMax ?? intervaloMin
+      const blocoTamanho  = Number(config.blocoTamanho)  || 0
+      const blocoPausaMin = Number(config.blocoPausaMin) || 0
       const snap      = await db.collection('filaEnvios')
         .where('status',           '==', 'pendente')
         .where('proximaTentativa', '<',  agora)
@@ -335,6 +338,13 @@ export default function createWhatsAppRouter(db, admin) {
             : Math.floor(Math.random() * (intervaloMax - intervaloMin + 1)) + intervaloMin
           console.log(`[FILA] ⏱ Aguardando ${(espera/1000).toFixed(1)}s antes do próximo...`)
           await sleep(espera)
+
+          enviosDesdeUltimaPausa++
+          if (blocoTamanho > 0 && blocoPausaMin > 0 && enviosDesdeUltimaPausa >= blocoTamanho) {
+            console.log(`[FILA] 🛑 ${blocoTamanho} envios atingidos, pausando ${blocoPausaMin}min...`)
+            await sleep(blocoPausaMin * 60 * 1000)
+            enviosDesdeUltimaPausa = 0
+          }
         } catch (err) {
           console.error(`[FILA] ❌ Erro ao enviar para ${item.clienteNome}:`, err.message)
           const tentativas = (item.tentativas || 0) + 1

@@ -91,6 +91,8 @@ export default function Notificacoes() {
   const [busca, setBusca]                 = useState('')
   const [intervaloMin, setIntervaloMin]   = useState(5000)
   const [intervaloMax, setIntervaloMax]   = useState(15000)
+  const [blocoTamanho, setBlocoTamanho]   = useState(20)
+  const [blocoPausaMin, setBlocoPausaMin] = useState(5)
   const [cupomMassa, setCupomMassa]       = useState('')
   const [modalModelo, setModalModelo]     = useState(false)
   const [novoTitulo, setNovoTitulo]       = useState('')
@@ -187,6 +189,8 @@ export default function Notificacoes() {
       setConfig(res.data)
       if (res.data.intervaloMin) setIntervaloMin(res.data.intervaloMin)
       if (res.data.intervaloMax) setIntervaloMax(res.data.intervaloMax)
+      if (res.data.blocoTamanho) setBlocoTamanho(res.data.blocoTamanho)
+      if (res.data.blocoPausaMin !== undefined) setBlocoPausaMin(res.data.blocoPausaMin)
     }).catch(() => {})
   }, [])
 
@@ -492,7 +496,7 @@ export default function Notificacoes() {
   }
 
 
-  const { modoEnquete, setModoEnquete, enqueteValido, enviarEnqueteUm, enviarEnqueteTodos, EnqueteForm } = useEnquete({ clienteSel, clientesFiltrados, formatarTelefone, setResultado, setEnviando })
+  const { modoEnquete, setModoEnquete, enqueteValido, enviarEnqueteUm, enviarEnqueteTodos, EnqueteForm } = useEnquete({ clienteSel, clientesFiltrados, formatarTelefone, setResultado, setEnviando, blocoTamanho, blocoPausaMin })
 
   const enviarUm = async () => {
     if (!clienteSel) return
@@ -616,7 +620,7 @@ export default function Notificacoes() {
     setEnviando(true); setProgresso(0)
     // Salva intervalo no Firestore antes de enviar
     try {
-      await axios.post(`${API}/config`, { ...config, intervaloMin, intervaloMax })
+      await axios.post(`${API}/config`, { ...config, intervaloMin, intervaloMax, blocoTamanho, blocoPausaMin })
     } catch (e) { console.error('Erro ao salvar intervalo:', e) }
 
     // Valida cupom se informado
@@ -680,7 +684,7 @@ export default function Notificacoes() {
     if (!config) return
     setSalvando(true)
     try {
-      await axios.post(`${API}/config`, { ...config, intervaloMin, intervaloMax })
+      await axios.post(`${API}/config`, { ...config, intervaloMin, intervaloMax, blocoTamanho, blocoPausaMin })
       // Salva template renovação com mídia no Firestore
       const { setDoc, doc: fsDoc } = await import('firebase/firestore')
       const renovDoc: any = { mensagem: templateRenovacao }
@@ -996,6 +1000,20 @@ export default function Notificacoes() {
                       <input type="number" min="1" value={Math.round(intervaloMax/1000)} onChange={e => setIntervaloMax(Math.max(Number(e.target.value), Math.round(intervaloMin/1000)) * 1000)} style={{ ...inputStyle }} />
                     </div>
                   </div>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={{ color: 'rgba(255,255,255,0.6)', fontSize: '13px', display: 'block', marginBottom: '6px' }}>Pausa em blocos</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ color: 'rgba(255,255,255,0.35)', fontSize: '11px', display: 'block', marginBottom: '4px' }}>A cada (envios)</label>
+                      <input type="number" min="0" value={blocoTamanho} onChange={e => setBlocoTamanho(Math.max(0, Number(e.target.value)))} style={{ ...inputStyle }} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ color: 'rgba(255,255,255,0.35)', fontSize: '11px', display: 'block', marginBottom: '4px' }}>Pausar (min)</label>
+                      <input type="number" min="0" value={blocoPausaMin} onChange={e => setBlocoPausaMin(Math.max(0, Number(e.target.value)))} style={{ ...inputStyle }} />
+                    </div>
+                  </div>
+                  <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: '11px', margin: '4px 0 0' }}>0 = desativado</p>
                 </div>
                 <div style={{ background: filtroAtual.bg, border: `1px solid ${filtroAtual.border}`, borderRadius: '10px', padding: '10px 16px', textAlign: 'center' }}>
                   <span style={{ color: `#${filtroAtual.cor}`, fontWeight: 'bold', fontSize: '18px' }}>{clientesFiltrados.length}</span>
@@ -1586,7 +1604,7 @@ export default function Notificacoes() {
 
       {/* ── ABA PESQUISAS ── */}
       {aba === 'pesquisas' && (
-        <Pesquisas clientes={clientes} whatsReady={whatsReady} />
+        <Pesquisas clientes={clientes} whatsReady={whatsReady} blocoTamanho={blocoTamanho} blocoPausaMin={blocoPausaMin} />
       )}
 
       {/* Modal QR */}

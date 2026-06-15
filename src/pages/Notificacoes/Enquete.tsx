@@ -12,9 +12,11 @@ interface UseEnqueteParams {
   formatarTelefone: (tel: string) => string
   setResultado: (r: Resultado) => void
   setEnviando: (v: boolean) => void
+  blocoTamanho?: number
+  blocoPausaMin?: number
 }
 
-export function useEnquete({ clienteSel, clientesFiltrados, formatarTelefone, setResultado, setEnviando }: UseEnqueteParams) {
+export function useEnquete({ clienteSel, clientesFiltrados, formatarTelefone, setResultado, setEnviando, blocoTamanho = 0, blocoPausaMin = 0 }: UseEnqueteParams) {
   const [modoEnquete,     setModoEnquete]     = useState(false)
   const [enqueteTitulo,   setEnqueteTitulo]   = useState('')
   const [enqueteOpcoes,   setEnqueteOpcoes]   = useState<string[]>(['', '', ''])
@@ -40,6 +42,7 @@ export function useEnquete({ clienteSel, clientesFiltrados, formatarTelefone, se
     if (!enqueteTitulo.trim() || opcoes.length < 2) return
     setEnviando(true)
     let adicionados = 0
+    let enviosNoBloco = 0
     const processados = new Set<string>()
     for (const c of clientesFiltrados) {
       if (!c.telefone || processados.has(c.telefone)) continue
@@ -51,7 +54,12 @@ export function useEnquete({ clienteSel, clientesFiltrados, formatarTelefone, se
         })
         adicionados++
       } catch {}
+      enviosNoBloco++
       await new Promise(r => setTimeout(r, 1500))
+      if (blocoTamanho > 0 && blocoPausaMin > 0 && enviosNoBloco >= blocoTamanho) {
+        await new Promise(r => setTimeout(r, blocoPausaMin * 60000))
+        enviosNoBloco = 0
+      }
     }
     setResultado({ tipo: 'ok', msg: `${adicionados} enquetes enviadas!` })
     setEnviando(false)

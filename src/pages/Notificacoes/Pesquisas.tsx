@@ -49,7 +49,7 @@ const inputStyle: React.CSSProperties = {
   background: 'rgba(255,255,255,0.05)', color: 'white', fontSize: '14px', outline: 'none', boxSizing: 'border-box',
 }
 
-export default function Pesquisas({ clientes, whatsReady }: { clientes: Cliente[]; whatsReady: boolean }) {
+export default function Pesquisas({ clientes, whatsReady, blocoTamanho = 0, blocoPausaMin = 0 }: { clientes: Cliente[]; whatsReady: boolean; blocoTamanho?: number; blocoPausaMin?: number }) {
   const [titulo, setTitulo] = useState('')
   const [opcoes, setOpcoes] = useState<string[]>(['', '', ''])
   const [filtro, setFiltro] = useState('todos')
@@ -126,6 +126,7 @@ export default function Pesquisas({ clientes, whatsReady }: { clientes: Cliente[
     const pesquisaId = await criarPesquisa()
     if (!pesquisaId) { setResultado({ tipo: 'erro', msg: 'Erro ao criar pesquisa.' }); setEnviando(false); return }
     let enviados = 0
+    let enviosNoBloco = 0
     const processados = new Set<string>()
     for (let i = 0; i < clientesFiltrados.length; i++) {
       const c = clientesFiltrados[i]
@@ -138,8 +139,13 @@ export default function Pesquisas({ clientes, whatsReady }: { clientes: Cliente[
         })
         enviados++
       } catch {}
+      enviosNoBloco++
       setProgresso(i + 1)
       await new Promise(r => setTimeout(r, 1500))
+      if (blocoTamanho > 0 && blocoPausaMin > 0 && enviosNoBloco >= blocoTamanho) {
+        await new Promise(r => setTimeout(r, blocoPausaMin * 60000))
+        enviosNoBloco = 0
+      }
     }
     setResultado({ tipo: 'ok', msg: `${enviados} pesquisas enviadas!` })
     setTitulo(''); setOpcoes(['', '', ''])
