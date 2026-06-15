@@ -936,7 +936,7 @@ export default function createWhatsAppRouter(db, admin) {
   })
 
   // Webhook Evolution API - votos de enquete
-  router.post('/webhook/whatsapp', async (req, res) => {
+  router.post(['/webhook/whatsapp', '/webhook/whatsapp/messages-upsert', '/webhook/whatsapp/messages-update'], async (req, res) => {
     res.sendStatus(200)
     try {
       const body = req.body
