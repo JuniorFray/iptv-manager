@@ -52,6 +52,7 @@ const inputStyle: React.CSSProperties = {
 export default function Pesquisas({ clientes, whatsReady, blocoTamanho = 0, blocoPausaMin = 0 }: { clientes: Cliente[]; whatsReady: boolean; blocoTamanho?: number; blocoPausaMin?: number }) {
   const [titulo, setTitulo] = useState('')
   const [opcoes, setOpcoes] = useState<string[]>(['', '', ''])
+  const [multipla, setMultipla] = useState(false)
   const [filtro, setFiltro] = useState('todos')
   const [busca, setBusca] = useState('')
   const [clienteSel, setClienteSel] = useState<Cliente | null>(null)
@@ -96,7 +97,7 @@ export default function Pesquisas({ clientes, whatsReady, blocoTamanho = 0, bloc
     const opcoesValidas = opcoes.filter(o => o.trim())
     const res = await fetch(`${API}/pesquisa/criar`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ titulo: titulo.trim(), opcoes: opcoesValidas })
+      body: JSON.stringify({ titulo: titulo.trim(), opcoes: opcoesValidas, multipla })
     })
     const data = await res.json()
     return data.ok ? data.id : null
@@ -227,6 +228,10 @@ export default function Pesquisas({ clientes, whatsReady, blocoTamanho = 0, bloc
               )}
             </div>
             <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: '11px', margin: 0 }}>Mínimo 2 opções • Máximo 12 opções • Cliente responde com o número ou o texto da opção</p>
+            <div style={{ display: 'flex', gap: '4px', background: 'rgba(255,255,255,0.05)', borderRadius: '8px', padding: '3px', alignSelf: 'flex-start' }}>
+              <button onClick={() => setMultipla(false)} style={{ padding: '4px 12px', borderRadius: '6px', cursor: 'pointer', border: 'none', background: !multipla ? 'rgba(99,102,241,0.4)' : 'transparent', color: !multipla ? '#a5b4fc' : 'rgba(255,255,255,0.4)', fontSize: '12px', fontWeight: '600' }}>☑️ Escolha única</button>
+              <button onClick={() => setMultipla(true)}  style={{ padding: '4px 12px', borderRadius: '6px', cursor: 'pointer', border: 'none', background:  multipla ? 'rgba(99,102,241,0.4)' : 'transparent', color:  multipla ? '#a5b4fc' : 'rgba(255,255,255,0.4)', fontSize: '12px', fontWeight: '600' }}>☑️ Múltipla escolha</button>
+            </div>
           </div>
 
           <button onClick={enviarUm} disabled={!clienteSel || !valido || !whatsReady}

@@ -890,11 +890,13 @@ export default function createWhatsAppRouter(db, admin) {
     try {
       const { titulo, opcoes } = req.body
       if (!titulo?.trim() || !opcoes?.length || opcoes.length < 2) return res.status(400).json({ error: 'titulo e opcoes (min 2) sao obrigatorios' })
+      const { multipla } = req.body
       const resultado = {}
       opcoes.forEach(o => { resultado[o.trim()] = 0 })
       const ref = await db.collection('pesquisas').add({
         titulo: titulo.trim(),
         opcoes: opcoes.map(o => o.trim()),
+        multipla: !!multipla,
         totalEnviado: 0,
         totalRespondido: 0,
         resultado,
@@ -910,12 +912,15 @@ export default function createWhatsAppRouter(db, admin) {
       if (!pesquisaId || !phone) return res.status(400).json({ error: 'pesquisaId e phone sao obrigatorios' })
       const pesqDoc = await db.collection('pesquisas').doc(pesquisaId).get()
       if (!pesqDoc.exists) return res.status(404).json({ error: 'Pesquisa nao encontrada' })
-      const { titulo, opcoes } = pesqDoc.data()
+      const { titulo, opcoes, multipla } = pesqDoc.data()
       const num   = normalizarTelefone(phone)
-      const texto = `📋 ${titulo}\n\n${opcoes.map((o, i) => `${i + 1}. ${o}`).join('\n')}\n\nResponda só com o número da opção 👆`
+      const instrucao = multipla
+        ? 'Você pode escolher mais de uma opção (ex: 1,3 ou 1 e 3)'
+        : 'Responda só com o número da opção'
+      const texto = `📋 ${titulo}\n\n${opcoes.map((o, i) => `${i + 1}. ${o}`).join('\n')}\n\n${instrucao} 👆`
       await enviarTexto(phone, texto)
       await db.collection('pesquisaAguardando').doc(num).set({
-        pesquisaId, opcoes,
+        pesquisaId, opcoes, multipla: !!multipla,
         enviadoEm: admin.firestore.FieldValue.serverTimestamp(),
       })
       await db.collection('pesquisas').doc(pesquisaId).update({ totalEnviado: admin.firestore.FieldValue.increment(1) })
@@ -964,33 +969,44 @@ export default function createWhatsAppRouter(db, admin) {
             try {
               const aguardDoc = await db.collection('pesquisaAguardando').doc(telefoneResp).get()
               if (aguardDoc.exists) {
-                const { pesquisaId, opcoes } = aguardDoc.data()
+                const { pesquisaId, opcoes, multipla } = aguardDoc.data()
                 const normalizar = (str) => String(str).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
                 const textoNorm = normalizar(texto)
-                let opcaoEscolhida = null
-                const numMatch = texto.match(/\d+/)
-                if (numMatch) {
-                  const idx = parseInt(numMatch[0], 10) - 1
-                  if (idx >= 0 && idx < opcoes.length) opcaoEscolhida = opcoes[idx]
+
+                // 1. Numeros encontrados na resposta
+                let opcoesEscolhidas = [...texto.matchAll(/\d+/g)]
+                  .map(m => parseInt(m[0], 10) - 1)
+                  .filter(idx => idx >= 0 && idx < opcoes.length)
+                  .map(idx => opcoes[idx])
+
+                // 2. Sem numero - tenta texto de todas as opcoes que aparecem na resposta
+                if (opcoesEscolhidas.length === 0) {
+                  opcoesEscolhidas = opcoes.filter(o => textoNorm.includes(normalizar(o)))
                 }
-                if (!opcaoEscolhida) {
-                  opcaoEscolhida = opcoes.find(o => {
+                // 3. Fallback - resposta contida no texto da opcao (ou vice-versa), so 1
+                if (opcoesEscolhidas.length === 0) {
+                  const single = opcoes.find(o => {
                     const oNorm = normalizar(o)
                     return textoNorm.includes(oNorm) || oNorm.includes(textoNorm)
                   })
+                  if (single) opcoesEscolhidas = [single]
                 }
-                if (opcaoEscolhida) {
+
+                opcoesEscolhidas = [...new Set(opcoesEscolhidas)]
+                if (!multipla && opcoesEscolhidas.length > 1) opcoesEscolhidas = [opcoesEscolhidas[0]]
+
+                if (opcoesEscolhidas.length > 0) {
                   const pesqRef = db.collection('pesquisas').doc(pesquisaId)
                   await db.runTransaction(async t => {
                     const pSnap = await t.get(pesqRef)
                     if (!pSnap.exists) return
                     const data = pSnap.data()
                     const novoResultado = { ...data.resultado }
-                    novoResultado[opcaoEscolhida] = (novoResultado[opcaoEscolhida] || 0) + 1
+                    opcoesEscolhidas.forEach(op => { novoResultado[op] = (novoResultado[op] || 0) + 1 })
                     t.update(pesqRef, { totalRespondido: admin.firestore.FieldValue.increment(1), resultado: novoResultado })
                   })
                   await aguardDoc.ref.delete()
-                  console.log(`[PESQUISA] Voto registrado: ${telefoneResp} -> "${opcaoEscolhida}"`)
+                  console.log(`[PESQUISA] Voto registrado: ${telefoneResp} -> ${JSON.stringify(opcoesEscolhidas)}`)
                 }
               }
             } catch (e) { console.error('[PESQUISA] erro ao processar resposta:', e.message) }
