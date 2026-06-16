@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import * as XLSX from 'xlsx'
 import { collection, onSnapshot, doc, updateDoc, deleteDoc, addDoc } from 'firebase/firestore'
 import { db } from '../../firebase'
 import { Plus, Search, Pencil, Trash2, RefreshCw, Check, X, Download } from 'lucide-react'
@@ -580,29 +581,48 @@ export default function Clientes() {
   // ---- JSX ----
 
   const exportarCSV = () => {
-    const sep  = ';'
     const hoje = new Date().toLocaleDateString('pt-BR')
-    const cols = ['Nome','Telefone','Tipo','Servidor','Usuário','Senha','Vencimento','Valor','Status','Obs']
-    const rows = clientes.map(c => [
-      c.nome       ?? '',
-      c.telefone   ?? '',
-      c.tipo       ?? '',
-      c.servidor   ?? '',
-      c.usuario    ?? '',
-      c.senha      ?? '',
-      c.vencimento ?? '',
-      c.valor      ?? '',
-      c.status     ?? '',
-      c.obs        ?? '',
-    ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(sep))
-    const csv = [`"Clientes - Exportado em ${hoje}"`, cols.join(sep), ...rows].join('\n')
-    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
-    const url  = URL.createObjectURL(blob)
-    const a    = document.createElement('a')
-    a.href = url
-    a.download = `clientes_${new Date().toLocaleDateString('pt-BR').replace(/\//g,'-')}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
+    const dados = clientes.map(c => [
+      c.nome        ?? '',
+      String(c.telefone  ?? ''),
+      c.tipo        ?? '',
+      c.servidor    ?? '',
+      String(c.usuario   ?? ''),
+      String(c.senha     ?? ''),
+      c.vencimento  ?? '',
+      c.valor       ?? '',
+      c.status      ?? '',
+      c.obs         ?? '',
+    ])
+    const headers = ['Nome','Telefone','Tipo','Servidor','Usuário','Senha','Vencimento','Valor','Status','Obs']
+    const wb = XLSX.utils.book_new()
+    const ws: XLSX.WorkSheet = {}
+    // Titulo mesclado na linha 1
+    ws['A1'] = { v: `Clientes — Exportado em ${hoje} — Total: ${clientes.length}`, t: 's' }
+    ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 9 } }]
+    // Cabeçalhos linha 2
+    headers.forEach((h, ci) => {
+      const addr = XLSX.utils.encode_cell({ r: 1, c: ci })
+      ws[addr] = { v: h, t: 's' }
+    })
+    // Dados a partir da linha 3 — telefone/usuario/senha como texto
+    const textoCols = new Set([1, 4, 5]) // Telefone, Usuário, Senha
+    dados.forEach((row, ri) => {
+      row.forEach((val, ci) => {
+        const addr = XLSX.utils.encode_cell({ r: ri + 2, c: ci })
+        ws[addr] = textoCols.has(ci)
+          ? { v: String(val), t: 's', z: '@' }
+          : { v: val, t: 's' }
+      })
+    })
+    ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: dados.length + 1, c: 9 } })
+    ws['!cols'] = [
+      { wch: 28 }, { wch: 18 }, { wch: 8 }, { wch: 10 },
+      { wch: 20 }, { wch: 16 }, { wch: 14 }, { wch: 10 },
+      { wch: 10 }, { wch: 24 },
+    ]
+    XLSX.utils.book_append_sheet(wb, ws, 'Clientes')
+    XLSX.writeFile(wb, `clientes_${hoje.replace(/\//g, '-')}.xlsx`)
   }
 
   return (
