@@ -580,20 +580,22 @@ export default function Clientes() {
   // ---- JSX ----
 
   const exportarCSV = () => {
+    const sep  = ';'
+    const hoje = new Date().toLocaleDateString('pt-BR')
     const cols = ['Nome','Telefone','Tipo','Servidor','Usuário','Senha','Vencimento','Valor','Status','Obs']
     const rows = clientes.map(c => [
-      c.nome    ?? '',
-      c.telefone ?? '',
-      c.tipo    ?? '',
-      c.servidor ?? '',
-      c.usuario  ?? '',
-      c.senha    ?? '',
+      c.nome       ?? '',
+      c.telefone   ?? '',
+      c.tipo       ?? '',
+      c.servidor   ?? '',
+      c.usuario    ?? '',
+      c.senha      ?? '',
       c.vencimento ?? '',
-      c.valor   ?? '',
-      c.status  ?? '',
-      c.obs     ?? '',
-    ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
-    const csv = [cols.join(','), ...rows].join('\n')
+      c.valor      ?? '',
+      c.status     ?? '',
+      c.obs        ?? '',
+    ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(sep))
+    const csv = [`"Clientes - Exportado em ${hoje}"`, cols.join(sep), ...rows].join('\n')
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
     const url  = URL.createObjectURL(blob)
     const a    = document.createElement('a')
