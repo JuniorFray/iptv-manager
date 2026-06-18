@@ -213,7 +213,7 @@ export default function Pesquisas({ clientes, whatsReady, blocoTamanho = 0, bloc
         <div className="glass-card" style={{ padding: '20px' }}>
           <h3 style={{ color: 'white', margin: '0 0 14px', fontSize: '15px' }}>📋 Nova Pesquisa</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '14px' }}>
-            <input value={titulo} onChange={e => setTitulo(e.target.value)} placeholder="Título da pesquisa (ex: Qual servidor você usa hoje?)" style={inputStyle} />
+            <textarea value={titulo} onChange={e => setTitulo(e.target.value)} placeholder="Título da pesquisa (ex: Qual servidor você usa hoje?)" rows={3} style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit', lineHeight: '1.5' }} />
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               {opcoes.map((op, i) => (
                 <div key={i} style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
