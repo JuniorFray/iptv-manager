@@ -914,10 +914,22 @@ export default function createWhatsAppRouter(db, admin) {
       if (!pesqDoc.exists) return res.status(404).json({ error: 'Pesquisa nao encontrada' })
       const { titulo, opcoes, multipla } = pesqDoc.data()
       const num   = normalizarTelefone(phone)
+      // Busca nome do cliente pelo telefone para substituir {NOME}
+      let nomeCliente = ''
+      try {
+        const clienteSnap = await db.collection('clientes').where('telefone', '==', num).limit(1).get()
+        if (!clienteSnap.empty) nomeCliente = clienteSnap.docs[0].data().nome ?? ''
+        if (!nomeCliente) {
+          const num2 = num.length === 13 ? num.slice(0,4) + num.slice(5) : num.slice(0,4) + '9' + num.slice(4)
+          const snap2 = await db.collection('clientes').where('telefone', '==', num2).limit(1).get()
+          if (!snap2.empty) nomeCliente = snap2.docs[0].data().nome ?? ''
+        }
+      } catch {}
+      const tituloFinal = titulo.replace(/{NOME}/gi, nomeCliente)
       const instrucao = multipla
         ? 'Você pode escolher mais de uma opção (ex: 1,3 ou 1 e 3)'
         : 'Responda só com o número da opção'
-      const texto = `📋 ${titulo}\n\n${opcoes.map((o, i) => `${i + 1}. ${o}`).join('\n')}\n\n${instrucao} 👆`
+      const texto = `📋 ${tituloFinal}\n\n${opcoes.map((o, i) => `${i + 1}. ${o}`).join('\n')}\n\n${instrucao} 👆`
       await enviarTexto(phone, texto)
       await db.collection('pesquisaAguardando').doc(num).set({
         pesquisaId, opcoes, multipla: !!multipla,
