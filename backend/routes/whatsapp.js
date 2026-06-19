@@ -968,8 +968,10 @@ export default function createWhatsAppRouter(db, admin) {
     try {
       const body = req.body
       // DEBUG - loga tudo que chega
-      console.log('[WEBHOOK] evento:', body?.event, '| keys:', Object.keys(body || {}).join(','))
-      if (body?.data) console.log('[WEBHOOK] data FULL:', JSON.stringify(body.data))
+      const _msgType = body?.data?.messageType ?? ''
+      const _remetente = (body?.data?.key?.remoteJid ?? '').replace('@s.whatsapp.net','')
+      const _texto = (body?.data?.message?.conversation ?? body?.data?.message?.extendedTextMessage?.text ?? '').substring(0,60)
+      if (!body?.data?.key?.fromMe) console.log(`[WEBHOOK] ${body?.event} | ${_remetente} | ${_msgType}${_texto ? ' | "' + _texto + '"' : ''}`)
       const msgs = body?.data?.messages ?? (Array.isArray(body?.data) ? body.data : (body?.data?.key ? [body.data] : []))
       for (const msg of msgs) {
         console.log('[WEBHOOK] msg type:', msg?.messageType, '| keys:', Object.keys(msg?.message || {}).join(','))

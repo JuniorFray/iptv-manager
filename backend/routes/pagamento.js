@@ -375,8 +375,9 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
 
       if (telefone && enviarMensagemRenovacao && vencimento) {
         await enviarMensagemRenovacao(telefone, {
-          nome: cliente?.nome ?? usuario, usuario,
-          senha: senha || cliente?.senha || '',
+          nome:     cliente?.nome     ?? usuario,
+          usuario:  cliente?.usuario  ?? usuario,
+          senha:    cliente?.senha    ?? senha ?? '',
           vencimento,
         })
       } else if (!vencimento) {
