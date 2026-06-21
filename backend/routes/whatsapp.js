@@ -632,6 +632,649 @@ export default function createWhatsAppRouter(db, admin) {
     res.json(snap.docs.map(d => ({ id: d.id, ...d.data() })))
   })
 
+  // ===== APLICACAO EM LOTE DE GRUPOS WAREZ (uso unico) =====
+  const REGISTROS_GRUPOS = [
+  {
+    "telefone": "554888504613",
+    "nome": "Misael Inacio",
+    "usuario": "d59h011",
+    "senha": "35131az",
+    "grupoLinha": "GRUPO 003",
+    "vencimentoLinha": "16/07/2026",
+    "mudaLogin": true
+  },
+  {
+    "telefone": "5519982153098",
+    "nome": "Danielle Silva",
+    "usuario": "d59h011",
+    "senha": "35131az",
+    "grupoLinha": "GRUPO 003",
+    "vencimentoLinha": "16/07/2026",
+    "mudaLogin": true
+  },
+  {
+    "telefone": "5519998598764",
+    "nome": "Damiana Souza",
+    "usuario": "d59h011",
+    "senha": "35131az",
+    "grupoLinha": "GRUPO 003",
+    "vencimentoLinha": "16/07/2026",
+    "mudaLogin": false
+  },
+  {
+    "telefone": "5598988484555",
+    "nome": "Wilker Rodrigues",
+    "usuario": "7576872",
+    "senha": "2875495",
+    "grupoLinha": "GRUPO 004",
+    "vencimentoLinha": "22/06/2026",
+    "mudaLogin": true
+  },
+  {
+    "telefone": "5519991809824",
+    "nome": "Edilene Marques",
+    "usuario": "7576872",
+    "senha": "2875495",
+    "grupoLinha": "GRUPO 004",
+    "vencimentoLinha": "22/06/2026",
+    "mudaLogin": false
+  },
+  {
+    "telefone": "5519996374530",
+    "nome": "Jonatan Dorigan",
+    "usuario": "7576872",
+    "senha": "2875495",
+    "grupoLinha": "GRUPO 004",
+    "vencimentoLinha": "22/06/2026",
+    "mudaLogin": true
+  },
+  {
+    "telefone": "5519989861225",
+    "nome": "Rafael Cesar",
+    "usuario": "z59z184",
+    "senha": "35hx856",
+    "grupoLinha": "GRUPO 005",
+    "vencimentoLinha": "23/07/2026",
+    "mudaLogin": true
+  },
+  {
+    "telefone": "5519999545654",
+    "nome": "Wilton alves",
+    "usuario": "z59z184",
+    "senha": "35hx856",
+    "grupoLinha": "GRUPO 005",
+    "vencimentoLinha": "23/07/2026",
+    "mudaLogin": true
+  },
+  {
+    "telefone": "5562999080926",
+    "nome": "Stephanie Silva",
+    "usuario": "z59z184",
+    "senha": "35hx856",
+    "grupoLinha": "GRUPO 005",
+    "vencimentoLinha": "23/07/2026",
+    "mudaLogin": false
+  },
+  {
+    "telefone": "5564992251278",
+    "nome": "Stefany Rosa",
+    "usuario": "2943937",
+    "senha": "3799571",
+    "grupoLinha": "GRUPO 006",
+    "vencimentoLinha": "27/06/2026",
+    "mudaLogin": true
+  },
+  {
+    "telefone": "5519983196741",
+    "nome": "Bruna Franca",
+    "usuario": "2943937",
+    "senha": "3799571",
+    "grupoLinha": "GRUPO 006",
+    "vencimentoLinha": "27/06/2026",
+    "mudaLogin": true
+  },
+  {
+    "telefone": "5519996326881",
+    "nome": "Guilherme GP",
+    "usuario": "2943937",
+    "senha": "3799571",
+    "grupoLinha": "GRUPO 006",
+    "vencimentoLinha": "27/06/2026",
+    "mudaLogin": false
+  },
+  {
+    "telefone": "5518988066585",
+    "nome": "kaique",
+    "usuario": "6694086",
+    "senha": "9504691",
+    "grupoLinha": "GRUPO 007",
+    "vencimentoLinha": "28/06/2026",
+    "mudaLogin": true
+  },
+  {
+    "telefone": "551998066515",
+    "nome": "Claudineia Alves",
+    "usuario": "6694086",
+    "senha": "9504691",
+    "grupoLinha": "GRUPO 007",
+    "vencimentoLinha": "28/06/2026",
+    "mudaLogin": false
+  },
+  {
+    "telefone": "5519996832507",
+    "nome": "Eric Ramalho",
+    "usuario": "6694086",
+    "senha": "9504691",
+    "grupoLinha": "GRUPO 007",
+    "vencimentoLinha": "28/06/2026",
+    "mudaLogin": true
+  },
+  {
+    "telefone": "5519997960039",
+    "nome": "Andrey Vinicius",
+    "usuario": "1909924",
+    "senha": "9027778",
+    "grupoLinha": "GRUPO 008",
+    "vencimentoLinha": "16/07/2026",
+    "mudaLogin": false
+  },
+  {
+    "telefone": "5519995536306",
+    "nome": "Fabiana Jorge",
+    "usuario": "1909924",
+    "senha": "9027778",
+    "grupoLinha": "GRUPO 008",
+    "vencimentoLinha": "16/07/2026",
+    "mudaLogin": true
+  },
+  {
+    "telefone": "5519997860405",
+    "nome": "Laura Rodrigues",
+    "usuario": "1909924",
+    "senha": "9027778",
+    "grupoLinha": "GRUPO 008",
+    "vencimentoLinha": "16/07/2026",
+    "mudaLogin": true
+  },
+  {
+    "telefone": "5512974041227",
+    "nome": "Giulia Nascimento",
+    "usuario": "t157s17",
+    "senha": "5520x1e",
+    "grupoLinha": "GRUPO 009",
+    "vencimentoLinha": "30/06/2026",
+    "mudaLogin": true
+  },
+  {
+    "telefone": "5519999273405",
+    "nome": "Vitor Campos",
+    "usuario": "t157s17",
+    "senha": "5520x1e",
+    "grupoLinha": "GRUPO 009",
+    "vencimentoLinha": "30/06/2026",
+    "mudaLogin": true
+  },
+  {
+    "telefone": "5519987030981",
+    "nome": "Josuel Melo",
+    "usuario": "t157s17",
+    "senha": "5520x1e",
+    "grupoLinha": "GRUPO 009",
+    "vencimentoLinha": "30/06/2026",
+    "mudaLogin": false
+  },
+  {
+    "telefone": "5519995270876",
+    "nome": "Guilherme Faria",
+    "usuario": "4r0969a",
+    "senha": "277gv63",
+    "grupoLinha": "GRUPO 010",
+    "vencimentoLinha": "18/07/2026",
+    "mudaLogin": false
+  },
+  {
+    "telefone": "5511987545048",
+    "nome": "Elisonia Ferreira",
+    "usuario": "4r0969a",
+    "senha": "277gv63",
+    "grupoLinha": "GRUPO 010",
+    "vencimentoLinha": "18/07/2026",
+    "mudaLogin": true
+  },
+  {
+    "telefone": "5519984505504",
+    "nome": "Agatha Tochetti",
+    "usuario": "4r0969a",
+    "senha": "277gv63",
+    "grupoLinha": "GRUPO 010",
+    "vencimentoLinha": "18/07/2026",
+    "mudaLogin": true
+  },
+  {
+    "telefone": "5567996672867",
+    "nome": "Rogerio Lima",
+    "usuario": "40a6c76",
+    "senha": "198bg68",
+    "grupoLinha": "GRUPO 011",
+    "vencimentoLinha": "02/07/2026",
+    "mudaLogin": true
+  },
+  {
+    "telefone": "5519997564436",
+    "nome": "Danilo Adorno",
+    "usuario": "40a6c76",
+    "senha": "198bg68",
+    "grupoLinha": "GRUPO 011",
+    "vencimentoLinha": "02/07/2026",
+    "mudaLogin": false
+  },
+  {
+    "telefone": "5519999124243",
+    "nome": "Silas Junior",
+    "usuario": "40a6c76",
+    "senha": "198bg68",
+    "grupoLinha": "GRUPO 011",
+    "vencimentoLinha": "02/07/2026",
+    "mudaLogin": true
+  },
+  {
+    "telefone": "5519996414675",
+    "nome": "Wagner Aguiar",
+    "usuario": "48907655",
+    "senha": "5689220",
+    "grupoLinha": "GRUPO 012",
+    "vencimentoLinha": "16/07/2026",
+    "mudaLogin": false
+  },
+  {
+    "telefone": "5519998717581",
+    "nome": "Cleber Ramos",
+    "usuario": "48907655",
+    "senha": "5689220",
+    "grupoLinha": "GRUPO 012",
+    "vencimentoLinha": "16/07/2026",
+    "mudaLogin": true
+  },
+  {
+    "telefone": "551974157651",
+    "nome": "Priscila Gomes",
+    "usuario": "48907655",
+    "senha": "5689220",
+    "grupoLinha": "GRUPO 012",
+    "vencimentoLinha": "16/07/2026",
+    "mudaLogin": true
+  },
+  {
+    "telefone": "5519998381767",
+    "nome": "Antonio Jose",
+    "usuario": "36795829",
+    "senha": "69687258",
+    "grupoLinha": "GRUPO 013",
+    "vencimentoLinha": "17/07/2026",
+    "mudaLogin": false
+  },
+  {
+    "telefone": "5519983133313",
+    "nome": "Alvaro Rosa",
+    "usuario": "36795829",
+    "senha": "69687258",
+    "grupoLinha": "GRUPO 013",
+    "vencimentoLinha": "17/07/2026",
+    "mudaLogin": true
+  },
+  {
+    "telefone": "5519982681534",
+    "nome": "Thaís Glauser",
+    "usuario": "36795829",
+    "senha": "69687258",
+    "grupoLinha": "GRUPO 013",
+    "vencimentoLinha": "17/07/2026",
+    "mudaLogin": true
+  },
+  {
+    "telefone": "5519981738211",
+    "nome": "Fatima Santos",
+    "usuario": "4384470",
+    "senha": "5611492",
+    "grupoLinha": "GRUPO 014",
+    "vencimentoLinha": "18/07/2026",
+    "mudaLogin": false
+  },
+  {
+    "telefone": "5519996316712",
+    "nome": "Claudia Almeida",
+    "usuario": "4384470",
+    "senha": "5611492",
+    "grupoLinha": "GRUPO 014",
+    "vencimentoLinha": "18/07/2026",
+    "mudaLogin": true
+  },
+  {
+    "telefone": "5519971168301",
+    "nome": "Mayara Rodrigues",
+    "usuario": "4384470",
+    "senha": "5611492",
+    "grupoLinha": "GRUPO 014",
+    "vencimentoLinha": "18/07/2026",
+    "mudaLogin": true
+  },
+  {
+    "telefone": "5514988413661",
+    "nome": "Josias Leal",
+    "usuario": "45q29w7",
+    "senha": "f749p00",
+    "grupoLinha": "GRUPO 015",
+    "vencimentoLinha": "08/07/2026",
+    "mudaLogin": true
+  },
+  {
+    "telefone": "555194151286",
+    "nome": "Patricia Coelho",
+    "usuario": "45q29w7",
+    "senha": "f749p00",
+    "grupoLinha": "GRUPO 015",
+    "vencimentoLinha": "08/07/2026",
+    "mudaLogin": true
+  },
+  {
+    "telefone": "5519983107552",
+    "nome": "Marcus Vinícius",
+    "usuario": "45q29w7",
+    "senha": "f749p00",
+    "grupoLinha": "GRUPO 015",
+    "vencimentoLinha": "08/07/2026",
+    "mudaLogin": false
+  },
+  {
+    "telefone": "5511959169480",
+    "nome": "Luciana Almeida",
+    "usuario": "4033h5x",
+    "senha": "59037re",
+    "grupoLinha": "GRUPO 016",
+    "vencimentoLinha": "19/07/2026",
+    "mudaLogin": false
+  },
+  {
+    "telefone": "5519996767627",
+    "nome": "Camila Roncato",
+    "usuario": "4033h5x",
+    "senha": "59037re",
+    "grupoLinha": "GRUPO 016",
+    "vencimentoLinha": "19/07/2026",
+    "mudaLogin": true
+  },
+  {
+    "telefone": "5574999024666",
+    "nome": "Micaela Lopes",
+    "usuario": "4033h5x",
+    "senha": "59037re",
+    "grupoLinha": "GRUPO 016",
+    "vencimentoLinha": "19/07/2026",
+    "mudaLogin": true
+  },
+  {
+    "telefone": "5519991427899",
+    "nome": "Luis Facca",
+    "usuario": "616b0r4",
+    "senha": "g1t6486",
+    "grupoLinha": "GRUPO 017",
+    "vencimentoLinha": "18/07/2026",
+    "mudaLogin": false
+  },
+  {
+    "telefone": "5519999965231",
+    "nome": "Mara Rubia",
+    "usuario": "616b0r4",
+    "senha": "g1t6486",
+    "grupoLinha": "GRUPO 017",
+    "vencimentoLinha": "18/07/2026",
+    "mudaLogin": true
+  },
+  {
+    "telefone": "5519998664413",
+    "nome": "Marcia Claudino",
+    "usuario": "616b0r4",
+    "senha": "g1t6486",
+    "grupoLinha": "GRUPO 017",
+    "vencimentoLinha": "18/07/2026",
+    "mudaLogin": true
+  },
+  {
+    "telefone": "5547984324640",
+    "nome": "Mauro Woscnak",
+    "usuario": "7567561",
+    "senha": "2560062",
+    "grupoLinha": "GRUPO 018",
+    "vencimentoLinha": "14/07/2026",
+    "mudaLogin": true
+  },
+  {
+    "telefone": "5519999050282",
+    "nome": "Anderson Paes",
+    "usuario": "7567561",
+    "senha": "2560062",
+    "grupoLinha": "GRUPO 018",
+    "vencimentoLinha": "14/07/2026",
+    "mudaLogin": false
+  },
+  {
+    "telefone": "5519920041503",
+    "nome": "Fernanda Longo",
+    "usuario": "7567561",
+    "senha": "2560062",
+    "grupoLinha": "GRUPO 018",
+    "vencimentoLinha": "14/07/2026",
+    "mudaLogin": true
+  },
+  {
+    "telefone": "5551992600736",
+    "nome": "Roberto Petter",
+    "usuario": "9588341",
+    "senha": "5256332",
+    "grupoLinha": "GRUPO 019",
+    "vencimentoLinha": "18/07/2026",
+    "mudaLogin": false
+  },
+  {
+    "telefone": "5519994414924",
+    "nome": "Juliana Valle",
+    "usuario": "9588341",
+    "senha": "5256332",
+    "grupoLinha": "GRUPO 019",
+    "vencimentoLinha": "18/07/2026",
+    "mudaLogin": true
+  },
+  {
+    "telefone": "5519991362068",
+    "nome": "Murilo Coimbra",
+    "usuario": "9588341",
+    "senha": "5256332",
+    "grupoLinha": "GRUPO 019",
+    "vencimentoLinha": "18/07/2026",
+    "mudaLogin": true
+  },
+  {
+    "telefone": "5521993762992",
+    "nome": "Stephanny Mariano",
+    "usuario": "12t14t0",
+    "senha": "441j5m8",
+    "grupoLinha": "GRUPO 020",
+    "vencimentoLinha": "19/07/2026",
+    "mudaLogin": false
+  },
+  {
+    "telefone": "5511993162840",
+    "nome": "Cristiane Pereira",
+    "usuario": "12t14t0",
+    "senha": "441j5m8",
+    "grupoLinha": "GRUPO 020",
+    "vencimentoLinha": "19/07/2026",
+    "mudaLogin": true
+  },
+  {
+    "telefone": "5562998490912",
+    "nome": "Thainne Cavalcante",
+    "usuario": "12t14t0",
+    "senha": "441j5m8",
+    "grupoLinha": "GRUPO 020",
+    "vencimentoLinha": "19/07/2026",
+    "mudaLogin": true
+  },
+  {
+    "telefone": "5519981514802",
+    "nome": "Wirnna",
+    "usuario": "8363423",
+    "senha": "4903664",
+    "grupoLinha": "GRUPO 021",
+    "vencimentoLinha": "18/07/2026",
+    "mudaLogin": false
+  },
+  {
+    "telefone": "5511963132055",
+    "nome": "Adeni Rosa",
+    "usuario": "8363423",
+    "senha": "4903664",
+    "grupoLinha": "GRUPO 021",
+    "vencimentoLinha": "18/07/2026",
+    "mudaLogin": true
+  },
+  {
+    "telefone": "5521993677888",
+    "nome": "Vanderlei Coelho",
+    "usuario": "8363423",
+    "senha": "4903664",
+    "grupoLinha": "GRUPO 021",
+    "vencimentoLinha": "18/07/2026",
+    "mudaLogin": true
+  },
+  {
+    "telefone": "5564992109325",
+    "nome": "kayllany",
+    "usuario": "53h5x50",
+    "senha": "p080c61",
+    "grupoLinha": "GRUPO 022",
+    "vencimentoLinha": "19/07/2026",
+    "mudaLogin": true
+  },
+  {
+    "telefone": "5551992931097",
+    "nome": "Alice Rosa",
+    "usuario": "53h5x50",
+    "senha": "p080c61",
+    "grupoLinha": "GRUPO 022",
+    "vencimentoLinha": "19/07/2026",
+    "mudaLogin": true
+  },
+  {
+    "telefone": "5519993789860",
+    "nome": "Aline Vivaldo",
+    "usuario": "53h5x50",
+    "senha": "p080c61",
+    "grupoLinha": "GRUPO 022",
+    "vencimentoLinha": "19/07/2026",
+    "mudaLogin": false
+  },
+  {
+    "telefone": "5519971698475",
+    "nome": "Carmen Oliveira",
+    "usuario": "303y03f",
+    "senha": "1nr7576",
+    "grupoLinha": "GRUPO 023",
+    "vencimentoLinha": "23/07/2026",
+    "mudaLogin": true
+  },
+  {
+    "telefone": "‪5519997038404‬",
+    "nome": "Joseane",
+    "usuario": "303y03f",
+    "senha": "1nr7576",
+    "grupoLinha": "GRUPO 023",
+    "vencimentoLinha": "23/07/2026",
+    "mudaLogin": true
+  },
+  {
+    "telefone": "5519981831084",
+    "nome": "Sergio Perches",
+    "usuario": "303y03f",
+    "senha": "1nr7576",
+    "grupoLinha": "GRUPO 023",
+    "vencimentoLinha": "23/07/2026",
+    "mudaLogin": false
+  }
+]
+
+  router.post('/grupos/aplicar-lote', async (req, res) => {
+    try {
+      const resultado = []
+      for (const reg of REGISTROS_GRUPOS) {
+        const num = normalizarTelefone(reg.telefone)
+        const snap = await db.collection('clientes').where('telefone', '==', num).limit(1).get()
+        if (snap.empty) {
+          resultado.push({ nome: reg.nome, telefone: reg.telefone, ok: false, erro: 'cliente nao encontrado' })
+          continue
+        }
+        const ref = snap.docs[0].ref
+        const updateData = {
+          grupoLinha: reg.grupoLinha,
+          vencimentoLinha: reg.vencimentoLinha,
+        }
+        if (reg.mudaLogin) {
+          updateData.usuario = reg.usuario
+          updateData.senha = reg.senha
+        }
+        await ref.update(updateData)
+        resultado.push({ nome: reg.nome, telefone: reg.telefone, ok: true, mudaLogin: reg.mudaLogin })
+      }
+      const sucesso = resultado.filter(r => r.ok).length
+      const falhas = resultado.filter(r => !r.ok)
+      console.log(`[GRUPOS-LOTE] Aplicado: ${sucesso}/${REGISTROS_GRUPOS.length} | Falhas: ${falhas.length}`)
+      if (falhas.length) console.log('[GRUPOS-LOTE] Falhas:', JSON.stringify(falhas))
+      res.json({ ok: true, total: REGISTROS_GRUPOS.length, sucesso, falhas })
+    } catch (err) {
+      console.error('[GRUPOS-LOTE] erro:', err.message)
+      res.status(500).json({ error: err.message })
+    }
+  })
+
+  router.post('/grupos/disparar-msgs', async (req, res) => {
+    try {
+      let enfileirados = 0
+      for (const reg of REGISTROS_GRUPOS) {
+        if (!reg.mudaLogin) continue
+        const mensagem = `Olá ${reg.nome}! 📺 Atualizamos os dados de acesso da sua linha:
+
+👤 Usuário: ${reg.usuario}
+🔑 Senha: ${reg.senha}
+
+Por favor, atualize esses dados no seu aplicativo. Qualquer dúvida estamos à disposição!`
+        await db.collection('filaEnvios').add({
+          clienteId: null,
+          clienteNome: reg.nome,
+          telefone: reg.telefone,
+          mensagem,
+          midiaUrl: null,
+          midiaTipo: null,
+          midiaNome: null,
+          modoEnvio: 'junto',
+          gatilho: 'grupo-lote',
+          status: 'pendente',
+          tentativas: 0,
+          maxTentativas: MAX_TENTATIVAS,
+          criadoEm: admin.firestore.FieldValue.serverTimestamp(),
+          proximaTentativa: admin.firestore.Timestamp.now(),
+          enviadoEm: null,
+          erro: null,
+        })
+        enfileirados++
+      }
+      console.log(`[GRUPOS-LOTE] ${enfileirados} mensagens enfileiradas`)
+      res.json({ ok: true, enfileirados })
+    } catch (err) {
+      console.error('[GRUPOS-LOTE] erro disparo:', err.message)
+      res.status(500).json({ error: err.message })
+    }
+  })
+
   router.post('/fila/adicionar', async (req, res) => {
     try {
       const { clienteId, clienteNome, telefone, mensagem, gatilho, midiaUrl, midiaTipo, midiaNome, modoEnvio, cliente, pontos, cupomCodigo } = req.body
