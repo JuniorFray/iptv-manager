@@ -213,12 +213,17 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
 
           if (novoVenc > vencLinhaAtual) {
             // Precisa estender a linha compartilhada na Warez
-            const buscar = await fetch(`${BACKEND}/painel/buscar-linha/${encodeURIComponent(usuario)}`).then(r => r.json())
+            // IMPORTANTE: usa cliente.usuario/senha (Firestore, sempre atualizado)
+            // em vez de usuario/senha do link de pagamento, que pode estar
+            // desatualizado se o link foi gerado antes da criacao do grupo.
+            const usuarioGrupo = cliente?.usuario || usuario
+            const senhaGrupo   = cliente?.senha   || senha
+            const buscar = await fetch(`${BACKEND}/painel/buscar-linha/${encodeURIComponent(usuarioGrupo)}`).then(r => r.json())
             console.log('[WEBHOOK][GRUPO] Warez buscar-linha resultado:', JSON.stringify(buscar))
             if (buscar.ok) {
               const ren = await fetch(`${BACKEND}/painel/renovar/${buscar.id}`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ credits: plano.creditos, nome: cliente?.nome, telefone, usuario, senha, skipWA: true })
+                body: JSON.stringify({ credits: plano.creditos, nome: cliente?.nome, telefone, usuario: usuarioGrupo, senha: senhaGrupo, skipWA: true })
               }).then(r => r.json())
               const expRaw = ren.exp_date ?? ren.expiry_date
               let vencLinhaNova = novoVenc
