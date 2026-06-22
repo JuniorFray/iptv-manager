@@ -856,9 +856,9 @@ export default function Clientes() {
             gruposMap[c.grupoLinha].push(c)
           }
         }
-        return Object.entries(gruposMap).length > 0 ? (
+        return Object.entries(gruposMap).sort((a,b)=>{const na=parseInt(a[0].match(/\d+/)?.[0]||'0');const nb=parseInt(b[0].match(/\d+/)?.[0]||'0');return na-nb}).length > 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '16px' }}>
-            {Object.entries(gruposMap).map(([nomeGrupo, membros]) => {
+            {Object.entries(gruposMap).sort((a,b)=>{const na=parseInt(a[0].match(/\d+/)?.[0]||'0');const nb=parseInt(b[0].match(/\d+/)?.[0]||'0');return na-nb}).map(([nomeGrupo, membros]) => {
               const atrasados = membros.filter(m => { const d = diffDiasGrupo(m.vencimento); return d !== null && d < -3 })
               const alerta = atrasados.length > 0
               return (
