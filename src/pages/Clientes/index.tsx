@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import * as XLSX from 'xlsx'
 import { collection, onSnapshot, doc, updateDoc, deleteDoc, addDoc } from 'firebase/firestore'
 import { db } from '../../firebase'
-import { Plus, Search, Pencil, Trash2, RefreshCw, Check, X, Download, Users, AlertTriangle, UserPlus } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, RefreshCw, Check, X, Download, Users, AlertTriangle } from 'lucide-react'
 
 const BACKEND_URL = 'https://iptv-manager-production.up.railway.app'
 
@@ -63,12 +63,12 @@ export default function Clientes() {
   const [msgPainel, setMsgPainel] = useState<{ tipo: 'ok' | 'erro'; msg: string } | null>(null)
 
   // Modal Criar/Editar Grupo
-  const [modalGrupoAberto, setModalGrupoAberto]         = useState(false)
-  const [grupoEditando, setGrupoEditando]               = useState<string | null>(null) // null = criar novo
-  const [grupoNome, setGrupoNome]                       = useState('')
-  const [grupoMembrosBusca, setGrupoMembrosBusca]       = useState('')
-  const [grupoMembrosIds, setGrupoMembrosIds]           = useState<string[]>([])
-  const [grupoSalvando, setGrupoSalvando]               = useState(false)
+  const [modalGrupoAberto, setModalGrupoAberto]   = useState(false)
+  const [grupoEditando, setGrupoEditando]         = useState<string | null>(null)
+  const [grupoNome, setGrupoNome]                 = useState('')
+  const [grupoMembrosBusca, setGrupoMembrosBusca] = useState('')
+  const [grupoMembrosIds, setGrupoMembrosIds]     = useState<string[]>([])
+  const [grupoSalvando, setGrupoSalvando]         = useState(false)
 
   // Warez
   const [sincronizandoWarez, setSincronizandoWarez] = useState(false)
@@ -587,70 +587,65 @@ export default function Clientes() {
   }
 
   // ---- Helpers de grupo ----
-  const parseData = (v: string): Date | null => {
+  const diffDiasGrupo = (v: string): number | null => {
     if (!v) return null
     const p = v.split('/')
-    if (p.length === 3) return new Date(Number(p[2]), Number(p[1]) - 1, Number(p[0]))
-    return null
-  }
-  const diffDias = (v: string): number | null => {
-    const d = parseData(v)
-    if (!d) return null
+    if (p.length !== 3) return null
+    const d = new Date(Number(p[2]), Number(p[1]) - 1, Number(p[0]))
     const h = new Date(); h.setHours(0,0,0,0)
     return Math.round((d.getTime() - h.getTime()) / 86400000)
   }
-
+  const corVencGrupo = (v: string) => {
+    const d = diffDiasGrupo(v)
+    if (d === null) return 'rgba(255,255,255,0.5)'
+    if (d < 0)  return '#f87171'
+    if (d <= 4) return '#fbbf24'
+    return '#4ade80'
+  }
   const proximoNomeGrupo = () => {
     const nums = clientes
-      .map(c => c.grupoLinha)
-      .filter(Boolean)
-      .map(g => { const m = g!.match(/(d+)$/); return m ? parseInt(m[1]) : 0 })
-    const max = nums.length ? Math.max(...nums) : 0
-    return `GRUPO ${String(max + 1).padStart(3, '0')}`
+      .map(c => c.grupoLinha).filter(Boolean)
+      .map(g => { const m = g!.match(/(\d+)$/); return m ? parseInt(m[1]) : 0 })
+    return `GRUPO ${String((nums.length ? Math.max(...nums) : 0) + 1).padStart(3,'0')}`
   }
-
   const abrirCriarGrupo = () => {
-    setGrupoEditando(null)
-    setGrupoNome(proximoNomeGrupo())
-    setGrupoMembrosIds([])
-    setGrupoMembrosBusca('')
-    setModalGrupoAberto(true)
+    setGrupoEditando(null); setGrupoNome(proximoNomeGrupo())
+    setGrupoMembrosIds([]); setGrupoMembrosBusca(''); setModalGrupoAberto(true)
   }
-
   const abrirEditarGrupo = (nomeGrupo: string) => {
     const membros = clientes.filter(c => c.grupoLinha === nomeGrupo)
-    setGrupoEditando(nomeGrupo)
-    setGrupoNome(nomeGrupo)
+    setGrupoEditando(nomeGrupo); setGrupoNome(nomeGrupo)
     setGrupoMembrosIds(membros.map(c => c.id))
-    setGrupoMembrosBusca('')
-    setModalGrupoAberto(true)
+    setGrupoMembrosBusca(''); setModalGrupoAberto(true)
   }
-
+  const vencedorDoGrupo = (ids: string[]) => {
+    const membros = ids.map(id => clientes.find(c => c.id === id)!).filter(Boolean)
+    return membros.reduce((a, b) => {
+      const pa = a.vencimento?.split('/'); const pb = b.vencimento?.split('/')
+      if (!pa || pa.length<3) return b; if (!pb || pb.length<3) return a
+      const da = new Date(Number(pa[2]),Number(pa[1])-1,Number(pa[0]))
+      const db2 = new Date(Number(pb[2]),Number(pb[1])-1,Number(pb[0]))
+      return da >= db2 ? a : b
+    })
+  }
   const salvarGrupo = async () => {
     if (!grupoNome.trim() || grupoMembrosIds.length < 2) return
     setGrupoSalvando(true)
     try {
-      const membros = grupoMembrosIds.map(id => clientes.find(c => c.id === id)!).filter(Boolean)
-      // vencedor = maior vencimento
-      const vencedor = membros.reduce((a, b) => {
-        const da = parseData(a.vencimento), db2 = parseData(b.vencimento)
-        if (!da) return b; if (!db2) return a
-        return da >= db2 ? a : b
-      })
+      const vencedor = vencedorDoGrupo(grupoMembrosIds)
       const vencimentoLinha = vencedor.vencimento
-      for (const m of membros) {
+      for (const id of grupoMembrosIds) {
         const upd: any = { grupoLinha: grupoNome.trim(), vencimentoLinha }
-        if (m.id !== vencedor.id) { upd.usuario = vencedor.usuario; upd.senha = vencedor.senha }
-        await updateDoc(doc(db, 'clientes', m.id), upd)
+        if (id !== vencedor.id) { upd.usuario = vencedor.usuario; upd.senha = vencedor.senha }
+        await updateDoc(doc(db, 'clientes', id), upd)
       }
-      // Remove grupo antigo de clientes que saíram
       if (grupoEditando) {
         const antigos = clientes.filter(c => c.grupoLinha === grupoEditando && !grupoMembrosIds.includes(c.id))
         for (const c of antigos) await updateDoc(doc(db, 'clientes', c.id), { grupoLinha: '', vencimentoLinha: '' })
       }
       setModalGrupoAberto(false)
-      mostrarMsgPainel('ok', `✅ ${grupoNome} salvo com ${membros.length} membros! Login do grupo: ${vencedor.usuario}`)
-    } catch (e: any) { mostrarMsgPainel('erro', '❌ Erro ao salvar grupo: ' + e.message) }
+      mostrarMsgPainel('ok', `✅ ${grupoNome.trim()} salvo! Login compartilhado: ${vencedor.usuario} / ${vencedor.senha}`)
+    } catch (e: any) { mostrarMsgPainel('erro', '❌ Erro: ' + e.message) }
     finally { setGrupoSalvando(false) }
   }
 
@@ -852,34 +847,80 @@ export default function Clientes() {
         )}
       </div>
 
-      {/* Tabela com Grupos */}
+      {/* ── GRUPOS ── */}
       {(() => {
-        // Separa grupos e individuais
-        const grupos: Record<string, typeof clientesFiltrados> = {}
-        const individuais: typeof clientesFiltrados = []
+        const gruposMap: Record<string, Cliente[]> = {}
         for (const c of clientesFiltrados) {
           if (c.grupoLinha?.trim()) {
-            if (!grupos[c.grupoLinha]) grupos[c.grupoLinha] = []
-            grupos[c.grupoLinha].push(c)
-          } else {
-            individuais.push(c)
+            if (!gruposMap[c.grupoLinha]) gruposMap[c.grupoLinha] = []
+            gruposMap[c.grupoLinha].push(c)
           }
         }
+        return Object.entries(gruposMap).length > 0 ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '16px' }}>
+            {Object.entries(gruposMap).map(([nomeGrupo, membros]) => {
+              const atrasados = membros.filter(m => { const d = diffDiasGrupo(m.vencimento); return d !== null && d < -3 })
+              const alerta = atrasados.length > 0
+              return (
+                <div key={nomeGrupo} style={{ borderRadius: '14px', border: alerta ? '1px solid rgba(239,68,68,0.4)' : '1px solid rgba(99,102,241,0.25)', overflow: 'hidden', background: 'rgba(255,255,255,0.02)' }}>
+                  {/* Header do grupo */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 16px', background: alerta ? 'rgba(239,68,68,0.1)' : 'rgba(99,102,241,0.1)', borderBottom: alerta ? '1px solid rgba(239,68,68,0.2)' : '1px solid rgba(99,102,241,0.15)' }}>
+                    {alerta ? <AlertTriangle size={15} color="#ef4444" /> : <Users size={15} color="#818cf8" />}
+                    <span style={{ color: alerta ? '#f87171' : '#a5b4fc', fontWeight: 700, fontSize: 13 }}>{nomeGrupo}</span>
+                    {alerta && <span style={{ fontSize: 11, color: '#f87171', background: 'rgba(239,68,68,0.15)', padding: '2px 8px', borderRadius: 99, border: '1px solid rgba(239,68,68,0.3)' }}>⚠️ Membro em atraso</span>}
+                    <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginLeft: 4 }}>Linha: {membros[0]?.vencimentoLinha || '—'}</span>
+                    <button onClick={() => abrirEditarGrupo(nomeGrupo)} style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.7)', padding: '4px 12px', borderRadius: 8, cursor: 'pointer', fontSize: 12 }}>
+                      <Pencil size={12} /> Editar Grupo
+                    </button>
+                  </div>
+                  {/* Membros */}
+                  {membros.map(c => (
+                    <div key={c.id} onClick={() => { abrirModal(c); setMenuAbertoId(null) }}
+                      style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 16px', borderBottom: '1px solid rgba(255,255,255,0.04)', cursor: 'pointer', transition: 'background 0.12s' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.03)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                      <span style={{ flex: 3, color: 'white', fontWeight: 600, fontSize: 13 }}>{c.nome}</span>
+                      <span style={{ flex: 1 }}>
+                        <span style={{ padding: '2px 7px', borderRadius: 20, fontSize: 10, fontWeight: 700, background: c.tipo === 'P2P' ? 'rgba(168,85,247,0.2)' : 'rgba(59,130,246,0.2)', color: c.tipo === 'P2P' ? '#c084fc' : '#60a5fa', border: c.tipo === 'P2P' ? '1px solid rgba(168,85,247,0.4)' : '1px solid rgba(59,130,246,0.4)' }}>{c.tipo || '—'}</span>
+                      </span>
+                      <span style={{ flex: 1, fontFamily: 'monospace', fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>{c.usuario}</span>
+                      <span style={{ flex: 1, color: corVencGrupo(c.vencimento), fontWeight: 600, fontSize: 12 }}>{c.vencimento}</span>
+                      <span style={{ flex: 1 }}>
+                        <span style={{ padding: '2px 8px', borderRadius: 20, fontSize: 10, fontWeight: 600, background: c.status === 'ativo' ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)', color: c.status === 'ativo' ? '#4ade80' : '#f87171', border: c.status === 'ativo' ? '1px solid rgba(34,197,94,0.3)' : '1px solid rgba(239,68,68,0.3)' }}>
+                          {c.status ? c.status.charAt(0).toUpperCase() + c.status.slice(1) : '—'}
+                        </span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )
+            })}
+          </div>
+        ) : null
+      })()}
 
-        const colStyle = { padding: '8px 10px', textAlign: 'left' as const, color: 'rgba(255,255,255,0.4)', fontSize: '10px', fontWeight: '700' as const, letterSpacing: '0.06em', whiteSpace: 'nowrap' as const }
-        const thead = (
-          <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-            {['NOME','TELEFONE','TIPO','SERVIDOR','USUÁRIO','SENHA','VENCIMENTO','VALOR','STATUS','OBS',''].map(col => (
-              <th key={col} style={colStyle}>{col}</th>
-            ))}
-          </tr>
-        )
-
-        const renderRow = (c: Cliente) => (
-          <tr key={c.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', transition: 'background 0.15s' }}
-            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.03)')}
-            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-          >
+      {/* Tabela */}
+      <div className="glass-card" style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+              {['NOME','TELEFONE','TIPO','SERVIDOR','USUÁRIO','SENHA','VENCIMENTO','VALOR','STATUS','OBS',''].map(col => (
+                <th key={col} style={{
+                  padding: '8px 10px', textAlign: 'left',
+                  color: 'rgba(255,255,255,0.4)', fontSize: '10px',
+                  fontWeight: '700', letterSpacing: '0.06em', whiteSpace: 'nowrap',
+                }}>{col}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {clientesFiltrados.length === 0 ? (
+              <tr>
+                <td colSpan={11} style={{ padding: '40px', textAlign: 'center', color: 'rgba(255,255,255,0.3)', fontSize: '14px' }}>
+                  {busca ? 'Nenhum cliente encontrado.' : 'Nenhum cliente cadastrado.'}
+                </td>
+              </tr>
+            ) : clientesFiltrados.filter(c => !c.grupoLinha?.trim()).map(c => (
               <tr key={c.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', transition: 'background 0.15s' }}
                 onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.03)')}
                 onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
@@ -1070,162 +1111,90 @@ export default function Clientes() {
                   </div>
                 </td>
               </tr>
-            )
-        }
+            ))}
+          </tbody>
+        </table>
+      </div>
 
-        return (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            {/* Grupos */}
-            {Object.entries(grupos).map(([nomeGrupo, membros]) => {
-              const algumAtrasado = membros.some(m => { const d = diffDias(m.vencimento); return d !== null && d < -3 })
-              const corBorda = algumAtrasado ? '#ef4444' : '#6366f1'
-              const corHeader = algumAtrasado ? 'rgba(239,68,68,0.15)' : 'rgba(99,102,241,0.1)'
-              return (
-                <div key={nomeGrupo} style={{ borderRadius: '14px', border: `1px solid ${algumAtrasado ? 'rgba(239,68,68,0.35)' : 'rgba(99,102,241,0.25)'}`, overflow: 'hidden', background: 'rgba(255,255,255,0.02)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 16px', background: corHeader, borderBottom: `1px solid ${algumAtrasado ? 'rgba(239,68,68,0.2)' : 'rgba(99,102,241,0.15)'}` }}>
-                    {algumAtrasado ? <AlertTriangle size={15} color="#ef4444" /> : <Users size={15} color="#818cf8" />}
-                    <span style={{ color: algumAtrasado ? '#f87171' : '#a5b4fc', fontWeight: '700', fontSize: '13px' }}>{nomeGrupo}</span>
-                    {algumAtrasado && <span style={{ fontSize: '11px', color: '#f87171', background: 'rgba(239,68,68,0.15)', padding: '2px 8px', borderRadius: '99px', border: '1px solid rgba(239,68,68,0.3)' }}>⚠️ Membro em atraso</span>}
-                    <button onClick={() => abrirEditarGrupo(nomeGrupo)} style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.6)', padding: '4px 12px', borderRadius: '8px', cursor: 'pointer', fontSize: '12px' }}>
-                      <Pencil size={12} /> Editar Grupo
-                    </button>
-                  </div>
-                  <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                      <thead><tr style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                        {['NOME','TELEFONE','TIPO','SERVIDOR','USUÁRIO','SENHA','VENCIMENTO','VALOR','STATUS','OBS',''].map(col => (
-                          <th key={col} style={{ padding: '6px 10px', textAlign: 'left', color: 'rgba(255,255,255,0.3)', fontSize: '10px', fontWeight: '700', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>{col}</th>
-                        ))}
-                      </tr></thead>
-                      <tbody>{membros.map(c => renderRow(c))}</tbody>
-                    </table>
-                  </div>
-                </div>
-              )
-            })}
-
-            {/* Clientes sem grupo */}
-            {individuais.length > 0 && (
-              <div className="glass-card" style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead>{thead}</thead>
-                  <tbody>
-                    {individuais.length === 0 && clientesFiltrados.length === 0 ? (
-                      <tr><td colSpan={11} style={{ padding: '40px', textAlign: 'center', color: 'rgba(255,255,255,0.3)', fontSize: '14px' }}>{busca ? 'Nenhum cliente encontrado.' : 'Nenhum cliente cadastrado.'}</td></tr>
-                    ) : individuais.map(c => renderRow(c))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-            {clientesFiltrados.length === 0 && (
-              <div className="glass-card" style={{ padding: '40px', textAlign: 'center', color: 'rgba(255,255,255,0.3)', fontSize: '14px' }}>
-                {busca ? 'Nenhum cliente encontrado.' : 'Nenhum cliente cadastrado.'}
-              </div>
-            )}
-          </div>
-        )
-      })()}
 
       {/* Modal Criar/Editar Grupo */}
       {modalGrupoAberto && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}
           onClick={() => setModalGrupoAberto(false)}>
-          <div style={{ background: '#1a1a2e', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '20px', padding: '28px', width: '100%', maxWidth: '560px', maxHeight: '85vh', overflowY: 'auto' }}
+          <div style={{ background: '#1a1a2e', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 20, padding: 28, width: '100%', maxWidth: 560, maxHeight: '85vh', overflowY: 'auto' }}
             onClick={e => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h2 style={{ color: 'white', margin: 0, fontSize: '18px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <h2 style={{ color: 'white', margin: 0, fontSize: 18, display: 'flex', alignItems: 'center', gap: 10 }}>
                 <Users size={20} color="#a5b4fc" /> {grupoEditando ? 'Editar Grupo' : 'Criar Grupo'}
               </h2>
-              <button onClick={() => setModalGrupoAberto(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.5)', fontSize: '20px' }}>✕</button>
+              <button onClick={() => setModalGrupoAberto(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.5)', fontSize: 22 }}>✕</button>
             </div>
-
-            <div style={{ marginBottom: '16px' }}>
-              <label style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', display: 'block', marginBottom: '6px' }}>NOME DO GRUPO</label>
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12, display: 'block', marginBottom: 6 }}>NOME DO GRUPO</label>
               <input value={grupoNome} onChange={e => setGrupoNome(e.target.value)}
-                style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.05)', color: 'white', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }} />
+                style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.05)', color: 'white', fontSize: 14, outline: 'none', boxSizing: 'border-box' }} />
             </div>
-
-            <div style={{ marginBottom: '12px' }}>
-              <label style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', display: 'block', marginBottom: '6px' }}>MEMBROS ({grupoMembrosIds.length}) — mínimo 2</label>
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12, display: 'block', marginBottom: 8 }}>MEMBROS ({grupoMembrosIds.length}) — mínimo 2, máximo 3</label>
               {grupoMembrosIds.map(id => {
                 const c = clientes.find(x => x.id === id)
                 if (!c) return null
-                const isVencedor = grupoMembrosIds.filter(Boolean).map(i => clientes.find(x => x.id === i)!).filter(Boolean).reduce((a, b) => {
-                  const da = a?.vencimento ? new Date(a.vencimento.split('/').reverse().join('-')) : new Date(0)
-                  const db2 = b?.vencimento ? new Date(b.vencimento.split('/').reverse().join('-')) : new Date(0)
-                  return da >= db2 ? a : b
-                }, clientes.find(x => x.id === grupoMembrosIds[0])!)?.id === id
+                const ehVencedor = grupoMembrosIds.length >= 2 && vencedorDoGrupo(grupoMembrosIds)?.id === id
                 return (
-                  <div key={id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 12px', borderRadius: '10px', background: isVencedor ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.04)', border: isVencedor ? '1px solid rgba(99,102,241,0.3)' : '1px solid rgba(255,255,255,0.06)', marginBottom: '6px' }}>
+                  <div key={id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderRadius: 10, background: ehVencedor ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.04)', border: ehVencedor ? '1px solid rgba(99,102,241,0.3)' : '1px solid rgba(255,255,255,0.06)', marginBottom: 6 }}>
                     <div style={{ flex: 1 }}>
-                      <span style={{ color: 'white', fontWeight: '600', fontSize: '13px' }}>{c.nome}</span>
-                      {isVencedor && <span style={{ marginLeft: '8px', fontSize: '10px', color: '#a5b4fc', background: 'rgba(99,102,241,0.2)', padding: '1px 6px', borderRadius: '99px' }}>🔑 dono do login</span>}
-                      <span style={{ display: 'block', color: 'rgba(255,255,255,0.4)', fontSize: '11px' }}>{c.tipo} • venc: {c.vencimento} • {c.usuario}</span>
+                      <span style={{ color: 'white', fontWeight: 600, fontSize: 13 }}>{c.nome}</span>
+                      {ehVencedor && <span style={{ marginLeft: 8, fontSize: 10, color: '#a5b4fc', background: 'rgba(99,102,241,0.2)', padding: '1px 6px', borderRadius: 99 }}>🔑 dono do login</span>}
+                      <span style={{ display: 'block', color: 'rgba(255,255,255,0.4)', fontSize: 11 }}>{c.tipo} · venc: {c.vencimento} · {c.usuario}</span>
                     </div>
                     <button onClick={() => setGrupoMembrosIds(prev => prev.filter(i => i !== id))}
-                      style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171', borderRadius: '8px', padding: '4px 8px', cursor: 'pointer', fontSize: '12px' }}>
+                      style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171', borderRadius: 8, padding: '4px 10px', cursor: 'pointer', fontSize: 12 }}>
                       Remover
                     </button>
                   </div>
                 )
               })}
-            </div>
-
-            {grupoMembrosIds.length < 3 && (
-              <div style={{ marginBottom: '16px' }}>
-                <input value={grupoMembrosBusca} onChange={e => setGrupoMembrosBusca(e.target.value)}
-                  placeholder="Buscar cliente para adicionar..."
-                  style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: 'white', fontSize: '13px', outline: 'none', boxSizing: 'border-box', marginBottom: '8px' }} />
-                {grupoMembrosBusca.length >= 2 && (
-                  <div style={{ maxHeight: '180px', overflowY: 'auto', background: '#1e1e38', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)' }}>
-                    {clientes.filter(c =>
-                      !grupoMembrosIds.includes(c.id) &&
-                      c.servidor?.toUpperCase() === 'WAREZ' &&
-                      c.status?.toLowerCase() === 'ativo' &&
-                      (c.nome?.toLowerCase().includes(grupoMembrosBusca.toLowerCase()) || c.telefone?.includes(grupoMembrosBusca))
-                    ).slice(0, 8).map(c => (
-                      <div key={c.id} onClick={() => { setGrupoMembrosIds(prev => [...prev, c.id]); setGrupoMembrosBusca('') }}
-                        style={{ padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.06)' }}
-                        onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}
-                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                        <span style={{ color: 'white', fontWeight: '600', fontSize: '13px' }}>{c.nome}</span>
-                        <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '11px', marginLeft: '8px' }}>{c.tipo} • {c.vencimento}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {grupoMembrosIds.length >= 2 && (() => {
-              const membros = grupoMembrosIds.map(id => clientes.find(c => c.id === id)!).filter(Boolean)
-              const vencedor = membros.reduce((a, b) => {
-                const da = a?.vencimento ? new Date(a.vencimento.split('/').reverse().join('-')) : new Date(0)
-                const db2 = b?.vencimento ? new Date(b.vencimento.split('/').reverse().join('-')) : new Date(0)
-                return da >= db2 ? a : b
-              })
-              return (
-                <div style={{ padding: '12px 14px', borderRadius: '10px', background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)', marginBottom: '16px', fontSize: '12px' }}>
-                  <p style={{ color: '#a5b4fc', margin: '0 0 4px', fontWeight: '600' }}>Preview das alterações:</p>
-                  <p style={{ color: 'rgba(255,255,255,0.6)', margin: 0 }}>Login compartilhado: <strong style={{ color: 'white' }}>{vencedor.usuario} / {vencedor.senha}</strong></p>
-                  <p style={{ color: 'rgba(255,255,255,0.6)', margin: '2px 0 0' }}>Vencimento da linha: <strong style={{ color: '#4ade80' }}>{vencedor.vencimento}</strong></p>
+              {grupoMembrosIds.length < 3 && (
+                <div style={{ marginTop: 8 }}>
+                  <input value={grupoMembrosBusca} onChange={e => setGrupoMembrosBusca(e.target.value)}
+                    placeholder="Buscar cliente Warez para adicionar..."
+                    style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: 'white', fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
+                  {grupoMembrosBusca.length >= 2 && (
+                    <div style={{ maxHeight: 180, overflowY: 'auto', background: '#1e1e38', borderRadius: 10, border: '1px solid rgba(255,255,255,0.1)', marginTop: 4 }}>
+                      {clientes.filter(c => !grupoMembrosIds.includes(c.id) && c.servidor?.toUpperCase() === 'WAREZ' && c.status?.toLowerCase() === 'ativo' && (c.nome?.toLowerCase().includes(grupoMembrosBusca.toLowerCase()) || c.telefone?.includes(grupoMembrosBusca))).slice(0,8).map(c => (
+                        <div key={c.id} onClick={() => { setGrupoMembrosIds(p => [...p, c.id]); setGrupoMembrosBusca('') }}
+                          style={{ padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.05)' }}
+                          onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}
+                          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                          <span style={{ color: 'white', fontWeight: 600, fontSize: 13 }}>{c.nome}</span>
+                          <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, marginLeft: 8 }}>{c.tipo} · {c.vencimento}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              )
+              )}
+            </div>
+            {grupoMembrosIds.length >= 2 && (() => {
+              const v = vencedorDoGrupo(grupoMembrosIds)
+              return v ? (
+                <div style={{ padding: '10px 14px', borderRadius: 10, background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)', marginBottom: 16, fontSize: 12 }}>
+                  <p style={{ color: '#a5b4fc', margin: '0 0 3px', fontWeight: 600 }}>Preview:</p>
+                  <p style={{ color: 'rgba(255,255,255,0.6)', margin: 0 }}>Login compartilhado: <strong style={{ color: 'white' }}>{v.usuario} / {v.senha}</strong></p>
+                  <p style={{ color: 'rgba(255,255,255,0.6)', margin: '2px 0 0' }}>Vencimento da linha: <strong style={{ color: '#4ade80' }}>{v.vencimento}</strong></p>
+                </div>
+              ) : null
             })()}
-
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button onClick={() => setModalGrupoAberto(false)} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.12)', background: 'transparent', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontWeight: '600' }}>
-                Cancelar
-              </button>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setModalGrupoAberto(false)} style={{ flex: 1, padding: 12, borderRadius: 10, border: '1px solid rgba(255,255,255,0.12)', background: 'transparent', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontWeight: 600, fontSize: 14 }}>Cancelar</button>
               <button onClick={salvarGrupo} disabled={grupoSalvando || grupoMembrosIds.length < 2 || !grupoNome.trim()}
-                style={{ flex: 2, padding: '12px', borderRadius: '10px', border: 'none', background: grupoSalvando || grupoMembrosIds.length < 2 ? 'rgba(255,255,255,0.08)' : 'linear-gradient(135deg,#6366f1,#8b5cf6)', color: grupoSalvando || grupoMembrosIds.length < 2 ? 'rgba(255,255,255,0.3)' : 'white', cursor: grupoSalvando || grupoMembrosIds.length < 2 ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '14px' }}>
+                style={{ flex: 2, padding: 12, borderRadius: 10, border: 'none', background: grupoSalvando || grupoMembrosIds.length < 2 ? 'rgba(255,255,255,0.08)' : 'linear-gradient(135deg,#6366f1,#8b5cf6)', color: grupoSalvando || grupoMembrosIds.length < 2 ? 'rgba(255,255,255,0.3)' : 'white', cursor: grupoSalvando || grupoMembrosIds.length < 2 ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: 14 }}>
                 {grupoSalvando ? 'Salvando...' : grupoEditando ? '✓ Salvar Alterações' : '✓ Criar Grupo'}
               </button>
             </div>
           </div>
         </div>
       )}
-
 
       {/* ── MOBILE CARDS ── */}
       <div className="clientes-cards-mobile" style={{ display: 'none', flexDirection: 'column' }}>
