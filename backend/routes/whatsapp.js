@@ -514,6 +514,7 @@ export default function createWhatsAppRouter(db, admin) {
           .replace(/{NOME}/gi, cliente.nome || '')
           .replace(/{DIAS}/gi, String(diasVencido))
           .replace(/{GRUPO}/gi, cliente.grupoLinha || '')
+          .replace(/{VALOR}/gi, cliente.valor || '')
           .replace(/{LINK_1MES}/gi, links?.['1mes'] || '')
           .replace(/{LINK_3MESES}/gi, links?.['3meses'] || '')
           .replace(/{LINK_6MESES}/gi, links?.['6meses'] || '')
