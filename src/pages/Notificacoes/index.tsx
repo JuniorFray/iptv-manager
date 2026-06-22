@@ -19,7 +19,7 @@ interface Config {
   intervaloMs: number
   intervaloMin?: number
   intervaloMax?: number
-  regras: { dias7: Regra; dias4: Regra; dia0: Regra; pos1: Regra; pos3: Regra }
+  regras: { dias7: Regra; dias4: Regra; dia0: Regra; pos1: Regra; pos3: Regra; grupoAtraso: Regra }
 }
 interface FilaItem {
   id: string
@@ -77,9 +77,10 @@ const REGRAS_INFO = [
   { key: 'dia0',  label: 'No dia do vencimento', cor: '239,68,68'  },
   { key: 'pos1',  label: '1 dia após vencer',    cor: '168,85,247' },
   { key: 'pos3',  label: '3 dias após vencer',   cor: '239,68,68'  },
+  { key: 'grupoAtraso', label: '⚠️ Grupo — membro em atraso (+3d)', cor: '99,102,241' },
 ]
 
-const VARIAVEIS = ['{NOME}', '{VENCIMENTO}', '{SERVIDOR}', '{VALOR}', '{VALOR_3MESES}', '{VALOR_6MESES}', '{LINK_1MES}', '{LINK_3MESES}', '{LINK_6MESES}', '{CUPOM}', '{DESCONTO}', '{VALOR_COM_DESCONTO}', '{VALIDADE_CUPOM}']
+const VARIAVEIS = ['{NOME}', '{VENCIMENTO}', '{SERVIDOR}', '{VALOR}', '{VALOR_3MESES}', '{VALOR_6MESES}', '{LINK_1MES}', '{LINK_3MESES}', '{LINK_6MESES}', '{CUPOM}', '{DESCONTO}', '{VALOR_COM_DESCONTO}', '{VALIDADE_CUPOM}', '{DIAS}', '{GRUPO}']
 
 export default function Notificacoes() {
   const [clientes, setClientes]           = useState<Cliente[]>([])

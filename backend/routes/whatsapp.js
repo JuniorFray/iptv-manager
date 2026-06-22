@@ -492,6 +492,47 @@ export default function createWhatsAppRouter(db, admin) {
         console.log(`[AUTO] Enfileirado: ${cliente.nome} (${key})`)
       }
     }
+    // ---- Alerta de atraso em grupo (membro vencido > 3 dias) ----
+    const configGrupo = config.regras?.grupoAtraso
+    if (configGrupo?.ativo && configGrupo?.mensagem) {
+      for (const cliente of clientes) {
+        if (!cliente.telefone || !cliente.grupoLinha) continue
+        if (cliente.status === 'inativo') continue
+        const diff = diffDias(cliente.vencimento)
+        if (diff === null || diff > -3) continue  // so vencidos ha mais de 3 dias
+        // Verifica se algum outro membro do grupo ainda esta ativo (linha coberta)
+        const grupo = clientes.filter(c => c.grupoLinha === cliente.grupoLinha && c.id !== cliente.id)
+        const grupoAtivo = grupo.some(c => {
+          const d = diffDias(c.vencimento)
+          return d !== null && d >= 0
+        })
+        if (!grupoAtivo) continue  // grupo todo vencido, cobranca normal ja cobre
+        if (cliente.id && await jaEnviouHoje(cliente.id, 'grupo-atraso')) continue
+        const links = await gerarLinksCliente(cliente)
+        const diasVencido = Math.abs(diff)
+        const mensagemGrupo = configGrupo.mensagem
+          .replace(/{NOME}/gi, cliente.nome || '')
+          .replace(/{DIAS}/gi, String(diasVencido))
+          .replace(/{GRUPO}/gi, cliente.grupoLinha || '')
+          .replace(/{LINK_1MES}/gi, links?.['1mes'] || '')
+          .replace(/{LINK_3MESES}/gi, links?.['3meses'] || '')
+          .replace(/{LINK_6MESES}/gi, links?.['6meses'] || '')
+          .replace(/{VENCIMENTO}/gi, cliente.vencimento || '')
+        await db.collection('filaEnvios').add({
+          clienteId: cliente.id, clienteNome: cliente.nome,
+          telefone: cliente.telefone, mensagem: mensagemGrupo,
+          midiaUrl: null, midiaTipo: null, midiaNome: null, modoEnvio: 'junto',
+          gatilho: 'grupo-atraso', status: 'pendente', tentativas: 0,
+          maxTentativas: MAX_TENTATIVAS,
+          criadoEm: admin.firestore.FieldValue.serverTimestamp(),
+          proximaTentativa: admin.firestore.Timestamp.now(),
+          enviadoEm: null, erro: null,
+        })
+        adicionados++
+        console.log(`[AUTO] Enfileirado grupo-atraso: ${cliente.nome} (${cliente.grupoLinha}, ${diasVencido}d vencido)`)
+      }
+    }
+
     console.log(`Envio automático concluído. ${adicionados} mensagens enfileiradas.`)
     } finally {
       cronRodando = false
@@ -1202,6 +1243,28 @@ export default function createWhatsAppRouter(db, admin) {
     "mudaLogin": false
   }
 ]
+
+  // Reversao temporaria: Claudia Almeida e Camila Roncato voltam ao login proprio
+  router.post('/grupos/reverter-dois', async (req, res) => {
+    try {
+      const reversoes = [
+        { telefone: '5519996316712', usuario: '9347446', senha: '1775088', nome: 'Claudia Almeida' },
+        { telefone: '5519996767627', usuario: '9619938', senha: '8091913', nome: 'Camila Roncato' },
+      ]
+      const resultado = []
+      for (const r of reversoes) {
+        const num = normalizarTelefone(r.telefone)
+        const snap = await db.collection('clientes').where('telefone', '==', num).limit(1).get()
+        if (snap.empty) { resultado.push({ nome: r.nome, ok: false, erro: 'nao encontrado' }); continue }
+        await snap.docs[0].ref.update({
+          usuario: r.usuario, senha: r.senha,
+          grupoLinha: '', vencimentoLinha: '',
+        })
+        resultado.push({ nome: r.nome, ok: true })
+      }
+      res.json({ ok: true, resultado })
+    } catch (e) { res.status(500).json({ error: e.message }) }
+  })
 
   router.post('/grupos/aplicar-lote', async (req, res) => {
     try {
