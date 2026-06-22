@@ -149,6 +149,7 @@ export default function Notificacoes() {
       dia0:  { ativo: true, mensagem: 'Olá NOME! Sua assinatura do servidor SERVIDOR vence HOJE! Entre em contato agora para não perder o acesso. Valor: VALOR' },
       pos1:  { ativo: true, mensagem: 'Olá NOME! Sua assinatura do servidor SERVIDOR venceu ontem (VENCIMENTO). Entre em contato para regularizar e reativar seu acesso!' },
       pos3:  { ativo: true, mensagem: 'Olá NOME! Sua assinatura do servidor SERVIDOR está vencida há 3 dias (VENCIMENTO). Regularize seu acesso o quanto antes!' },
+      grupoAtraso: { ativo: false, mensagem: 'Olá {NOME}! 📺 Sua linha está vencida há {DIAS} dias.\n\nComo você faz parte do {GRUPO}, seu acesso ainda está funcionando — mas é importante renovar o quanto antes.\n\nRenove agora 👇\n{LINK_1MES}' },
     },
   })
 
