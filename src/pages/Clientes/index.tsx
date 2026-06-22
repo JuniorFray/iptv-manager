@@ -869,17 +869,29 @@ export default function Clientes() {
                     <span style={{ color: alerta ? '#f87171' : '#a5b4fc', fontWeight: 700, fontSize: 13 }}>{nomeGrupo}</span>
                     {alerta && <span style={{ fontSize: 11, color: '#f87171', background: 'rgba(239,68,68,0.15)', padding: '2px 8px', borderRadius: 99, border: '1px solid rgba(239,68,68,0.3)' }}>⚠️ Membro em atraso</span>}
                     <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginLeft: 4 }}>Linha: {membros[0]?.vencimentoLinha || '—'}</span>
+                    {(() => {
+                      const donoMembro = membros.length >= 2 ? membros.reduce((a, b) => {
+                        const pa = a.vencimento?.split('/'), pb = b.vencimento?.split('/')
+                        if (!pa||pa.length<3) return b; if (!pb||pb.length<3) return a
+                        return new Date(Number(pa[2]),Number(pa[1])-1,Number(pa[0])) >= new Date(Number(pb[2]),Number(pb[1])-1,Number(pb[0])) ? a : b
+                      }) : membros[0]
+                      return donoMembro ? (
+                        <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginLeft: 8 }}>
+                          🔑 Dono: <strong style={{ color: 'rgba(255,255,255,0.7)' }}>{donoMembro.nome}</strong>
+                        </span>
+                      ) : null
+                    })()}
                     <button onClick={() => abrirEditarGrupo(nomeGrupo)} style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.7)', padding: '4px 12px', borderRadius: 8, cursor: 'pointer', fontSize: 12 }}>
                       <Pencil size={12} /> Editar Grupo
                     </button>
                   </div>
                   {/* Membros */}
                   {membros.map(c => (
-                    <div key={c.id} onClick={() => { abrirModal(c); setMenuAbertoId(null) }}
-                      style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 16px', borderBottom: '1px solid rgba(255,255,255,0.04)', cursor: 'pointer', transition: 'background 0.12s' }}
+                    <div key={c.id}
+                      style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 16px', borderBottom: '1px solid rgba(255,255,255,0.04)', position: 'relative' }}
                       onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.03)')}
                       onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                      <span style={{ flex: 3, color: 'white', fontWeight: 600, fontSize: 13 }}>{c.nome}</span>
+                      <span style={{ flex: 3, color: 'white', fontWeight: 600, fontSize: 13, cursor: 'pointer' }} onClick={() => { abrirModal(c); setMenuAbertoId(null) }}>{c.nome}</span>
                       <span style={{ flex: 1 }}>
                         <span style={{ padding: '2px 7px', borderRadius: 20, fontSize: 10, fontWeight: 700, background: c.tipo === 'P2P' ? 'rgba(168,85,247,0.2)' : 'rgba(59,130,246,0.2)', color: c.tipo === 'P2P' ? '#c084fc' : '#60a5fa', border: c.tipo === 'P2P' ? '1px solid rgba(168,85,247,0.4)' : '1px solid rgba(59,130,246,0.4)' }}>{c.tipo || '—'}</span>
                       </span>
@@ -890,6 +902,43 @@ export default function Clientes() {
                           {c.status ? c.status.charAt(0).toUpperCase() + c.status.slice(1) : '—'}
                         </span>
                       </span>
+                      <div style={{ position: 'relative' }}>
+                        <button onClick={e => { e.stopPropagation(); setMenuAbertoId(menuAbertoId === c.id ? null : c.id) }}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.4)', padding: '4px 8px', borderRadius: 6, fontSize: 18, lineHeight: 1 }}>⋮</button>
+                        {menuAbertoId === c.id && (
+                          <div style={{ position: 'absolute', right: 0, top: '100%', background: '#1e1e3a', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, padding: 6, zIndex: 100, minWidth: 170, boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }}
+                            onClick={e => e.stopPropagation()}>
+                            <button onClick={() => { setMenuAbertoId(null); setCupomModal(c); setCupomLink('') }}
+                              style={{ width: '100%', padding: '9px 12px', borderRadius: 7, border: 'none', cursor: 'pointer', background: 'transparent', textAlign: 'left', color: '#34d399', fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}
+                              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(52,211,153,0.1)')}
+                              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                              💳 Gerar Links
+                            </button>
+                            <button onClick={() => { setMenuAbertoId(null); navigator.clipboard.writeText(['Nome: '+c.nome,'Usuário: '+c.usuario,'Senha: '+c.senha,'Vencimento: '+c.vencimento].join('
+')) }}
+                              style={{ width: '100%', padding: '9px 12px', borderRadius: 7, border: 'none', cursor: 'pointer', background: 'transparent', textAlign: 'left', color: '#94a3b8', fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}
+                              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(148,163,184,0.1)')}
+                              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                              📋 Copiar dados
+                            </button>
+                            {isWarez(c.servidor) && (
+                              <button onClick={() => { setMenuAbertoId(null); abrirModalRenovar(c) }}
+                                style={{ width: '100%', padding: '9px 12px', borderRadius: 7, border: 'none', cursor: 'pointer', background: 'transparent', textAlign: 'left', color: '#60a5fa', fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}
+                                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(59,130,246,0.1)')}
+                                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                                <RefreshCw size={13} /> Renovar
+                              </button>
+                            )}
+                            <div style={{ height: 1, background: 'rgba(255,255,255,0.08)', margin: '4px 0' }} />
+                            <button onClick={() => { setMenuAbertoId(null); abrirModal(c) }}
+                              style={{ width: '100%', padding: '9px 12px', borderRadius: 7, border: 'none', cursor: 'pointer', background: 'transparent', textAlign: 'left', color: '#818cf8', fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}
+                              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(99,102,241,0.1)')}
+                              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                              <Pencil size={13} /> Editar
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
