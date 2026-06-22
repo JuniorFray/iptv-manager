@@ -1108,7 +1108,7 @@ export default function Notificacoes() {
           </div>
 
           {REGRAS_INFO.map(({ key, label, cor }) => {
-            const regra = (config.regras as any)[key] as Regra | undefined
+            const regra = ((config.regras as any)[key] ?? { ativo: false, mensagem: '' }) as Regra
             return (
               <div key={key} className="glass-card" style={{ padding: '24px', borderLeft: `3px solid rgba(${cor},0.6)` }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
