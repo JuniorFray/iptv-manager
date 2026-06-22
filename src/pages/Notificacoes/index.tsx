@@ -19,7 +19,7 @@ interface Config {
   intervaloMs: number
   intervaloMin?: number
   intervaloMax?: number
-  regras: { dias7: Regra; dias4: Regra; dia0: Regra; pos1: Regra; pos3: Regra; grupoAtraso: Regra }
+  regras: { dias7: Regra; dias4: Regra; dia0: Regra; pos1: Regra; pos3: Regra; grupoAtraso?: Regra }
 }
 interface FilaItem {
   id: string
@@ -1108,7 +1108,7 @@ export default function Notificacoes() {
           </div>
 
           {REGRAS_INFO.map(({ key, label, cor }) => {
-            const regra = config.regras[key as keyof typeof config.regras]
+            const regra = (config.regras as any)[key] as Regra | undefined
             return (
               <div key={key} className="glass-card" style={{ padding: '24px', borderLeft: `3px solid rgba(${cor},0.6)` }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
