@@ -914,8 +914,7 @@ export default function Clientes() {
                               onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
                               💳 Gerar Links
                             </button>
-                            <button onClick={() => { setMenuAbertoId(null); navigator.clipboard.writeText(['Nome: '+c.nome,'Usuário: '+c.usuario,'Senha: '+c.senha,'Vencimento: '+c.vencimento].join('
-')) }}
+                            <button onClick={() => { setMenuAbertoId(null); navigator.clipboard.writeText('Nome: '+c.nome+'\nUsuário: '+c.usuario+'\nSenha: '+c.senha+'\nVencimento: '+c.vencimento) }}
                               style={{ width: '100%', padding: '9px 12px', borderRadius: 7, border: 'none', cursor: 'pointer', background: 'transparent', textAlign: 'left', color: '#94a3b8', fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}
                               onMouseEnter={e => (e.currentTarget.style.background = 'rgba(148,163,184,0.1)')}
                               onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
