@@ -69,6 +69,7 @@ export default function Clientes() {
   const [grupoMembrosBusca, setGrupoMembrosBusca] = useState('')
   const [grupoMembrosIds, setGrupoMembrosIds]     = useState<string[]>([])
   const [grupoSalvando, setGrupoSalvando]         = useState(false)
+  const [grupoEnviarMsg, setGrupoEnviarMsg]       = useState(true)
 
   // Warez
   const [sincronizandoWarez, setSincronizandoWarez] = useState(false)
@@ -643,8 +644,26 @@ export default function Clientes() {
         const antigos = clientes.filter(c => c.grupoLinha === grupoEditando && !grupoMembrosIds.includes(c.id))
         for (const c of antigos) await updateDoc(doc(db, 'clientes', c.id), { grupoLinha: '', vencimentoLinha: '' })
       }
+      // Envia msg para quem teve login alterado
+      if (grupoEnviarMsg) {
+        const alterados = grupoMembrosIds
+          .map(id => clientes.find(c => c.id === id)!)
+          .filter(c => c && c.id !== vencedor.id)
+        for (const c of alterados) {
+          try {
+            await fetch(`https://iptv-manager-production.up.railway.app/fila/adicionar`, {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                clienteId: c.id, clienteNome: c.nome, telefone: c.telefone,
+                mensagem: `Olá ${c.nome}! 📺 Atualizamos os dados de acesso da sua linha:\n\n👤 Usuário: ${vencedor.usuario}\n🔑 Senha: ${vencedor.senha}\n\nPor favor, atualize esses dados no seu aplicativo. Qualquer dúvida estamos à disposição!`,
+                gatilho: 'grupo-novo-acesso',
+              })
+            })
+          } catch {}
+        }
+      }
       setModalGrupoAberto(false)
-      mostrarMsgPainel('ok', `✅ ${grupoNome.trim()} salvo! Login compartilhado: ${vencedor.usuario} / ${vencedor.senha}`)
+      mostrarMsgPainel('ok', `✅ ${grupoNome.trim()} salvo! Login: ${vencedor.usuario} / ${vencedor.senha}${grupoEnviarMsg ? ' · Mensagens enfileiradas' : ''}`)
     } catch (e: any) { mostrarMsgPainel('erro', '❌ Erro: ' + e.message) }
     finally { setGrupoSalvando(false) }
   }
@@ -1233,6 +1252,13 @@ export default function Clientes() {
                 </div>
               ) : null
             })()}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, padding: '10px 14px', borderRadius: 10, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+              <input type="checkbox" id="chkEnviarMsg" checked={grupoEnviarMsg} onChange={e => setGrupoEnviarMsg(e.target.checked)}
+                style={{ width: 16, height: 16, cursor: 'pointer', accentColor: '#6366f1' }} />
+              <label htmlFor="chkEnviarMsg" style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, cursor: 'pointer' }}>
+                Enviar mensagem de novo acesso para os membros que tiveram login alterado
+              </label>
+            </div>
             <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={() => setModalGrupoAberto(false)} style={{ flex: 1, padding: 12, borderRadius: 10, border: '1px solid rgba(255,255,255,0.12)', background: 'transparent', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontWeight: 600, fontSize: 14 }}>Cancelar</button>
               <button onClick={salvarGrupo} disabled={grupoSalvando || grupoMembrosIds.length < 2 || !grupoNome.trim()}
