@@ -174,7 +174,26 @@ export default function createWhatsAppRouter(db, admin) {
       await enviarTexto(telefone, mensagem)
       await sleep(1000)
     }
-    if (midiaTipo === 'imagem') {
+    if (midiaTipo === 'figurinha') {
+      // Converte para WebP 512x512 se necessario e envia como sticker
+      let stickerBase64
+      if (midiaUrl.startsWith('data:')) {
+        const base64Data = midiaUrl.split(',')[1]
+        const inputBuffer = Buffer.from(base64Data, 'base64')
+        const webpBuffer = await sharp(inputBuffer).resize(512, 512, { fit: 'contain', background: { r:0,g:0,b:0,alpha:0 } }).webp({ lossless: true }).toBuffer()
+        stickerBase64 = `data:image/webp;base64,${webpBuffer.toString('base64')}`
+      } else {
+        // URL publica - faz fetch e converte
+        const resp = await fetch(midiaUrl)
+        const arrBuf = await resp.arrayBuffer()
+        const webpBuffer = await sharp(Buffer.from(arrBuf)).resize(512, 512, { fit: 'contain', background: { r:0,g:0,b:0,alpha:0 } }).webp({ lossless: true }).toBuffer()
+        stickerBase64 = `data:image/webp;base64,${webpBuffer.toString('base64')}`
+      }
+      return evoFetch(`/message/sendSticker/${INSTANCE}`, 'POST', {
+        number: numero,
+        sticker: stickerBase64,
+      })
+    } else if (midiaTipo === 'imagem') {
       return evoFetch(`/message/sendMedia/${INSTANCE}`, 'POST', {
         number: numero,
         mediatype: 'image',

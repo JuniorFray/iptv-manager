@@ -37,7 +37,7 @@ interface Midia {
   id: string
   nome: string
   url: string
-  tipo: 'imagem' | 'audio' | 'video' | 'documento'
+  tipo: 'imagem' | 'audio' | 'video' | 'documento' | 'figurinha'
   tamanho: number
   storagePath: string
   criadoEm: any
@@ -293,9 +293,10 @@ export default function Notificacoes() {
     setUploadError('')
     const ext  = file.name.split('.').pop()?.toLowerCase() || ''
     const tipo: Midia['tipo'] =
-      ['jpg','jpeg','png','gif','webp'].includes(ext) ? 'imagem' :
-      ['ogg','opus','mp3','wav','m4a'].includes(ext)  ? 'audio'  :
-      ['mp4','mov','avi','webm'].includes(ext)        ? 'video'  : 'documento'
+      ext === 'webp'                                      ? 'figurinha' :
+      ['jpg','jpeg','png','gif'].includes(ext)            ? 'imagem'    :
+      ['ogg','opus','mp3','wav','m4a'].includes(ext)      ? 'audio'     :
+      ['mp4','mov','avi','webm'].includes(ext)            ? 'video'     : 'documento'
     const path = `midias/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
     const storageRef = ref(storage, path)
     const task = uploadBytesResumable(storageRef, file)
@@ -355,9 +356,10 @@ export default function Notificacoes() {
   const uploadMidiaManual = async (file: File) => {
     const ext  = file.name.split('.').pop()?.toLowerCase() || ''
     const tipo: Midia['tipo'] =
-      ['jpg','jpeg','png','gif','webp'].includes(ext) ? 'imagem' :
-      ['ogg','opus','mp3','wav'].includes(ext)        ? 'audio'  :
-      ['mp4','mov','webm'].includes(ext)              ? 'video'  : 'documento'
+      ext === 'webp'                                  ? 'figurinha' :
+      ['jpg','jpeg','png','gif'].includes(ext)        ? 'imagem'    :
+      ['ogg','opus','mp3','wav'].includes(ext)        ? 'audio'     :
+      ['mp4','mov','webm'].includes(ext)              ? 'video'     : 'documento'
     const path = `midias/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
     const storageRef = ref(storage, path)
     const task = uploadBytesResumable(storageRef, file)
@@ -920,7 +922,7 @@ export default function Notificacoes() {
                     {midiaManual && <button onClick={() => setMidiaManual(null)} style={{ padding: '4px 8px', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171' }}>✕</button>}
                   </div>
                 </div>
-                <input ref={inputFileManualRef} type="file" accept="image/*,audio/*,video/mp4,.ogg,.opus" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) uploadMidiaManual(f); e.target.value = '' }} />
+                <input ref={inputFileManualRef} type="file" accept="image/*,audio/*,video/mp4,.ogg,.opus,.webp" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) uploadMidiaManual(f); e.target.value = '' }} />
 
                 {uploadManualProg >= 0 && (
                   <div style={{ marginBottom: '8px' }}>
@@ -934,6 +936,7 @@ export default function Notificacoes() {
                 {midiaManual ? (
                   <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                     {midiaManual.tipo === 'imagem' && <img src={midiaManual.url} style={{ width: '60px', height: '60px', objectFit: 'cover', borderRadius: '8px' }} alt="" />}
+                    {midiaManual.tipo === 'figurinha' && <span style={{ fontSize: 40, lineHeight: 1 }}>🎭</span>}
                     {midiaManual.tipo === 'audio'  && <Music size={32} style={{ color: '#a78bfa', flexShrink: 0 }} />}
                     {midiaManual.tipo === 'video'  && <video src={midiaManual.url} style={{ width: '60px', height: '60px', objectFit: 'cover', borderRadius: '8px' }} muted />}
                     <div style={{ flex: 1, minWidth: 0 }}>
@@ -1370,7 +1373,7 @@ export default function Notificacoes() {
           <div className="glass-card" style={{ padding: '24px' }}>
             <h3 style={{ color: 'white', margin: '0 0 16px', fontSize: '16px', fontWeight: '600' }}>📁 Upload de Mídia</h3>
             <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '13px', margin: '0 0 16px' }}>
-              Suportado: Imagens (JPG, PNG), Áudio (.ogg, .opus), Vídeo (.mp4) — Máximo 50MB
+              Suportado: Imagens (JPG, PNG), Figurinhas (WebP), Áudio (.ogg, .opus), Vídeo (.mp4) — Máximo 50MB
             </p>
 
             {/* Drop zone */}
@@ -1383,7 +1386,7 @@ export default function Notificacoes() {
               <Upload size={32} style={{ color: 'rgba(99,102,241,0.6)', marginBottom: '12px' }} />
               <p style={{ color: 'rgba(255,255,255,0.6)', margin: 0, fontSize: '14px' }}>Clique ou arraste o arquivo aqui</p>
             </div>
-            <input ref={inputFileRef} type="file" accept="image/*,audio/*,video/mp4,.ogg,.opus" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) uploadMidia(f); e.target.value = '' }} />
+            <input ref={inputFileRef} type="file" accept="image/*,audio/*,video/mp4,.ogg,.opus,.webp" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) uploadMidia(f); e.target.value = '' }} />
 
             {/* Progress */}
             {uploadProgress >= 0 && (
@@ -1449,8 +1452,8 @@ export default function Notificacoes() {
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)' }}>{formatBytes(midia.tamanho)}</span>
                         <span style={{ fontSize: '10px', padding: '2px 7px', borderRadius: '10px', fontWeight: '600',
-                          background: midia.tipo === 'imagem' ? 'rgba(34,197,94,0.2)' : midia.tipo === 'audio' ? 'rgba(167,139,250,0.2)' : midia.tipo === 'video' ? 'rgba(251,191,36,0.2)' : 'rgba(96,165,250,0.2)',
-                          color:      midia.tipo === 'imagem' ? '#4ade80'              : midia.tipo === 'audio' ? '#c4b5fd'              : midia.tipo === 'video' ? '#fcd34d'              : '#93c5fd',
+                          background: midia.tipo === 'imagem' ? 'rgba(34,197,94,0.2)' : midia.tipo === 'figurinha' ? 'rgba(251,191,36,0.2)' : midia.tipo === 'audio' ? 'rgba(167,139,250,0.2)' : midia.tipo === 'video' ? 'rgba(251,191,36,0.2)' : 'rgba(96,165,250,0.2)',
+                          color:      midia.tipo === 'imagem' ? '#4ade80'              : midia.tipo === 'figurinha' ? '#fbbf24'               : midia.tipo === 'audio' ? '#c4b5fd'              : midia.tipo === 'video' ? '#fcd34d'              : '#93c5fd',
                         }}>
                           {midia.tipo}
                         </span>
