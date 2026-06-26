@@ -245,6 +245,41 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
                 grupoSnap.docs.forEach(d => batch.update(d.ref, { vencimentoLinha: vencLinhaFmt }))
                 await batch.commit()
                 console.log(`[WEBHOOK][GRUPO] vencimentoLinha sincronizado para ${grupoSnap.size} clientes do grupo ${cliente.grupoLinha}`)
+
+              // Restaura o estado de acesso na Warez de acordo com quem está em dia
+              try {
+                const membrosGrupo = grupoSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+                const hoje = new Date(); hoje.setHours(0,0,0,0)
+                const iptvVencidos = membrosGrupo.filter(m => m.tipo?.toUpperCase() === 'IPTV' && (() => {
+                  const pp = (m.vencimento || '').split('/'); if (pp.length < 3) return false
+                  return new Date(Number(pp[2]),Number(pp[1])-1,Number(pp[0])) < hoje
+                })())
+                const p2pVencido = membrosGrupo.find(m => m.tipo?.toUpperCase() === 'P2P' && (() => {
+                  const pp = (m.vencimento || '').split('/'); if (pp.length < 3) return false
+                  return new Date(Number(pp[2]),Number(pp[1])-1,Number(pp[0])) < hoje
+                })())
+                let planBody = null
+                if (iptvVencidos.length === 0 && !p2pVencido) {
+                  planBody = { planId: 2, access: 2, package_iptv: 70, package_p2p: '646d1492db22a7b1bc518941' }
+                } else if (iptvVencidos.length >= 2 && p2pVencido) {
+                  planBody = { planId: 2, access: 1, package_iptv: 103, package_p2p: '64b9ce3689aaac1f86acb99b' }
+                } else if (iptvVencidos.length >= 2) {
+                  planBody = { planId: 2, access: 1, package_iptv: 103, package_p2p: '646d1492db22a7b1bc518941' }
+                } else if (iptvVencidos.length === 1 && p2pVencido) {
+                  planBody = { planId: 2, access: 1, package_iptv: 70, package_p2p: '64b9ce3689aaac1f86acb99b' }
+                } else if (iptvVencidos.length === 1) {
+                  planBody = { planId: 2, access: 1, package_iptv: 70, package_p2p: '646d1492db22a7b1bc518941' }
+                } else if (p2pVencido) {
+                  planBody = { planId: 2, access: 2, package_iptv: 70, package_p2p: '64b9ce3689aaac1f86acb99b' }
+                }
+                if (planBody) {
+                  await fetch(`${BACKEND}/painel/manage-plan/${buscar.id}`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(planBody)
+                  })
+                  console.log(`[WEBHOOK][GRUPO] manage-plan aplicado após pagamento: ${JSON.stringify(planBody)}`)
+                }
+              } catch(ePlano) { console.error('[WEBHOOK][GRUPO] Erro ao restaurar plano:', ePlano.message) }
               } catch (e) { console.error('[WEBHOOK][GRUPO] erro ao sincronizar vencimentoLinha:', e.message) }
             } else {
               console.error('[WEBHOOK][GRUPO] buscar-linha falhou:', buscar.error)

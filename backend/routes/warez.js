@@ -283,5 +283,16 @@ export default function createWarezRouter(enviarMensagemRenovacao) {
     } catch (err) { res.status(500).json({ ok: false, error: err.message }) }
   })
 
+  // ---- Gerenciar plano de linha (controle de inadimplência) ----
+  router.post('/painel/manage-plan/:lineId', async (req, res) => {
+    try {
+      const lineId = req.params.lineId
+      const body   = req.body ?? {}
+      const data   = await wpFetch(`/lines/manage-plan/${lineId}`, 'PATCH', body)
+      console.log(`[Warez] manage-plan lineId=${lineId} body=${JSON.stringify(body)} resp=${JSON.stringify(data)}`)
+      res.json({ ok: true, data })
+    } catch (err) { res.status(500).json({ ok: false, error: err.message }) }
+  })
+
   return { router }
 }

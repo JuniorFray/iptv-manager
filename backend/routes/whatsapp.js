@@ -248,6 +248,81 @@ export default function createWhatsAppRouter(db, admin) {
     }
   }
 
+  // ---- Controle de acesso por inadimplência em grupos ----
+  const PKG_P2P_BRASIL18  = '646d1492db22a7b1bc518941'
+  const PKG_P2P_VAZIO     = '64b9ce3689aaac1f86acb99b'
+  const PKG_IPTV_BRASIL18 = 70
+  const PKG_IPTV_SEM      = 103
+  const PLAN_ID           = 2
+  const WAREZ_BACKEND     = 'https://iptv-manager-production.up.railway.app'
+
+  const calcularEstadoGrupo = (membros) => {
+    const hoje = new Date(); hoje.setHours(0,0,0,0)
+    const iptvVencidos = membros.filter(m => m.tipo?.toUpperCase() === 'IPTV' && (() => {
+      const p = (m.vencimento || '').split('/'); if (p.length < 3) return false
+      return new Date(Number(p[2]),Number(p[1])-1,Number(p[0])) < hoje
+    })())
+    const p2pVencido = membros.find(m => m.tipo?.toUpperCase() === 'P2P' && (() => {
+      const p = (m.vencimento || '').split('/'); if (p.length < 3) return false
+      return new Date(Number(p[2]),Number(p[1])-1,Number(p[0])) < hoje
+    })())
+    return {
+      iptvVencidos: iptvVencidos.length,
+      p2pVencido: !!p2pVencido,
+      todosEmDia: iptvVencidos.length === 0 && !p2pVencido,
+    }
+  }
+
+  const aplicarEstadoGrupo = async (nomeGrupo, membros) => {
+    // Busca o ID da linha Warez pelo usuario compartilhado (qualquer membro serve)
+    const usuarioGrupo = membros[0]?.usuario
+    if (!usuarioGrupo) { console.log(`[GRUPO-CTRL] ${nomeGrupo}: usuario nao encontrado`); return }
+
+    const buscar = await fetch(`${WAREZ_BACKEND}/painel/buscar-linha/${encodeURIComponent(usuarioGrupo)}`).then(r => r.json()).catch(() => null)
+    if (!buscar?.ok) { console.log(`[GRUPO-CTRL] ${nomeGrupo}: linha nao encontrada na Warez`); return }
+    const lineId = buscar.id
+
+    const { iptvVencidos, p2pVencido, todosEmDia } = calcularEstadoGrupo(membros)
+
+    let body = {}
+    let descricao = ''
+
+    if (todosEmDia) {
+      // Restaura tudo
+      body = { planId: PLAN_ID, access: 2, package_iptv: PKG_IPTV_BRASIL18, package_p2p: PKG_P2P_BRASIL18 }
+      descricao = 'RESTAURADO (todos em dia)'
+    } else if (iptvVencidos >= 2 && p2pVencido) {
+      // Tudo vencido: sem conteúdo IPTV + sem P2P + 1 acesso
+      body = { planId: PLAN_ID, access: 1, package_iptv: PKG_IPTV_SEM, package_p2p: PKG_P2P_VAZIO }
+      descricao = 'BLOQUEADO (2 IPTV + P2P vencidos)'
+    } else if (iptvVencidos >= 2) {
+      // 2 IPTV vencidos: sem conteúdo IPTV + 1 acesso (P2P ok)
+      body = { planId: PLAN_ID, access: 1, package_iptv: PKG_IPTV_SEM, package_p2p: PKG_P2P_BRASIL18 }
+      descricao = 'RESTRITO (2 IPTV vencidos, P2P ok)'
+    } else if (iptvVencidos === 1 && p2pVencido) {
+      // 1 IPTV + P2P vencidos
+      body = { planId: PLAN_ID, access: 1, package_iptv: PKG_IPTV_BRASIL18, package_p2p: PKG_P2P_VAZIO }
+      descricao = 'RESTRITO (1 IPTV + P2P vencidos)'
+    } else if (iptvVencidos === 1) {
+      // 1 IPTV vencido: reduz para 1 acesso simultâneo
+      body = { planId: PLAN_ID, access: 1, package_iptv: PKG_IPTV_BRASIL18, package_p2p: PKG_P2P_BRASIL18 }
+      descricao = 'RESTRITO (1 IPTV vencido)'
+    } else if (p2pVencido) {
+      // Só P2P vencido: pacote P2P vazio
+      body = { planId: PLAN_ID, access: 2, package_iptv: PKG_IPTV_BRASIL18, package_p2p: PKG_P2P_VAZIO }
+      descricao = 'RESTRITO (P2P vencido)'
+    }
+
+    if (Object.keys(body).length === 0) return
+
+    const resp = await fetch(`${WAREZ_BACKEND}/painel/manage-plan/${lineId}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    }).then(r => r.json()).catch(e => ({ ok: false, error: e.message }))
+
+    console.log(`[GRUPO-CTRL] ${nomeGrupo}: ${descricao} | lineId=${lineId} | resp=${JSON.stringify(resp?.data ?? resp)}`)
+  }
+
   const getConfig = async () => {
     const snap = await db.collection('configwhatsapp').doc('principal').get()
     if (!snap.exists) {
@@ -553,6 +628,27 @@ export default function createWhatsAppRouter(db, admin) {
         console.log(`[AUTO] Enfileirado grupo-atraso: ${cliente.nome} (${cliente.grupoLinha}, ${diasVencido}d vencido)`)
       }
     }
+
+    // ---- Controle Warez por inadimplência em grupos (dias > 3) ----
+    try {
+      // Agrupa clientes por grupoLinha
+      const gruposMap = {}
+      for (const c of clientes) {
+        if (!c.grupoLinha?.trim() || c.servidor?.toUpperCase() !== 'WAREZ') continue
+        if (!gruposMap[c.grupoLinha]) gruposMap[c.grupoLinha] = []
+        gruposMap[c.grupoLinha].push(c)
+      }
+      for (const [nomeGrupo, membros] of Object.entries(gruposMap)) {
+        // Só age se algum membro estiver vencido
+        const temVencido = membros.some(m => {
+          const p = (m.vencimento||'').split('/')
+          if (p.length < 3) return false
+          return new Date(Number(p[2]),Number(p[1])-1,Number(p[0])) < new Date()
+        })
+        if (!temVencido) continue
+        await aplicarEstadoGrupo(nomeGrupo, membros)
+      }
+    } catch(e) { console.error('[GRUPO-CTRL] Erro geral:', e.message) }
 
     console.log(`Envio automático concluído. ${adicionados} mensagens enfileiradas.`)
     } finally {
