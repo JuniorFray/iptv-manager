@@ -260,17 +260,17 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
                 })())
                 let planBody = null
                 if (iptvVencidos.length === 0 && !p2pVencido) {
-                  planBody = { planId: 2, access: 2, package_iptv: 70, package_p2p: '646d1492db22a7b1bc518941' }
+                  planBody = { access: 2, package_iptv: 70, package_p2p: '646d1492db22a7b1bc518941', addons: [] }
                 } else if (iptvVencidos.length >= 2 && p2pVencido) {
-                  planBody = { planId: 2, access: 1, package_iptv: 103, package_p2p: '64b9ce3689aaac1f86acb99b' }
+                  planBody = { access: 1, package_iptv: 103, package_p2p: '64b9ce3689aaac1f86acb99b', addons: [] }
                 } else if (iptvVencidos.length >= 2) {
-                  planBody = { planId: 2, access: 1, package_iptv: 103, package_p2p: '646d1492db22a7b1bc518941' }
+                  planBody = { access: 1, package_iptv: 103, package_p2p: '646d1492db22a7b1bc518941', addons: [] }
                 } else if (iptvVencidos.length === 1 && p2pVencido) {
-                  planBody = { planId: 2, access: 1, package_iptv: 70, package_p2p: '64b9ce3689aaac1f86acb99b' }
+                  planBody = { access: 1, package_iptv: 70, package_p2p: '64b9ce3689aaac1f86acb99b', addons: [] }
                 } else if (iptvVencidos.length === 1) {
-                  planBody = { planId: 2, access: 1, package_iptv: 70, package_p2p: '646d1492db22a7b1bc518941' }
+                  planBody = { access: 1, package_iptv: 70, package_p2p: '646d1492db22a7b1bc518941', addons: [] }
                 } else if (p2pVencido) {
-                  planBody = { planId: 2, access: 2, package_iptv: 70, package_p2p: '64b9ce3689aaac1f86acb99b' }
+                  planBody = { access: 2, package_iptv: 70, package_p2p: '64b9ce3689aaac1f86acb99b', addons: [] }
                 }
                 if (planBody) {
                   await fetch(`${BACKEND}/painel/manage-plan/${buscar.id}`, {

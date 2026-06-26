@@ -289,27 +289,27 @@ export default function createWhatsAppRouter(db, admin) {
 
     if (todosEmDia) {
       // Restaura tudo
-      body = { planId: PLAN_ID, access: 2, package_iptv: PKG_IPTV_BRASIL18, package_p2p: PKG_P2P_BRASIL18 }
+      body = { access: 2, package_iptv: PKG_IPTV_BRASIL18, package_p2p: PKG_P2P_BRASIL18, addons: [] }
       descricao = 'RESTAURADO (todos em dia)'
     } else if (iptvVencidos >= 2 && p2pVencido) {
       // Tudo vencido: sem conteúdo IPTV + sem P2P + 1 acesso
-      body = { planId: PLAN_ID, access: 1, package_iptv: PKG_IPTV_SEM, package_p2p: PKG_P2P_VAZIO }
+      body = { access: 1, package_iptv: PKG_IPTV_SEM, package_p2p: PKG_P2P_VAZIO, addons: [] }
       descricao = 'BLOQUEADO (2 IPTV + P2P vencidos)'
     } else if (iptvVencidos >= 2) {
       // 2 IPTV vencidos: sem conteúdo IPTV + 1 acesso (P2P ok)
-      body = { planId: PLAN_ID, access: 1, package_iptv: PKG_IPTV_SEM, package_p2p: PKG_P2P_BRASIL18 }
+      body = { access: 1, package_iptv: PKG_IPTV_SEM, package_p2p: PKG_P2P_BRASIL18, addons: [] }
       descricao = 'RESTRITO (2 IPTV vencidos, P2P ok)'
     } else if (iptvVencidos === 1 && p2pVencido) {
       // 1 IPTV + P2P vencidos
-      body = { planId: PLAN_ID, access: 1, package_iptv: PKG_IPTV_BRASIL18, package_p2p: PKG_P2P_VAZIO }
+      body = { access: 1, package_iptv: PKG_IPTV_BRASIL18, package_p2p: PKG_P2P_VAZIO, addons: [] }
       descricao = 'RESTRITO (1 IPTV + P2P vencidos)'
     } else if (iptvVencidos === 1) {
       // 1 IPTV vencido: reduz para 1 acesso simultâneo
-      body = { planId: PLAN_ID, access: 1, package_iptv: PKG_IPTV_BRASIL18, package_p2p: PKG_P2P_BRASIL18 }
+      body = { access: 1, package_iptv: PKG_IPTV_BRASIL18, package_p2p: PKG_P2P_BRASIL18, addons: [] }
       descricao = 'RESTRITO (1 IPTV vencido)'
     } else if (p2pVencido) {
       // Só P2P vencido: pacote P2P vazio
-      body = { planId: PLAN_ID, access: 2, package_iptv: PKG_IPTV_BRASIL18, package_p2p: PKG_P2P_VAZIO }
+      body = { access: 2, package_iptv: PKG_IPTV_BRASIL18, package_p2p: PKG_P2P_VAZIO, addons: [] }
       descricao = 'RESTRITO (P2P vencido)'
     }
 
