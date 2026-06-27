@@ -881,7 +881,7 @@ export default function Clientes() {
               const atrasados = membros.filter(m => { const d = diffDiasGrupo(m.vencimento); return d !== null && d < -3 })
               const alerta = atrasados.length > 0
               return (
-                <div key={nomeGrupo} style={{ borderRadius: '14px', border: alerta ? '1px solid rgba(239,68,68,0.4)' : '1px solid rgba(99,102,241,0.25)', overflow: 'hidden', background: 'rgba(255,255,255,0.02)' }}>
+                <div key={nomeGrupo} style={{ borderRadius: '14px', border: alerta ? '1px solid rgba(239,68,68,0.4)' : '1px solid rgba(99,102,241,0.25)', background: 'rgba(255,255,255,0.02)' }}>
                   {/* Header do grupo */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 16px', background: alerta ? 'rgba(239,68,68,0.1)' : 'rgba(99,102,241,0.1)', borderBottom: alerta ? '1px solid rgba(239,68,68,0.2)' : '1px solid rgba(99,102,241,0.15)' }}>
                     {alerta ? <AlertTriangle size={15} color="#ef4444" /> : <Users size={15} color="#818cf8" />}
