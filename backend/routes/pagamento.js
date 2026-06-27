@@ -246,40 +246,6 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
                 await batch.commit()
                 console.log(`[WEBHOOK][GRUPO] vencimentoLinha sincronizado para ${grupoSnap.size} clientes do grupo ${cliente.grupoLinha}`)
 
-              // Restaura o estado de acesso na Warez de acordo com quem está em dia
-              try {
-                const membrosGrupo = grupoSnap.docs.map(d => ({ id: d.id, ...d.data() }))
-                const hoje = new Date(); hoje.setHours(0,0,0,0)
-                const iptvVencidos = membrosGrupo.filter(m => m.tipo?.toUpperCase() === 'IPTV' && (() => {
-                  const pp = (m.vencimento || '').split('/'); if (pp.length < 3) return false
-                  return new Date(Number(pp[2]),Number(pp[1])-1,Number(pp[0])) < hoje
-                })())
-                const p2pVencido = membrosGrupo.find(m => m.tipo?.toUpperCase() === 'P2P' && (() => {
-                  const pp = (m.vencimento || '').split('/'); if (pp.length < 3) return false
-                  return new Date(Number(pp[2]),Number(pp[1])-1,Number(pp[0])) < hoje
-                })())
-                let planBody = null
-                if (iptvVencidos.length === 0 && !p2pVencido) {
-                  planBody = { access: 2, package_iptv: 70, package_p2p: '646d1492db22a7b1bc518941', addons: [] }
-                } else if (iptvVencidos.length >= 2 && p2pVencido) {
-                  planBody = { access: 1, package_iptv: 103, package_p2p: '64b9ce3689aaac1f86acb99b', addons: [] }
-                } else if (iptvVencidos.length >= 2) {
-                  planBody = { access: 1, package_iptv: 103, package_p2p: '646d1492db22a7b1bc518941', addons: [] }
-                } else if (iptvVencidos.length === 1 && p2pVencido) {
-                  planBody = { access: 1, package_iptv: 70, package_p2p: '64b9ce3689aaac1f86acb99b', addons: [] }
-                } else if (iptvVencidos.length === 1) {
-                  planBody = { access: 1, package_iptv: 70, package_p2p: '646d1492db22a7b1bc518941', addons: [] }
-                } else if (p2pVencido) {
-                  planBody = { access: 2, package_iptv: 70, package_p2p: '64b9ce3689aaac1f86acb99b', addons: [] }
-                }
-                if (planBody) {
-                  await fetch(`${BACKEND}/painel/manage-plan/${buscar.id}`, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(planBody)
-                  })
-                  console.log(`[WEBHOOK][GRUPO] manage-plan aplicado após pagamento: ${JSON.stringify(planBody)}`)
-                }
-              } catch(ePlano) { console.error('[WEBHOOK][GRUPO] Erro ao restaurar plano:', ePlano.message) }
               } catch (e) { console.error('[WEBHOOK][GRUPO] erro ao sincronizar vencimentoLinha:', e.message) }
             } else {
               console.error('[WEBHOOK][GRUPO] buscar-linha falhou:', buscar.error)
@@ -411,6 +377,77 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
             console.log('[WEBHOOK] Comissao registrada — afiliado:', af.nome, 'valor:', comissao)
           }
         } catch (e) { console.error('[WEBHOOK] Erro comissao afiliado:', e.message) }
+      }
+
+      // ── Pós-pagamento GRUPO: manage-plan + verificação de dono ──────────────
+      if (servidor.toUpperCase() === 'WAREZ' && cliente?.grupoLinha && vencimento) {
+        try {
+          const grupoSnapFinal = await db.collection('clientes').where('grupoLinha', '==', cliente.grupoLinha).get()
+          const membros = grupoSnapFinal.docs.map(d => {
+            const data = d.data()
+            // Para o membro que acabou de pagar, usa o novo vencimento
+            return d.id === clienteId ? { ...data, id: d.id, vencimento } : { ...data, id: d.id }
+          })
+
+          // 1. Calcula novo vencedor (maior data após pagamento)
+          const parseV = (v) => { const p = (v||'').split('/'); return p.length===3 ? new Date(Number(p[2]),Number(p[1])-1,Number(p[0])) : new Date(0) }
+          const novoVencedor = membros.reduce((a, b) => parseV(a.vencimento) >= parseV(b.vencimento) ? a : b)
+
+          // 2. Se algum membro não-vencedor tem credenciais diferentes do vencedor, atualiza
+          const membrosDesatualizados = membros.filter(m =>
+            m.id !== novoVencedor.id &&
+            (m.usuario !== novoVencedor.usuario || m.senha !== novoVencedor.senha)
+          )
+          if (membrosDesatualizados.length > 0) {
+            const batchCred = db.batch()
+            for (const m of membrosDesatualizados) {
+              batchCred.update(db.collection('clientes').doc(m.id), { usuario: novoVencedor.usuario, senha: novoVencedor.senha })
+            }
+            await batchCred.commit()
+            console.log(`[WEBHOOK][GRUPO] Credenciais atualizadas para ${membrosDesatualizados.length} membros do ${cliente.grupoLinha}`)
+            // Avisa membros que tiveram credenciais atualizadas
+            for (const m of membrosDesatualizados) {
+              if (!m.telefone) continue
+              try {
+                const msgCred = `Olá ${m.nome}! 📺 Os dados de acesso da sua linha foram atualizados:\n\n👤 Usuário: ${novoVencedor.usuario}\n🔑 Senha: ${novoVencedor.senha}\n\nAtualize no seu app. Qualquer dúvida estamos à disposição!`
+                await db.collection('filaEnvios').add({
+                  clienteId: m.id, clienteNome: m.nome, telefone: m.telefone,
+                  mensagem: msgCred, midiaUrl: null, midiaTipo: null, midiaNome: null,
+                  modoEnvio: 'junto', gatilho: 'grupo-credencial-atualizada',
+                  status: 'pendente', tentativas: 0, maxTentativas: 3,
+                  criadoEm: admin.firestore.FieldValue.serverTimestamp(),
+                  proximaTentativa: admin.firestore.Timestamp.now(),
+                  enviadoEm: null, erro: null,
+                })
+              } catch(eFila) { console.error('[WEBHOOK][GRUPO] erro fila credencial:', eFila.message) }
+            }
+          }
+
+          // 3. Aplica manage-plan conforme estado atual do grupo
+          try {
+            const usuarioBusca = novoVencedor.usuario || cliente?.usuario || usuario
+            const buscarFinal = await fetch(`${BACKEND}/painel/buscar-linha/${encodeURIComponent(usuarioBusca)}`).then(r => r.json()).catch(() => null)
+            if (buscarFinal?.ok) {
+              const hoje = new Date(); hoje.setHours(0,0,0,0)
+              const iptvV = membros.filter(m => m.tipo?.toUpperCase()==='IPTV' && parseV(m.vencimento) < hoje)
+              const p2pV  = membros.find(m  => m.tipo?.toUpperCase()==='P2P'  && parseV(m.vencimento) < hoje)
+              let planBody = null
+              if      (iptvV.length===0 && !p2pV)  planBody = { access:2, package_iptv:70,  package_p2p:'646d1492db22a7b1bc518941', addons:[] }
+              else if (iptvV.length>=2  && p2pV)   planBody = { access:1, package_iptv:103, package_p2p:'64b9ce3689aaac1f86acb99b', addons:[] }
+              else if (iptvV.length>=2)             planBody = { access:1, package_iptv:103, package_p2p:'646d1492db22a7b1bc518941', addons:[] }
+              else if (iptvV.length===1 && p2pV)   planBody = { access:1, package_iptv:70,  package_p2p:'64b9ce3689aaac1f86acb99b', addons:[] }
+              else if (iptvV.length===1)            planBody = { access:1, package_iptv:70,  package_p2p:'646d1492db22a7b1bc518941', addons:[] }
+              else if (p2pV)                        planBody = { access:2, package_iptv:70,  package_p2p:'64b9ce3689aaac1f86acb99b', addons:[] }
+              if (planBody) {
+                await fetch(`${BACKEND}/painel/manage-plan/${buscarFinal.id}`, {
+                  method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(planBody)
+                })
+                console.log(`[WEBHOOK][GRUPO] manage-plan: ${JSON.stringify(planBody)} | lineId=${buscarFinal.id}`)
+              }
+            }
+          } catch(eManage) { console.error('[WEBHOOK][GRUPO] Erro manage-plan:', eManage.message) }
+
+        } catch(eGrupo) { console.error('[WEBHOOK][GRUPO] Erro bloco pos-pagamento:', eGrupo.message) }
       }
 
       if (telefone && enviarMensagemRenovacao && vencimento) {
