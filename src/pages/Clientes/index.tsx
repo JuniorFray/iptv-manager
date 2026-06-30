@@ -889,14 +889,13 @@ export default function Clientes() {
                     {alerta && <span style={{ fontSize: 11, color: '#f87171', background: 'rgba(239,68,68,0.15)', padding: '2px 8px', borderRadius: 99, border: '1px solid rgba(239,68,68,0.3)' }}>⚠️ Membro em atraso</span>}
                     <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginLeft: 4 }}>Linha: {membros[0]?.vencimentoLinha || '—'}</span>
                     {(() => {
-                      const donoMembro = membros.length >= 2 ? membros.reduce((a, b) => {
-                        const pa = a.vencimento?.split('/'), pb = b.vencimento?.split('/')
-                        if (!pa||pa.length<3) return b; if (!pb||pb.length<3) return a
-                        return new Date(Number(pa[2]),Number(pa[1])-1,Number(pa[0])) >= new Date(Number(pb[2]),Number(pb[1])-1,Number(pb[0])) ? a : b
-                      }) : membros[0]
-                      return donoMembro ? (
+                      // Titular = membro cujo usuario coincide com o login compartilhado da linha
+                      // É fixo — não muda conforme datas
+                      const loginCompartilhado = membros[0]?.usuario
+                      const titular = membros.find(m => m.usuario === loginCompartilhado && m.usuario) || membros[0]
+                      return titular ? (
                         <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginLeft: 8 }}>
-                          🔑 Dono: <strong style={{ color: 'rgba(255,255,255,0.7)' }}>{donoMembro.nome}</strong>
+                          🔑 Titular: <strong style={{ color: 'rgba(255,255,255,0.7)' }}>{titular.nome}</strong>
                         </span>
                       ) : null
                     })()}
@@ -1211,7 +1210,7 @@ export default function Clientes() {
                   <div key={id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderRadius: 10, background: ehVencedor ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.04)', border: ehVencedor ? '1px solid rgba(99,102,241,0.3)' : '1px solid rgba(255,255,255,0.06)', marginBottom: 6 }}>
                     <div style={{ flex: 1 }}>
                       <span style={{ color: 'white', fontWeight: 600, fontSize: 13 }}>{c.nome}</span>
-                      {ehVencedor && <span style={{ marginLeft: 8, fontSize: 10, color: '#a5b4fc', background: 'rgba(99,102,241,0.2)', padding: '1px 6px', borderRadius: 99 }}>🔑 dono do login</span>}
+                      {ehVencedor && <span style={{ marginLeft: 8, fontSize: 10, color: '#a5b4fc', background: 'rgba(99,102,241,0.2)', padding: '1px 6px', borderRadius: 99 }}>🔑 titular da linha</span>}
                       <span style={{ display: 'block', color: 'rgba(255,255,255,0.4)', fontSize: 11 }}>{c.tipo} · venc: {c.vencimento} · {c.usuario}</span>
                     </div>
                     <button onClick={() => setGrupoMembrosIds(prev => prev.filter(i => i !== id))}
