@@ -636,7 +636,7 @@ export default function Clientes() {
       const vencedor = vencedorDoGrupo(grupoMembrosIds)
       const vencimentoLinha = vencedor.vencimento
       for (const id of grupoMembrosIds) {
-        const upd: any = { grupoLinha: grupoNome.trim(), vencimentoLinha }
+        const upd: any = { grupoLinha: grupoNome.trim(), vencimentoLinha, titularNome: vencedor.nome }
         if (id !== vencedor.id) { upd.usuario = vencedor.usuario; upd.senha = vencedor.senha }
         await updateDoc(doc(db, 'clientes', id), upd)
       }
@@ -888,17 +888,11 @@ export default function Clientes() {
                     <span style={{ color: alerta ? '#f87171' : '#a5b4fc', fontWeight: 700, fontSize: 13 }}>{nomeGrupo}</span>
                     {alerta && <span style={{ fontSize: 11, color: '#f87171', background: 'rgba(239,68,68,0.15)', padding: '2px 8px', borderRadius: 99, border: '1px solid rgba(239,68,68,0.3)' }}>⚠️ Membro em atraso</span>}
                     <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginLeft: 4 }}>Linha: {membros[0]?.vencimentoLinha || '—'}</span>
-                    {(() => {
-                      // Titular = membro cujo usuario coincide com o login compartilhado da linha
-                      // É fixo — não muda conforme datas
-                      const loginCompartilhado = membros[0]?.usuario
-                      const titular = membros.find(m => m.usuario === loginCompartilhado && m.usuario) || membros[0]
-                      return titular ? (
-                        <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginLeft: 8 }}>
-                          🔑 Titular: <strong style={{ color: 'rgba(255,255,255,0.7)' }}>{titular.nome}</strong>
-                        </span>
-                      ) : null
-                    })()}
+                    {membros[0]?.titularNome && (
+                      <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginLeft: 8 }}>
+                        🔑 Titular: <strong style={{ color: 'rgba(255,255,255,0.7)' }}>{membros[0].titularNome}</strong>
+                      </span>
+                    )}
                     <button onClick={() => abrirEditarGrupo(nomeGrupo)} style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.7)', padding: '4px 12px', borderRadius: 8, cursor: 'pointer', fontSize: 12 }}>
                       <Pencil size={12} /> Editar Grupo
                     </button>
