@@ -1364,6 +1364,31 @@ export default function createWhatsAppRouter(db, admin) {
   // Reversao temporaria: Claudia Almeida e Camila Roncato voltam ao login proprio
   // Rota temporaria: seta titularNome nos grupos existentes
   // Rota temporaria: corrige titular do GRUPO 1 e GRUPO 2 (sem zeros)
+  // Rota temporaria: bloqueia (move para lixeira) os 20 logins liberados grupos 025-034
+  router.post('/grupos/bloquear-logins-025-034', async (req, res) => {
+    const LOGINS = [{"usuario":"3014048","nome":"Bruno Alves"},{"usuario":"6645740","nome":"Jeferson Pinheiro"},{"usuario":"71156tq","nome":"Alex Gutemberg"},{"usuario":"9s78h86","nome":"Isabele Campos"},{"usuario":"b93p331","nome":"Felipe Rocha"},{"usuario":"y372g14","nome":"Paulo Rodrigo"},{"usuario":"7543115","nome":"Paulo Roberto"},{"usuario":"73h8g99","nome":"Elizabete Paiva"},{"usuario":"1933736","nome":"Rosilda Adao"},{"usuario":"2f0f181","nome":"Mary Zanotti"},{"usuario":"9399376","nome":"Elaine Pardo"},{"usuario":"6264nc0","nome":"Michele Mariconi"},{"usuario":"5291kr9","nome":"Maria Augusta"},{"usuario":"3928x6v","nome":"Henrique Alcantara"},{"usuario":"1070q2d","nome":"Marcelo Goudard"},{"usuario":"5rx6648","nome":"Josi Almeida"},{"usuario":"91q225f","nome":"Glaucia da Silva"},{"usuario":"0bz2393","nome":"Andre Sa"},{"usuario":"74103ud","nome":"Jose Luciano"},{"usuario":"529p74y","nome":"Fernanda Sampaio"}]
+    const resultado = []
+    for (const l of LOGINS) {
+      try {
+        const buscar = await wpFetch(`/lines?page=1&quantityPerPage=100&trash=0&generalSearch=${encodeURIComponent(l.usuario)}`, 'GET')
+        const linha = buscar?.data?.find(x => x.username === l.usuario)
+        if (!linha) {
+          resultado.push({ usuario: l.usuario, nome: l.nome, ok: false, erro: 'nao encontrado' })
+          continue
+        }
+        await wpFetch(`/lines/${linha.id}`, 'DELETE')
+        resultado.push({ usuario: l.usuario, nome: l.nome, ok: true, id: linha.id })
+        console.log(`[BLOQUEAR] ${l.nome} (${l.usuario}) id=${linha.id} -> movido para lixeira`)
+      } catch(e) {
+        resultado.push({ usuario: l.usuario, nome: l.nome, ok: false, erro: e.message })
+      }
+    }
+    const sucesso = resultado.filter(r => r.ok).length
+    const falhas  = resultado.filter(r => !r.ok)
+    console.log(`[BLOQUEAR] ${sucesso}/${LOGINS.length} movidos para lixeira`)
+    res.json({ ok: true, total: LOGINS.length, sucesso, falhas })
+  })
+
   router.post('/grupos/setar-titular-g1g2', async (req, res) => {
     try {
       let total = 0
