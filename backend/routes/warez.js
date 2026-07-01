@@ -294,5 +294,13 @@ export default function createWarezRouter(enviarMensagemRenovacao) {
     } catch (err) { res.status(500).json({ ok: false, error: err.message }) }
   })
 
+  router.delete('/painel/linha/:id', async (req, res) => {
+    try {
+      const data = await wpFetch(`/lines/${req.params.id}`, 'DELETE')
+      console.log(`[Warez] DELETE /lines/${req.params.id} -> lixeira`)
+      res.json({ ok: true, data })
+    } catch(e) { res.status(500).json({ ok: false, error: e.message }) }
+  })
+
   return { router }
 }

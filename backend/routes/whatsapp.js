@@ -1370,13 +1370,12 @@ export default function createWhatsAppRouter(db, admin) {
     const resultado = []
     for (const l of LOGINS) {
       try {
-        const buscar = await wpFetch(`/lines?page=1&quantityPerPage=100&trash=0&generalSearch=${encodeURIComponent(l.usuario)}`, 'GET')
-        const linha = buscar?.data?.find(x => x.username === l.usuario)
-        if (!linha) {
+        const buscar = await fetch(`${BACKEND}/painel/buscar-linha/${encodeURIComponent(l.usuario)}`).then(r => r.json()).catch(() => null)
+        if (!buscar?.ok) {
           resultado.push({ usuario: l.usuario, nome: l.nome, ok: false, erro: 'nao encontrado' })
           continue
         }
-        await wpFetch(`/lines/${linha.id}`, 'DELETE')
+        await fetch(`${BACKEND}/painel/linha/${buscar.id}`, { method: 'DELETE' })
         resultado.push({ usuario: l.usuario, nome: l.nome, ok: true, id: linha.id })
         console.log(`[BLOQUEAR] ${l.nome} (${l.usuario}) id=${linha.id} -> movido para lixeira`)
       } catch(e) {
