@@ -23,6 +23,7 @@ interface Cliente {
   valor6meses?: string
   grupoLinha?: string
   vencimentoLinha?: string
+  titularNome?: string
 }
 
 const clienteVazio: Omit<Cliente, 'id'> = {

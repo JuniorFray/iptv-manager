@@ -1409,12 +1409,7 @@ export default function createWhatsAppRouter(db, admin) {
       let enfileirados = 0
       for (const reg of REGISTROS_025_034) {
         if (!reg.mudaLogin) continue
-        const mensagem = 'Olá ' + reg.nome + '! 📺 Seus dados de acesso foram atualizados:
-
-👤 Usuário: ' + reg.usuario + '
-🔑 Senha: ' + reg.senha + '
-
-Atualize no seu aplicativo. Qualquer dúvida estamos à disposição!'
+        const mensagem = 'Olá ' + reg.nome + '! 📺 Seus dados de acesso foram atualizados:\n\n👤 Usuário: ' + reg.usuario + '\n🔑 Senha: ' + reg.senha + '\n\nAtualize no seu aplicativo. Qualquer dúvida estamos à disposição!'
         await db.collection('filaEnvios').add({
           clienteId: null, clienteNome: reg.nome, telefone: reg.telefone,
           mensagem, midiaUrl: null, midiaTipo: null, midiaNome: null,
