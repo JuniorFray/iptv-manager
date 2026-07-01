@@ -1363,6 +1363,23 @@ export default function createWhatsAppRouter(db, admin) {
 
   // Reversao temporaria: Claudia Almeida e Camila Roncato voltam ao login proprio
   // Rota temporaria: seta titularNome nos grupos existentes
+  // Rota temporaria: corrige titular do GRUPO 1 e GRUPO 2 (sem zeros)
+  router.post('/grupos/setar-titular-g1g2', async (req, res) => {
+    try {
+      let total = 0
+      for (const [grupo, titular] of [['GRUPO 1', 'Douglas Cruz'], ['GRUPO 2', 'Elaine Juraszek']]) {
+        const snap = await db.collection('clientes').where('grupoLinha', '==', grupo).get()
+        if (snap.empty) { console.log('[TITULAR] ' + grupo + ': nenhum membro'); continue }
+        const batch = db.batch()
+        snap.docs.forEach(d => batch.update(d.ref, { titularNome: titular }))
+        await batch.commit()
+        total += snap.size
+        console.log('[TITULAR] ' + grupo + ': ' + titular + ' => ' + snap.size + ' membros')
+      }
+      res.json({ ok: true, total })
+    } catch(e) { res.status(500).json({ ok: false, error: e.message }) }
+  })
+
   router.post('/grupos/setar-titular', async (req, res) => {
     const TITULARES = {"GRUPO 001":"Douglas Cruz","GRUPO 002":"Elaine Juraszek","GRUPO 003":"Damiana Souza","GRUPO 004":"Edilene Marques","GRUPO 005":"Stephanie Silva","GRUPO 006":"Guilherme GP","GRUPO 007":"Claudineia Alves","GRUPO 008":"Andrey Vinicius","GRUPO 009":"Josuel Melo","GRUPO 010":"Elisonia Santos","GRUPO 011":"Danilo Adorno","GRUPO 012":"Wagner Aguiar","GRUPO 013":"Antonio Jose","GRUPO 014":"Fatima Santos","GRUPO 015":"Marcus Vinicius","GRUPO 016":"Luciana Almeida","GRUPO 017":"Luis Facca","GRUPO 018":"Anderson Paes","GRUPO 019":"Roberto Petter","GRUPO 020":"Stephanny Mariano","GRUPO 021":"Wirnna","GRUPO 022":"Aline Vivaldo","GRUPO 023":"Sergio Perches","GRUPO 024":"Ary Moura"}
     try {
