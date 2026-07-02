@@ -1370,12 +1370,13 @@ export default function createWhatsAppRouter(db, admin) {
     const resultado = []
     for (const l of LOGINS) {
       try {
-        const buscar = await fetch(`${BACKEND}/painel/buscar-linha/${encodeURIComponent(l.usuario)}`).then(r => r.json()).catch(() => null)
+        const BKND = 'https://iptv-manager-production.up.railway.app'
+        const buscar = await fetch(`${BKND}/painel/buscar-linha/${encodeURIComponent(l.usuario)}`).then(r => r.json()).catch(() => null)
         if (!buscar?.ok) {
           resultado.push({ usuario: l.usuario, nome: l.nome, ok: false, erro: 'nao encontrado' })
           continue
         }
-        await fetch(`${BACKEND}/painel/linha/${buscar.id}`, { method: 'DELETE' })
+        await fetch(`${BKND}/painel/linha/${buscar.id}`, { method: 'DELETE' })
         resultado.push({ usuario: l.usuario, nome: l.nome, ok: true, id: linha.id })
         console.log(`[BLOQUEAR] ${l.nome} (${l.usuario}) id=${linha.id} -> movido para lixeira`)
       } catch(e) {
