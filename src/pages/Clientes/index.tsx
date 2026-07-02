@@ -1200,7 +1200,8 @@ export default function Clientes() {
               {grupoMembrosIds.map(id => {
                 const c = clientes.find(x => x.id === id)
                 if (!c) return null
-                const ehVencedor = grupoMembrosIds.length >= 2 && vencedorDoGrupo(grupoMembrosIds)?.id === id
+                const titularDoGrupo = clientes.find(x => grupoMembrosIds.includes(x.id) && x.titularNome === x.nome)
+                const ehVencedor = titularDoGrupo ? titularDoGrupo.id === id : grupoMembrosIds.length >= 2 && vencedorDoGrupo(grupoMembrosIds)?.id === id
                 return (
                   <div key={id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderRadius: 10, background: ehVencedor ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.04)', border: ehVencedor ? '1px solid rgba(99,102,241,0.3)' : '1px solid rgba(255,255,255,0.06)', marginBottom: 6 }}>
                     <div style={{ flex: 1 }}>

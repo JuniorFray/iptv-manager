@@ -1389,6 +1389,25 @@ export default function createWhatsAppRouter(db, admin) {
     res.json({ ok: true, total: LOGINS.length, sucesso, falhas })
   })
 
+  router.post('/grupos/corrigir-senhas-divergentes', async (req, res) => {
+    try {
+      const correcoes = [
+        { grupo: 'GRUPO 2',   usuario: 'q4281r6', senha: '4625y0g' },
+        { grupo: 'GRUPO 015', usuario: '45q29w7', senha: 'mj26245' },
+      ]
+      let total = 0
+      for (const c of correcoes) {
+        const snap = await db.collection('clientes').where('grupoLinha', '==', c.grupo).get()
+        const batch = db.batch()
+        snap.docs.forEach(d => batch.update(d.ref, { senha: c.senha, usuario: c.usuario }))
+        await batch.commit()
+        total += snap.size
+        console.log(`[CORRECAO] ${c.grupo}: corrigido para ${snap.size} membros`)
+      }
+      res.json({ ok: true, total })
+    } catch(e) { res.status(500).json({ ok: false, error: e.message }) }
+  })
+
   router.post('/grupos/setar-titular-g1g2', async (req, res) => {
     try {
       let total = 0

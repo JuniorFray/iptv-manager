@@ -388,11 +388,12 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
             return d.id === clienteId ? { ...data, id: d.id, vencimento } : { ...data, id: d.id }
           })
 
-          // 1. Calcula novo vencedor (maior data após pagamento)
+          // 1. Usa titularNome fixo do Firestore (nunca muda por pagamento)
           const parseV = (v) => { const p = (v||'').split('/'); return p.length===3 ? new Date(Number(p[2]),Number(p[1])-1,Number(p[0])) : new Date(0) }
-          const novoVencedor = membros.reduce((a, b) => parseV(a.vencimento) >= parseV(b.vencimento) ? a : b)
+          const titularFixo = membros.find(m => m.titularNome && m.nome === m.titularNome)
+          const novoVencedor = titularFixo || membros.reduce((a, b) => parseV(a.vencimento) >= parseV(b.vencimento) ? a : b)
 
-          // 2. Se algum membro não-vencedor tem credenciais diferentes do vencedor, atualiza
+          // 2. Se algum membro não-titular tem credenciais diferentes do titular, atualiza
           const membrosDesatualizados = membros.filter(m =>
             m.id !== novoVencedor.id &&
             (m.usuario !== novoVencedor.usuario || m.senha !== novoVencedor.senha)
