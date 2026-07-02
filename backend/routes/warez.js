@@ -294,6 +294,14 @@ export default function createWarezRouter(enviarMensagemRenovacao) {
     } catch (err) { res.status(500).json({ ok: false, error: err.message }) }
   })
 
+  router.post('/painel/linha-patch/:id', async (req, res) => {
+    try {
+      const data = await wpFetch(`/lines/${req.params.id}`, 'PATCH', req.body)
+      console.log(`[Warez] PATCH /lines/${req.params.id} body=${JSON.stringify(req.body)} resp=${JSON.stringify(data)}`)
+      res.json({ ok: true, data })
+    } catch(e) { res.status(500).json({ ok: false, error: e.message }) }
+  })
+
   router.delete('/painel/linha/:id', async (req, res) => {
     try {
       const data = await wpFetch(`/lines/${req.params.id}`, 'DELETE')
