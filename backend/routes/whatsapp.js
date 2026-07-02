@@ -1389,6 +1389,39 @@ export default function createWhatsAppRouter(db, admin) {
     res.json({ ok: true, total: LOGINS.length, sucesso, falhas })
   })
 
+  router.post('/grupos/corrigir-grupo006', async (req, res) => {
+    try {
+      const snap = await db.collection('clientes').where('grupoLinha', '==', 'GRUPO 006').get()
+      const batch = db.batch()
+      let atualizados = 0, msgs = []
+      snap.docs.forEach(d => {
+        const data = d.data()
+        batch.update(d.ref, { usuario: 'p4021n2', senha: '1r637t1', titularNome: 'Guilherme GP' })
+        // Enfileira msg apenas para Bruna e Stefany (não para o Guilherme que já tem o login certo)
+        if (data.nome !== 'Guilherme GP' && data.telefone) {
+          msgs.push({ nome: data.nome, telefone: data.telefone })
+        }
+        atualizados++
+      })
+      await batch.commit()
+      // Enfileira mensagens
+      for (const m of msgs) {
+        await db.collection('filaEnvios').add({
+          clienteId: null, clienteNome: m.nome, telefone: m.telefone,
+          mensagem: `Olá ${m.nome}! 📺 Seus dados de acesso foram atualizados:\n\n👤 Usuário: p4021n2\n🔑 Senha: 1r637t1\n\nAtualize no seu aplicativo. Qualquer dúvida estamos à disposição!`,
+          midiaUrl: null, midiaTipo: null, midiaNome: null, modoEnvio: 'junto',
+          gatilho: 'grupo006-correcao', status: 'pendente', tentativas: 0,
+          maxTentativas: MAX_TENTATIVAS,
+          criadoEm: admin.firestore.FieldValue.serverTimestamp(),
+          proximaTentativa: admin.firestore.Timestamp.now(),
+          enviadoEm: null, erro: null,
+        })
+      }
+      console.log(`[GRUPO006] ${atualizados} membros atualizados, ${msgs.length} msgs enfileiradas`)
+      res.json({ ok: true, atualizados, mensagensEnfileiradas: msgs.length })
+    } catch(e) { res.status(500).json({ ok: false, error: e.message }) }
+  })
+
   router.post('/grupos/corrigir-senhas-divergentes', async (req, res) => {
     try {
       const correcoes = [
