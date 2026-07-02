@@ -1481,14 +1481,13 @@ export default function createWhatsAppRouter(db, admin) {
     let enfileirados = 0, erros = []
     for (const reg of REGISTROS_139_DATA) {
       try {
-        const msg = 'Ola ' + reg.nome + '! Tivemos uma atualizacao emergencial no servidor e seus dados de acesso precisaram ser alterados.
-
-Seus novos dados:
-
- Usuario: ' + reg.novo_usuario + '
- Senha: ' + reg.nova_senha + '
-
-Atualiza no seu app assim que puder. Qualquer duvida e so me chamar!'
+        const NL = String.fromCharCode(10)
+        const msg = 'Ola ' + reg.nome + '! 👋' + NL + NL +
+          'Tivemos uma atualizacao emergencial no servidor e seus dados de acesso precisaram ser alterados.' + NL + NL +
+          'Seus novos dados:' + NL + NL +
+          '\u{1F464} Usuario: ' + reg.novo_usuario + NL +
+          '\uD83D\uDD12 Senha: ' + reg.nova_senha + NL + NL +
+          'Atualiza no seu app assim que puder. Qualquer duvida e so me chamar! \uD83D\uDE0A'
         await db.collection('filaEnvios').add({
           clienteId: null, clienteNome: reg.nome, telefone: reg.telefone,
           mensagem: msg, midiaUrl: null, midiaTipo: null, midiaNome: null,
