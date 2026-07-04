@@ -205,6 +205,7 @@ export default function createPagamentoRouter(db, admin, enviarMensagemRenovacao
           const hoje = new Date()
           // Base sempre no dia do pagamento (cliente compra 30 dias a partir de agora)
           let novoVenc = addMonths(hoje, plano.meses)
+          novoVenc.setHours(0, 0, 0, 0) // zera horas para comparacao correta com vencimentoLinha
 
           const vencLinhaAtual = parseDataBR(cliente.vencimentoLinha || cliente.vencimento) || hoje
 
