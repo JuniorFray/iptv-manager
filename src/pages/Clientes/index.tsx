@@ -661,7 +661,7 @@ export default function Clientes() {
               method: 'POST', headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 clienteId: c.id, clienteNome: c.nome, telefone: c.telefone,
-                mensagem: `Olá ${c.nome}! 📺 Atualizamos os dados de acesso da sua linha:\n\n👤 Usuário: ${vencedor.usuario}\n🔑 Senha: ${vencedor.senha}\n\nPor favor, atualize esses dados no seu aplicativo. Qualquer dúvida estamos à disposição!`,
+                mensagem: `Olá ${c.nome}! 📺 Atualizamos os dados de acesso da sua linha:\n\n👤 Usuário: ${titular.usuario}\n🔑 Senha: ${titular.senha}\n\nPor favor, atualize esses dados no seu aplicativo. Qualquer dúvida estamos à disposição!`,
                 gatilho: 'grupo-novo-acesso',
               })
             })
@@ -669,7 +669,7 @@ export default function Clientes() {
         }
       }
       setModalGrupoAberto(false)
-      mostrarMsgPainel('ok', `✅ ${grupoNome.trim()} salvo! Login: ${vencedor.usuario} / ${vencedor.senha}${grupoEnviarMsg ? ' · Mensagens enfileiradas' : ''}`)
+      mostrarMsgPainel('ok', `✅ ${grupoNome.trim()} salvo! Login: ${titular.usuario} / ${titular.senha}${grupoEnviarMsg ? ' · Mensagens enfileiradas' : ''}`)
     } catch (e: any) { mostrarMsgPainel('erro', '❌ Erro: ' + e.message) }
     finally { setGrupoSalvando(false) }
   }
