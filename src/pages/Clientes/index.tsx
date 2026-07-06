@@ -634,11 +634,16 @@ export default function Clientes() {
     if (!grupoNome.trim() || grupoMembrosIds.length < 2) return
     setGrupoSalvando(true)
     try {
-      const vencedor = vencedorDoGrupo(grupoMembrosIds)
-      const vencimentoLinha = vencedor.vencimento
+      // Se grupo ja existe, usa titular fixo; se novo, usa vencedor por data
+      const membros = grupoMembrosIds.map(id => clientes.find(c => c.id === id)!).filter(Boolean)
+      const titularFixo = grupoEditando
+        ? membros.find(m => m.titularNome && m.titularNome === m.nome) || null
+        : null
+      const titular = titularFixo || vencedorDoGrupo(grupoMembrosIds)
+      const vencimentoLinha = vencedorDoGrupo(grupoMembrosIds).vencimento
       for (const id of grupoMembrosIds) {
-        const upd: any = { grupoLinha: grupoNome.trim(), vencimentoLinha, titularNome: vencedor.nome }
-        if (id !== vencedor.id) { upd.usuario = vencedor.usuario; upd.senha = vencedor.senha }
+        const upd: any = { grupoLinha: grupoNome.trim(), vencimentoLinha, titularNome: titular.nome }
+        if (id !== titular.id) { upd.usuario = titular.usuario; upd.senha = titular.senha }
         await updateDoc(doc(db, 'clientes', id), upd)
       }
       if (grupoEditando) {
@@ -649,7 +654,7 @@ export default function Clientes() {
       if (grupoEnviarMsg) {
         const alterados = grupoMembrosIds
           .map(id => clientes.find(c => c.id === id)!)
-          .filter(c => c && c.id !== vencedor.id)
+          .filter(c => c && c.id !== titular.id && (c.usuario !== titular.usuario || c.senha !== titular.senha))
         for (const c of alterados) {
           try {
             await fetch(`https://iptv-manager-production.up.railway.app/fila/adicionar`, {
