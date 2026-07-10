@@ -708,7 +708,7 @@ export default function Clientes() {
       }
       // Envia msg: se o titular foi substituído (linha teste), avisa TODOS os membros (login mudou pra todos).
       // Caso contrário, avisa apenas quem teve login alterado.
-      if (grupoEnviarMsg) {
+      if (grupoEnviarMsg || grupoLinhaTeste) {
         const destinatarios = grupoLinhaTeste
           ? membros
           : grupoMembrosIds
