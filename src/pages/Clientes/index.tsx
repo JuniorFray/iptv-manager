@@ -71,6 +71,10 @@ export default function Clientes() {
   const [grupoMembrosIds, setGrupoMembrosIds]     = useState<string[]>([])
   const [grupoSalvando, setGrupoSalvando]         = useState(false)
   const [grupoEnviarMsg, setGrupoEnviarMsg]       = useState(true)
+  const [grupoTitularRemovidoAlerta, setGrupoTitularRemovidoAlerta] = useState(false)
+  const [grupoNovoTitularId, setGrupoNovoTitularId]                 = useState<string | null>(null)
+  const [grupoLinhaTeste, setGrupoLinhaTeste]     = useState<{ usuario: string; senha: string; expira: string; id: any } | null>(null)
+  const [grupoCriandoTeste, setGrupoCriandoTeste] = useState(false)
 
   // Warez
   const [sincronizandoWarez, setSincronizandoWarez] = useState(false)
@@ -613,12 +617,14 @@ export default function Clientes() {
   const abrirCriarGrupo = () => {
     setGrupoEditando(null); setGrupoNome(proximoNomeGrupo())
     setGrupoMembrosIds([]); setGrupoMembrosBusca(''); setModalGrupoAberto(true)
+    setGrupoTitularRemovidoAlerta(false); setGrupoNovoTitularId(null); setGrupoLinhaTeste(null)
   }
   const abrirEditarGrupo = (nomeGrupo: string) => {
     const membros = clientes.filter(c => c.grupoLinha === nomeGrupo)
     setGrupoEditando(nomeGrupo); setGrupoNome(nomeGrupo)
     setGrupoMembrosIds(membros.map(c => c.id))
     setGrupoMembrosBusca(''); setModalGrupoAberto(true)
+    setGrupoTitularRemovidoAlerta(false); setGrupoNovoTitularId(null); setGrupoLinhaTeste(null)
   }
   const vencedorDoGrupo = (ids: string[]) => {
     const membros = ids.map(id => clientes.find(c => c.id === id)!).filter(Boolean)
@@ -630,46 +636,99 @@ export default function Clientes() {
       return da >= db2 ? a : b
     })
   }
+  const fecharModalGrupo = () => {
+    setModalGrupoAberto(false)
+    setGrupoTitularRemovidoAlerta(false)
+    setGrupoNovoTitularId(null)
+    setGrupoLinhaTeste(null)
+  }
+
+  const criarLinhaTesteParaNovoTitular = async () => {
+    setGrupoCriandoTeste(true)
+    try {
+      const res = await fetch(`${BACKEND_URL}/painel/criar-teste`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ horas: 4 })
+      })
+      const data = await res.json()
+      if (data.ok) {
+        setGrupoLinhaTeste({ usuario: data.usuario, senha: data.senha, expira: data.expira, id: data.id })
+      } else {
+        mostrarMsgPainel('erro', '❌ Erro ao criar teste: ' + (data.error || 'falha desconhecida'))
+      }
+    } catch (e: any) { mostrarMsgPainel('erro', '❌ Erro ao criar teste: ' + e.message) }
+    finally { setGrupoCriandoTeste(false) }
+  }
+
   const salvarGrupo = async () => {
     if (!grupoNome.trim() || grupoMembrosIds.length < 2) return
+
+    // Detecta remoção do titular: bloqueia o salvamento até a linha teste ser criada/confirmada
+    if (grupoEditando && !grupoLinhaTeste) {
+      const titularOriginal = clientes.find(c => c.grupoLinha === grupoEditando && c.titularNome === c.nome)
+      if (titularOriginal && !grupoMembrosIds.includes(titularOriginal.id)) {
+        const novoTitular = vencedorDoGrupo(grupoMembrosIds)
+        setGrupoNovoTitularId(novoTitular?.id || null)
+        setGrupoTitularRemovidoAlerta(true)
+        return
+      }
+    }
+
     setGrupoSalvando(true)
     try {
-      // Se grupo ja existe, usa titular fixo; se novo, usa vencedor por data
       const membros = grupoMembrosIds.map(id => clientes.find(c => c.id === id)!).filter(Boolean)
-      const titularFixo = grupoEditando
-        ? membros.find(m => m.titularNome && m.titularNome === m.nome) || null
-        : null
-      const titular = titularFixo || vencedorDoGrupo(grupoMembrosIds)
+
+      let titular: Cliente
+      let usuarioFinal: string
+      let senhaFinal: string
+
+      if (grupoLinhaTeste && grupoNovoTitularId) {
+        // Titular foi substituído: usa a linha teste já ativada no painel Warez
+        titular = membros.find(m => m.id === grupoNovoTitularId) || vencedorDoGrupo(grupoMembrosIds)
+        usuarioFinal = grupoLinhaTeste.usuario
+        senhaFinal   = grupoLinhaTeste.senha
+      } else {
+        // Se grupo ja existe, usa titular fixo; se novo, usa vencedor por data
+        const titularFixo = grupoEditando
+          ? membros.find(m => m.titularNome && m.titularNome === m.nome) || null
+          : null
+        titular = titularFixo || vencedorDoGrupo(grupoMembrosIds)
+        usuarioFinal = titular.usuario
+        senhaFinal   = titular.senha
+      }
+
       const vencimentoLinha = vencedorDoGrupo(grupoMembrosIds).vencimento
       for (const id of grupoMembrosIds) {
-        const upd: any = { grupoLinha: grupoNome.trim(), vencimentoLinha, titularNome: titular.nome }
-        if (id !== titular.id) { upd.usuario = titular.usuario; upd.senha = titular.senha }
+        const upd: any = { grupoLinha: grupoNome.trim(), vencimentoLinha, titularNome: titular.nome, usuario: usuarioFinal, senha: senhaFinal }
         await updateDoc(doc(db, 'clientes', id), upd)
       }
       if (grupoEditando) {
         const antigos = clientes.filter(c => c.grupoLinha === grupoEditando && !grupoMembrosIds.includes(c.id))
         for (const c of antigos) await updateDoc(doc(db, 'clientes', c.id), { grupoLinha: '', vencimentoLinha: '' })
       }
-      // Envia msg para quem teve login alterado
+      // Envia msg: se o titular foi substituído (linha teste), avisa TODOS os membros (login mudou pra todos).
+      // Caso contrário, avisa apenas quem teve login alterado.
       if (grupoEnviarMsg) {
-        const alterados = grupoMembrosIds
-          .map(id => clientes.find(c => c.id === id)!)
-          .filter(c => c && c.id !== titular.id && (c.usuario !== titular.usuario || c.senha !== titular.senha))
-        for (const c of alterados) {
+        const destinatarios = grupoLinhaTeste
+          ? membros
+          : grupoMembrosIds
+              .map(id => clientes.find(c => c.id === id)!)
+              .filter(c => c && c.id !== titular.id && (c.usuario !== usuarioFinal || c.senha !== senhaFinal))
+        for (const c of destinatarios) {
           try {
             await fetch(`https://iptv-manager-production.up.railway.app/fila/adicionar`, {
               method: 'POST', headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 clienteId: c.id, clienteNome: c.nome, telefone: c.telefone,
-                mensagem: `Olá ${c.nome}! 📺 Atualizamos os dados de acesso da sua linha:\n\n👤 Usuário: ${titular.usuario}\n🔑 Senha: ${titular.senha}\n\nPor favor, atualize esses dados no seu aplicativo. Qualquer dúvida estamos à disposição!`,
+                mensagem: `Olá ${c.nome}! 📺 Atualizamos os dados de acesso da sua linha:\n\n👤 Usuário: ${usuarioFinal}\n🔑 Senha: ${senhaFinal}\n\nPor favor, atualize esses dados no seu aplicativo. Qualquer dúvida estamos à disposição!`,
                 gatilho: 'grupo-novo-acesso',
               })
             })
           } catch {}
         }
       }
-      setModalGrupoAberto(false)
-      mostrarMsgPainel('ok', `✅ ${grupoNome.trim()} salvo! Login: ${titular.usuario} / ${titular.senha}${grupoEnviarMsg ? ' · Mensagens enfileiradas' : ''}`)
+      fecharModalGrupo()
+      mostrarMsgPainel('ok', `✅ ${grupoNome.trim()} salvo! Login: ${usuarioFinal} / ${senhaFinal}${grupoEnviarMsg ? ' · Mensagens enfileiradas' : ''}`)
     } catch (e: any) { mostrarMsgPainel('erro', '❌ Erro: ' + e.message) }
     finally { setGrupoSalvando(false) }
   }
@@ -1186,14 +1245,14 @@ export default function Clientes() {
       {/* Modal Criar/Editar Grupo */}
       {modalGrupoAberto && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}
-          onClick={() => setModalGrupoAberto(false)}>
+          onClick={fecharModalGrupo}>
           <div style={{ background: '#1a1a2e', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 20, padding: 28, width: '100%', maxWidth: 560, maxHeight: '85vh', overflowY: 'auto' }}
             onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
               <h2 style={{ color: 'white', margin: 0, fontSize: 18, display: 'flex', alignItems: 'center', gap: 10 }}>
                 <Users size={20} color="#a5b4fc" /> {grupoEditando ? 'Editar Grupo' : 'Criar Grupo'}
               </h2>
-              <button onClick={() => setModalGrupoAberto(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.5)', fontSize: 22 }}>✕</button>
+              <button onClick={fecharModalGrupo} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.5)', fontSize: 22 }}>✕</button>
             </div>
             <div style={{ marginBottom: 16 }}>
               <label style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12, display: 'block', marginBottom: 6 }}>NOME DO GRUPO</label>
@@ -1214,14 +1273,16 @@ export default function Clientes() {
                       {ehVencedor && <span style={{ marginLeft: 8, fontSize: 10, color: '#a5b4fc', background: 'rgba(99,102,241,0.2)', padding: '1px 6px', borderRadius: 99 }}>🔑 titular da linha</span>}
                       <span style={{ display: 'block', color: 'rgba(255,255,255,0.4)', fontSize: 11 }}>{c.tipo} · venc: {c.vencimento} · {c.usuario}</span>
                     </div>
-                    <button onClick={() => setGrupoMembrosIds(prev => prev.filter(i => i !== id))}
-                      style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171', borderRadius: 8, padding: '4px 10px', cursor: 'pointer', fontSize: 12 }}>
-                      Remover
-                    </button>
+                    {!grupoTitularRemovidoAlerta && (
+                      <button onClick={() => setGrupoMembrosIds(prev => prev.filter(i => i !== id))}
+                        style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171', borderRadius: 8, padding: '4px 10px', cursor: 'pointer', fontSize: 12 }}>
+                        Remover
+                      </button>
+                    )}
                   </div>
                 )
               })}
-              {grupoMembrosIds.length < 3 && (
+              {grupoMembrosIds.length < 3 && !grupoTitularRemovidoAlerta && (
                 <div style={{ marginTop: 8 }}>
                   <input value={grupoMembrosBusca} onChange={e => setGrupoMembrosBusca(e.target.value)}
                     placeholder="Buscar cliente Warez para adicionar..."
@@ -1259,12 +1320,49 @@ export default function Clientes() {
                 Enviar mensagem de novo acesso para os membros que tiveram login alterado
               </label>
             </div>
+            {grupoTitularRemovidoAlerta && (() => {
+              const novoTitular = clientes.find(c => c.id === grupoNovoTitularId)
+              return (
+                <div style={{ padding: 14, borderRadius: 10, background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.35)', marginBottom: 16 }}>
+                  <p style={{ color: '#fbbf24', margin: '0 0 8px', fontWeight: 700, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <AlertTriangle size={14} /> Titular removido do grupo
+                  </p>
+                  <p style={{ color: 'rgba(255,255,255,0.7)', margin: '0 0 10px', fontSize: 12 }}>
+                    O titular anterior saiu do grupo. Novo titular sugerido (maior vencimento): <strong style={{ color: 'white' }}>{novoTitular?.nome || '—'}</strong>.
+                    {' '}É necessário criar uma linha teste na Warez, ativá-la no painel Warez e confirmar para prosseguir.
+                  </p>
+                  {!grupoLinhaTeste ? (
+                    <button onClick={criarLinhaTesteParaNovoTitular} disabled={grupoCriandoTeste}
+                      style={{ width: '100%', padding: 10, borderRadius: 8, border: 'none', cursor: grupoCriandoTeste ? 'not-allowed' : 'pointer', background: 'linear-gradient(135deg,#f59e0b,#d97706)', color: 'white', fontWeight: 700, fontSize: 13, opacity: grupoCriandoTeste ? 0.6 : 1 }}>
+                      {grupoCriandoTeste ? 'Criando linha teste...' : '🧪 Criar linha teste Warez'}
+                    </button>
+                  ) : (
+                    <div>
+                      <div style={{ background: 'rgba(0,0,0,0.25)', borderRadius: 8, padding: '10px 12px', marginBottom: 10, fontSize: 12 }}>
+                        <p style={{ color: 'rgba(255,255,255,0.6)', margin: '0 0 2px' }}>👤 Usuário: <strong style={{ color: 'white' }}>{grupoLinhaTeste.usuario}</strong></p>
+                        <p style={{ color: 'rgba(255,255,255,0.6)', margin: '0 0 2px' }}>🔑 Senha: <strong style={{ color: 'white' }}>{grupoLinhaTeste.senha}</strong></p>
+                        <p style={{ color: 'rgba(255,255,255,0.6)', margin: 0 }}>⏱️ Expira: <strong style={{ color: 'white' }}>{grupoLinhaTeste.expira ? new Date(grupoLinhaTeste.expira).toLocaleString('pt-BR') : ''}</strong></p>
+                      </div>
+                      <p style={{ color: 'rgba(255,255,255,0.5)', margin: '0 0 10px', fontSize: 11 }}>
+                        Ative este teste no painel Warez e depois confirme abaixo.
+                      </p>
+                      <button onClick={salvarGrupo} disabled={grupoSalvando}
+                        style={{ width: '100%', padding: 10, borderRadius: 8, border: 'none', cursor: grupoSalvando ? 'not-allowed' : 'pointer', background: 'linear-gradient(135deg,#22c55e,#16a34a)', color: 'white', fontWeight: 700, fontSize: 13, opacity: grupoSalvando ? 0.6 : 1 }}>
+                        {grupoSalvando ? 'Salvando...' : '✅ Confirmar novo titular e salvar'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
             <div style={{ display: 'flex', gap: 10 }}>
-              <button onClick={() => setModalGrupoAberto(false)} style={{ flex: 1, padding: 12, borderRadius: 10, border: '1px solid rgba(255,255,255,0.12)', background: 'transparent', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontWeight: 600, fontSize: 14 }}>Cancelar</button>
-              <button onClick={salvarGrupo} disabled={grupoSalvando || grupoMembrosIds.length < 2 || !grupoNome.trim()}
-                style={{ flex: 2, padding: 12, borderRadius: 10, border: 'none', background: grupoSalvando || grupoMembrosIds.length < 2 ? 'rgba(255,255,255,0.08)' : 'linear-gradient(135deg,#6366f1,#8b5cf6)', color: grupoSalvando || grupoMembrosIds.length < 2 ? 'rgba(255,255,255,0.3)' : 'white', cursor: grupoSalvando || grupoMembrosIds.length < 2 ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: 14 }}>
-                {grupoSalvando ? 'Salvando...' : grupoEditando ? '✓ Salvar Alterações' : '✓ Criar Grupo'}
-              </button>
+              <button onClick={fecharModalGrupo} style={{ flex: 1, padding: 12, borderRadius: 10, border: '1px solid rgba(255,255,255,0.12)', background: 'transparent', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontWeight: 600, fontSize: 14 }}>Cancelar</button>
+              {!grupoTitularRemovidoAlerta && (
+                <button onClick={salvarGrupo} disabled={grupoSalvando || grupoMembrosIds.length < 2 || !grupoNome.trim()}
+                  style={{ flex: 2, padding: 12, borderRadius: 10, border: 'none', background: grupoSalvando || grupoMembrosIds.length < 2 ? 'rgba(255,255,255,0.08)' : 'linear-gradient(135deg,#6366f1,#8b5cf6)', color: grupoSalvando || grupoMembrosIds.length < 2 ? 'rgba(255,255,255,0.3)' : 'white', cursor: grupoSalvando || grupoMembrosIds.length < 2 ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: 14 }}>
+                  {grupoSalvando ? 'Salvando...' : grupoEditando ? '✓ Salvar Alterações' : '✓ Criar Grupo'}
+                </button>
+              )}
             </div>
           </div>
         </div>
