@@ -572,7 +572,7 @@ export default function Clientes() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id:       buscarCentral.id,
-          meses:    periodoRenovar,
+          meses:    periodoRenovar / 30, // periodoRenovar vem em DIAS (30/60/90/180) pro Central; converte pra meses
           system:   buscarCentral.system ?? 1,
           nome:     clienteParaRenovar.nome,
           telefone: clienteParaRenovar.telefone,
